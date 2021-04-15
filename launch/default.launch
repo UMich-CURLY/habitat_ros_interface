@@ -5,7 +5,9 @@
     <master auto="start"/>
 
     <!-- Run the map server -->
-    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_path)"/>
+    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_path)">
+    	<param name="frame_id" value="map" />
+    </node>
 
 
 	<node pkg="habitat_interface" type="depth_ros.py" name="depth_ros" >
@@ -51,6 +53,7 @@
 
 
 	<node pkg="tf" type="static_transform_publisher" name="base_frame_to_laser" args="0.0 0.0 0.0 0.0 0.0 0.0 /base_frame /laser 1" />
+	<node pkg="tf" type="static_transform_publisher" name="map_to_base_frame" args="0.0 0.0 0.0 0.0 0.0 0.0 map /base_frame 1" />
 	
 
 
