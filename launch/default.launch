@@ -32,8 +32,8 @@
 	<!-- <node pkg="image_view" type="image_view" name="image_view">
 		<remap from="image" to="ros_img_rgb"/>
 	</node> -->
-	<node pkg="rqt_graph" type="rqt_graph" name="rqt_graph"/>
-	<node pkg="rqt_tf_tree" type="rqt_tf_tree" name="rqt_tf_tree"/>
+	<!-- <node pkg="rqt_graph" type="rqt_graph" name="rqt_graph"/>
+	<node pkg="rqt_tf_tree" type="rqt_tf_tree" name="rqt_tf_tree"/> -->
 
 	<node pkg="depthimage_to_laserscan" type="depthimage_to_laserscan" name="depthimage_to_laserscan">
 		<remap from="image" to="ros_img_depth"/>
@@ -54,7 +54,7 @@
 
 	<node pkg="tf" type="static_transform_publisher" name="base_frame_to_laser" args="0.0 0.0 0.0 0.0 0.0 0.0 /base_frame /laser 1" />
 	<node pkg="tf" type="static_transform_publisher" name="map_to_base_frame" args="0.0 0.0 0.0 0.0 0.0 0.0 map /base_frame 1" />
-	
-
+	<node pkg="tf" type="static_transform_publisher" name="map_to_world_frame" args="0.0 0.48977 0.0 0.0 0.0 3.1415 map world 1" />
+	<!-- <node pkg="tf" type="static_transform_publisher" name="newworld_to_world_frame" args="0.0 -16.5572 0.0 0.0 0.0 3.1415 new_world world 1" /> -->
 
 </launch>
