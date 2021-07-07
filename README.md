@@ -28,7 +28,7 @@ Slide deck for demo purposes: https://1drv.ms/p/s!AhI7FLXI6kP7hfA3lsetrnm2y0Uq9g
 1. Clone this repository in the catkin/src folder
 2. Create a conda environment with the environment.yaml file from this repository. It has the ros noetic installed with some other packages needed for the habitat lab environment to build properly
 3. Activate the conda environment
-4. Clone the habitat_lab repository (In the lab git) inside this folder 
+4. Clone the habitat_lab repository (https://github.com/UMich-CURLY/habitat_lab.git) inside this folder 
 5. cd habitat_lab
 6. build the habitat_lab binaries using: python setup.py develop --all
 7. Now we need habitat-sim to be installed inside the conda environment. Use the following statement to do that:   conda install habitat-sim -c conda-forge -c aihabitat-nightly
