@@ -24,6 +24,22 @@ Slide deck for demo purposes: https://1drv.ms/p/s!AhI7FLXI6kP7hfA3lsetrnm2y0Uq9g
 
 ![implementation](images/implementation.png)
 
+## Using Conda Installation in ROS NOetic
+1. Clone this repository in the catkin/src folder
+2. Create a conda environment with the environment.yaml file from this repository. It has the ros noetic installed with some other packages needed for the habitat lab environment to build properly
+3. Activate the conda environment
+4. Clone the habitat_lab repository (In the lab git) inside this folder 
+5. cd habitat_lab
+6. build the habitat_lab binaries using: python setup.py develop --all
+7. Now we need habitat-sim to be installed inside the conda environment. Use the following statement to do that:   conda install habitat-sim -c conda-forge -c aihabitat-nightly
+
+Now let stry running our code:
+1. cd catkin/src folder and do a catkin clean, followed by building the habitat_interface package 
+2. roslaunch habitat_interface default.launch
+3. In another terminal, cd habitat_lab; python scripts/interface.py
+4. In a different terminal run Rviz (I'll add a default rviz sepcification in a bit) 
+5. Click on a point in the map to start the tour planning and navigation! 
+
 
 ## Dependencies (Tested on Ubuntu 16.04 using ROS kinetic)
 
