@@ -40,6 +40,7 @@ Now let stry running our code:
 4. In a different terminal run Rviz (I'll add a default rviz sepcification in a bit) 
 5. Click on a point in the map to start the tour planning and navigation! 
 
+# Ignore everything, this point onwards !!!!!
 
 ## Dependencies (Tested on Ubuntu 16.04 using ROS kinetic)
 
