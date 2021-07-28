@@ -11,17 +11,27 @@
 
 
 	<node pkg="habitat_interface" type="depth_ros.py" name="depth_ros" >
-		<remap from="depth" to="habitat/depth"/>
+		<remap from="depth_1" to="robot_1/depth"/>
+		<remap from="depth_2" to="robot_2/depth"/>
+		<remap from="depth_3" to="robot_3/depth"/>
 	</node>
 	
 	
 	<node pkg="habitat_interface" type="rgb_ros.py" name="rgb_ros">
-		<remap from="rgb" to="habitat/rgb"/>
+		<remap from="rgb_1" to="robot_1/rgb"/>
+		<remap from="rgb_2" to="robot_2/rgb"/>
+		<remap from="rgb_3" to="robot_3/rgb"/>
 	</node>
 
-	<node pkg="habitat_interface" type="bc_sensor_ros.py" name="bc_sensor_ros">
+<!-- 	<node pkg="habitat_interface" type="bc_sensor_ros.py" name="bc_sensor_ros">
 		<remap from="rgb" to="habitat/bc_sensor"/>
+	</node> -->
+
+	<!-- <node pkg="habitat_interface" type="$(find habitat_interface)/habitat_lab/scripts/interface.py" name="robot_1">
 	</node>
+
+	<node pkg="habitat_interface" type="$(find habitat_interface)/habitat_lab/scripts/copy_interface.py" name="robot_2">
+	</node> -->
 
 	<!-- <node pkg="joy" type="joy_node" name="joy_node">
 		<param name="autorepeat_rate " value="20" />

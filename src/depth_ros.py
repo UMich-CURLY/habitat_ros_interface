@@ -14,11 +14,15 @@ import numpy as np
 DEPTH_IMG_WIDTH = 720
 DEPTH_IMG_HEIGHT = 720
 
-pub = rospy.Publisher("ros_img_depth", Image, queue_size=10)
-camera_info_pub = rospy.Publisher("camera_info_topic", CameraInfo, queue_size=0)
+pub_1 = rospy.Publisher("robot_1_depth", Image, queue_size=10)
+camera_info_pub_1 = rospy.Publisher("robot_1_camera_info_topic", CameraInfo, queue_size=0)
+pub_2 = rospy.Publisher("robot_2_depth", Image, queue_size=10)
+camera_info_pub_2 = rospy.Publisher("robot_2_camera_info_topic", CameraInfo, queue_size=0)
+pub_3 = rospy.Publisher("robot_3_depth", Image, queue_size=10)
+camera_info_pub_3 = rospy.Publisher("robot_3_camera_info_topic", CameraInfo, queue_size=0)
 
 
-def callback(data):
+def callback_1(data):
     print(rospy.get_name(), "I heard %s" % str(data.data))
 
     img_raveled = data.data[0:-2]
@@ -33,7 +37,7 @@ def callback(data):
     h.stamp = rospy.Time.now()
     image_message = CvBridge().cv2_to_imgmsg(img, encoding="passthrough")
     image_message.header = h
-    pub.publish(image_message)
+    pub_1.publish(image_message)
 
     camera_info_msg = CameraInfo()
     camera_info_msg.header = h
@@ -49,12 +53,80 @@ def callback(data):
 
     camera_info_msg.P = [fx, 0, cx, 0, 0, fy, cy, 0, 0, 0, 1, 0]
 
-    camera_info_pub.publish(camera_info_msg)
+    camera_info_pub_1.publish(camera_info_msg)
+
+def callback_2(data):
+    print(rospy.get_name(), "I heard %s" % str(data.data))
+
+    img_raveled = data.data[0:-2]
+    img_size = data.data[-2:].astype(int)
+
+    img = np.float32(np.reshape(img_raveled, (img_size[0], img_size[1])))
+
+
+    #img = np.float32((np.reshape(data.data, (DEPTH_IMG_WIDTH, DEPTH_IMG_HEIGHT))))
+
+    h = std_msgs.msg.Header()
+    h.stamp = rospy.Time.now()
+    image_message = CvBridge().cv2_to_imgmsg(img, encoding="passthrough")
+    image_message.header = h
+    pub_2.publish(image_message)
+
+    camera_info_msg = CameraInfo()
+    camera_info_msg.header = h
+    fx, fy = DEPTH_IMG_WIDTH / 2, DEPTH_IMG_HEIGHT / 2
+    cx, cy = DEPTH_IMG_WIDTH/2, DEPTH_IMG_HEIGHT/2
+
+    camera_info_msg.width = DEPTH_IMG_WIDTH
+    camera_info_msg.height = DEPTH_IMG_HEIGHT
+    camera_info_msg.distortion_model = "plumb_bob"
+    camera_info_msg.K = np.float32([fx, 0, cx, 0, fy, cy, 0, 0, 1])
+
+    camera_info_msg.D = np.float32([0, 0, 0, 0, 0])
+
+    camera_info_msg.P = [fx, 0, cx, 0, 0, fy, cy, 0, 0, 0, 1, 0]
+
+    camera_info_pub_2.publish(camera_info_msg)
+
+def callback_3(data):
+    print(rospy.get_name(), "I heard %s" % str(data.data))
+
+    img_raveled = data.data[0:-2]
+    img_size = data.data[-2:].astype(int)
+
+    img = np.float32(np.reshape(img_raveled, (img_size[0], img_size[1])))
+
+
+    #img = np.float32((np.reshape(data.data, (DEPTH_IMG_WIDTH, DEPTH_IMG_HEIGHT))))
+
+    h = std_msgs.msg.Header()
+    h.stamp = rospy.Time.now()
+    image_message = CvBridge().cv2_to_imgmsg(img, encoding="passthrough")
+    image_message.header = h
+    pub_3.publish(image_message)
+
+    camera_info_msg = CameraInfo()
+    camera_info_msg.header = h
+    fx, fy = DEPTH_IMG_WIDTH / 2, DEPTH_IMG_HEIGHT / 2
+    cx, cy = DEPTH_IMG_WIDTH/2, DEPTH_IMG_HEIGHT/2
+
+    camera_info_msg.width = DEPTH_IMG_WIDTH
+    camera_info_msg.height = DEPTH_IMG_HEIGHT
+    camera_info_msg.distortion_model = "plumb_bob"
+    camera_info_msg.K = np.float32([fx, 0, cx, 0, fy, cy, 0, 0, 1])
+
+    camera_info_msg.D = np.float32([0, 0, 0, 0, 0])
+
+    camera_info_msg.P = [fx, 0, cx, 0, 0, fy, cy, 0, 0, 0, 1, 0]
+
+    camera_info_pub_3.publish(camera_info_msg)
 
 
 def listener():
     rospy.init_node("gray2ros_depth")
-    rospy.Subscriber("depth", numpy_msg(Floats), callback)
+    rospy.Subscriber("robot_1/depth", numpy_msg(Floats), callback_1)
+    rospy.Subscriber("robot_2/depth", numpy_msg(Floats), callback_2)
+    rospy.Subscriber("robot_3/depth", numpy_msg(Floats), callback_3)
     rospy.spin()
 
 
