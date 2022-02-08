@@ -60,7 +60,7 @@
 		<param name="fixed_frame" value="odom"/>
 
 	</node> -->
-	<node type="rviz" name="rviz" pkg="rviz" args="-d $(find package_name)/rviz_config.rviz" />
+	<node type="rviz" name="rviz" pkg="rviz" args="-d $(find habitat_interface)/rviz_config.rviz" />
 
 	<node pkg="tf" type="static_transform_publisher" name="base_frame_to_laser" args="0.0 0.0 0.0 0.0 0.0 0.0 /base_frame /laser 1" />
 	<node pkg="tf" type="static_transform_publisher" name="map_to_base_frame" args="0.0 0.0 0.0 0.0 0.0 0.0 map /base_frame 1" />
