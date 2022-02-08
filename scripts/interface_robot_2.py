@@ -5,14 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import rospy
-from rospy.numpy_msg import numpy_msg
-from rospy_tutorials.msg import Floats
-from geometry_msgs.msg import Twist
-from geometry_msgs.msg import PointStamped, PoseStamped
-import threading
-import sys
-import tf
+
 from habitat.utils.geometry_utils import quaternion_rotate_vector
 from habitat.tasks.utils import cartesian_to_polar
 # sys.path = [
@@ -26,6 +19,15 @@ import numpy as np
 import time
 import random
 # import cv2
+import sys
+sys.path.append("/opt/conda/envs/robostackenv/lib/python3.9/site-packages")
+import rospy
+from rospy.numpy_msg import numpy_msg
+from rospy_tutorials.msg import Floats
+from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PointStamped, PoseStamped
+import threading
+import tf
 from tour_planner_dropped import tour_planner
 
 lock = threading.Lock()
