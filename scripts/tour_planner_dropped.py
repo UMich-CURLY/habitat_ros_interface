@@ -19,9 +19,9 @@ from ortools.constraint_solver import pywrapcp
 # function to display the topdown map
 from PIL import Image
 import sys
-sys.path.insert(1, './matching_routing/')
+sys.path.insert(1, '/home/matching_routing/')
 from MatchRouteWrapper import MatchRouteWrapper
-# from ResultVisualizer import ResultVisualizer
+from ResultVisualizer import ResultVisualizer
 import helper
 
 
