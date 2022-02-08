@@ -19,6 +19,7 @@ import numpy as np
 import time
 import random
 # import cv2
+import sys
 sys.path.append("/opt/conda/envs/robostackenv/lib/python3.9/site-packages")
 import rospy
 from rospy.numpy_msg import numpy_msg
@@ -26,7 +27,6 @@ from rospy_tutorials.msg import Floats
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import PointStamped, PoseStamped
 import threading
-import sys
 import tf
 from tour_planner_dropped import tour_planner
 
