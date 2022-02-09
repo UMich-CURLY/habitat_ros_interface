@@ -12,15 +12,11 @@
 
 	<node pkg="habitat_interface" type="depth_ros.py" name="depth_ros" >
 		<remap from="depth_1" to="robot_1/depth"/>
-		<remap from="depth_2" to="robot_2/depth"/>
-		<remap from="depth_3" to="robot_3/depth"/>
 	</node>
 	
 	
 	<node pkg="habitat_interface" type="rgb_ros.py" name="rgb_ros">
 		<remap from="rgb_1" to="robot_1/rgb"/>
-		<remap from="rgb_2" to="robot_2/rgb"/>
-		<remap from="rgb_3" to="robot_3/rgb"/>
 	</node>
 
 <!-- 	<node pkg="habitat_interface" type="bc_sensor_ros.py" name="bc_sensor_ros">
