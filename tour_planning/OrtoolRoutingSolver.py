@@ -254,10 +254,10 @@ class OrtoolRoutingSolver:
             solution = self.sub_solution
             solver = self.sub_solver
             manager = self.sub_manager
-            index = solver.Start()
+            index = solver.Start(0)
             time_dimension = solver.GetDimensionOrDie('Time')
         else:
-            index = solver.Start()
+            index = solver.Start(0)
         while not solver.IsEnd(index):
             time_var = time_dimension.CumulVar(index)
             node_id = manager.IndexToNode(index)
