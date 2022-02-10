@@ -44,7 +44,8 @@ class OrtoolRoutingSolver:
         self.sub_manager.append(a_sub_manager)
         self.sub_solver.append(a_sub_solver)
         self.sub_solution.append(None)
-
+        print ("For tribhi !!!")
+        print (human_demand_bool)
         for i in range(place_num):
             penalty_mat[i] = (human_demand_bool[:, i]).sum()
         # print('penalty_mat = ', penalty_mat)
