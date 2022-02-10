@@ -263,7 +263,6 @@ class OrtoolRoutingSolver:
             node_id = manager.IndexToNode(index)
             temp_min_time = solution.Min(time_var)
             temp_max_time = solution.Max(time_var)
-            plan_output += '{0} Time({1},{2}) -> '.format(node_id, temp_min_time, temp_max_time)
             index = solution.Value(solver.NextVar(index))
             route_node.append(node_id)
             route_time.append(temp_min_time)
@@ -271,8 +270,6 @@ class OrtoolRoutingSolver:
         node_id = manager.IndexToNode(index)
         temp_min_time = solution.Min(time_var)
         temp_max_time = solution.Max(time_var)
-        plan_output += '{0} Time({1},{2})\n'.format(node_id, temp_min_time, temp_max_time)
-        plan_output += 'Time of the route: {}min\n'.format(temp_min_time)
         if temp_min_time > total_max_time:
             total_max_time = temp_min_time
         route_node.append(node_id)
@@ -281,7 +278,6 @@ class OrtoolRoutingSolver:
         route_time_list.append(route_time)
 
         if flag_verbose:
-            print(plan_output)
             print('time_var = ', temp_min_time)
         if flag_verbose:
             print('Max time of all routes: {}min'.format(total_max_time))
