@@ -6,9 +6,8 @@ from ResultEvaluator import ResultEvaluator
 from GurobiRoutingSolver import GurobiRoutingSolver
 
 class MatchRouteWrapper:
-    def __init__(self, veh_num, node_num, human_choice, human_num, max_human_in_team, demand_penalty, time_penalty, time_limit, solver_time_limit, beta, flag_verbose = True):
+    def __init__(self, node_num, human_choice, human_num, demand_penalty, time_penalty, time_limit, solver_time_limit, beta, flag_verbose = True):
         '''
-        veh_num:            int, the agent number
         node_num:           int, the number of nodes,
                             it is assumed that 0 to node_num - 3 are point of interests,
                             node_num - 2 is the start,
@@ -21,12 +20,10 @@ class MatchRouteWrapper:
         time_penalty:       float, defalt 1.0
         time_limit:         float, default 500
         '''
-        self.veh_num = veh_num                              # The number of agents (robots/vehicles/guides)
         self.node_num = node_num                            # The number of nodes (places of interest + 2). The "2" is due to a start and terminal node
         self.place_num = node_num - 2                       # The number of places of interest (POI)
         self.human_choice = human_choice                    # The maximum number of POIs that a human can request to visit
         self.human_num = human_num                          # The number of humans
-        self.max_human_in_team = max_human_in_team + 0      # The maximum number of humans that a robot can guide
         self.demand_penalty = demand_penalty                # The penalty on dropping a human requested POI
         self.time_penalty = time_penalty                    # The penalty on the total time consumption of the tours
         self.time_limit = time_limit                        # The time limit on the tours
@@ -36,7 +33,7 @@ class MatchRouteWrapper:
         self.flag_initialize = 0                            # 0 means initialize the routes for the vehicles by solving a routing problem
                                                             # 1 means initialize the routes randomly
 
-        self.evaluator = ResultEvaluator(veh_num, node_num, human_num, demand_penalty, time_penalty)
+        self.evaluator = ResultEvaluator(node_num, human_num, demand_penalty, time_penalty)
 
 
     def initialize_human_demand(self, human_demand_int = None):
@@ -97,9 +94,9 @@ class MatchRouteWrapper:
         start_time = time.time()
         if flag_solver == 1:
             # Heuristic solver using Ortool
-            route_list, route_time_list, team_list, y_sol = self.initialize_plan(edge_time, node_time, flag_initialize)
-            flag_success, route_list, route_time_list, team_list, human_in_team, y_sol, z_sol, sum_obj_list, demand_obj_list, result_max_time_list = self.generate_plan(edge_time, node_time, human_demand_bool, route_list, y_sol, node_seq, max_iter)
-            sum_obj, demand_obj, result_sum_time, node_visit, obj_dict = self.evaluator.objective_fcn(edge_time, node_time, route_list, z_sol, y_sol, human_demand_bool, flag_dict, self.beta, edge_time_std, node_time_std)
+            route_list, route_time_list, y_sol = self.initialize_plan(edge_time, node_time, flag_initialize)
+            flag_success, route_list, route_time_list, y_sol, sum_obj_list, demand_obj_list, result_max_time_list = self.generate_plan(edge_time, node_time, human_demand_bool, route_list, y_sol, node_seq, max_iter)
+            sum_obj, demand_obj, result_sum_time, node_visit, obj_dict = self.evaluator.objective_fcn(edge_time, node_time, route_list, y_sol, human_demand_bool, flag_dict, self.beta, edge_time_std, node_time_std)
         else:
             # Exact solver using GUROBI
             routing_solver = GurobiRoutingSolver(self.veh_num, self.node_num, self.human_num, self.demand_penalty, self.time_penalty, self.time_limit, self.solver_time_limit, self.beta)
@@ -107,7 +104,7 @@ class MatchRouteWrapper:
             routing_solver.set_bilinear_model(edge_time, node_time, edge_time_std, node_time_std, human_demand_bool, self.max_human_in_team, node_seq)
             flag_success, temp_result_dict = routing_solver.optimize()
             route_list, route_time_list, team_list, y_sol, human_in_team, z_sol = routing_solver.get_plan(True)
-            sum_obj, demand_obj, result_sum_time, node_visit, obj_dict = self.evaluator.objective_fcn(edge_time, node_time, route_list, z_sol, y_sol, human_demand_bool, flag_dict, self.beta, edge_time_std, node_time_std)
+            sum_obj, demand_obj, result_sum_time, node_visit, obj_dict = self.evaluator.objective_fcn(edge_time, node_time, route_list, y_sol, human_demand_bool, flag_dict, self.beta, edge_time_std, node_time_std)
             # Partially construct the result dictionary
             sum_obj_list = np.ones(2*max_iter, dtype=np.float64) * sum_obj
             demand_obj_list = np.ones(2*max_iter, dtype=np.float64) * demand_obj
@@ -166,15 +163,15 @@ class MatchRouteWrapper:
         y_sol:              bool array of (veh_num, node_num-2), y_sol[k, i] means whether a vehicle visits node i
         '''
         # Initialize an routing plan
-        routing_solver = OrtoolRoutingSolver(self.veh_num, self.node_num, self.human_num, self.demand_penalty, self.time_penalty, self.time_limit, self.solver_time_limit)
+        routing_solver = OrtoolRoutingSolver(self.node_num, self.human_num, self.demand_penalty, self.time_penalty, self.time_limit, self.solver_time_limit)
         self.flag_initialize = flag_initialize
         if flag_initialize == 0:
             routing_solver.set_model(edge_time, node_time)
             routing_solver.optimize(self.flag_verbose)
-            route_list, route_time_list, team_list, y_sol = routing_solver.get_plan()
+            route_list, route_time_list, y_sol = routing_solver.get_plan()
         else:
-            route_list, route_time_list, team_list, y_sol = routing_solver.get_random_plan(edge_time, node_time)
-        return route_list, route_time_list, team_list, y_sol
+            route_list, route_time_list, y_sol = routing_solver.get_random_plan(edge_time, node_time)
+        return route_list, route_time_list, y_sol
 
 
     def generate_plan(self, edge_time, node_time, human_demand_bool, route_list_initial, y_sol_inital, node_seq = None, max_iter = 10):
@@ -215,24 +212,18 @@ class MatchRouteWrapper:
         result_max_time_list = np.empty(2*max_iter, dtype=np.float64)
 
         # Initialize the solvers for the routing and matching problems
-        routing_solver = OrtoolRoutingSolver(self.veh_num, self.node_num, self.human_num, self.demand_penalty, self.time_penalty, self.time_limit, self.solver_time_limit)
-        human_matcher = OrtoolHumanMatcher(self.human_num, self.veh_num, self.max_human_in_team)
+        routing_solver = OrtoolRoutingSolver(self.node_num, self.human_num, self.demand_penalty, self.time_penalty, self.time_limit, self.solver_time_limit)
 
         # Set the intial value
         y_sol = y_sol_inital + 0
-        z_sol = None
         if self.flag_verbose:
             # Print the intial objective function value
-            sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, z_sol, y_sol, human_demand_bool)
+            sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, y_sol, human_demand_bool)
             print('sum_obj = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
         # Start iterating
         for i_iter in range(max_iter):
-            # Solve the matching problem
-            temp_flag_success, human_in_team, z_sol, demand_result = human_matcher.optimize(human_demand_bool, y_sol)
-            if not temp_flag_success:
-                break
             # Store intermediate results
-            sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, z_sol, y_sol, human_demand_bool)
+            sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, y_sol, human_demand_bool)
             if self.flag_verbose:
                 print('sum_obj1 = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f ... (1)' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
             sum_obj_list[2*i_iter] = sum_obj
@@ -243,13 +234,13 @@ class MatchRouteWrapper:
                 # if flag_initialize != 0, it means there is no initial routes, therefore, set to None
                 route_list = None
             # Optimize the routing problem
-            temp_flag_success, result_dict = routing_solver.optimize_sub(edge_time, node_time, z_sol, human_demand_bool, node_seq, route_list)
+            temp_flag_success, result_dict = routing_solver.optimize_sub(edge_time, node_time, human_demand_bool, node_seq, route_list)
             if not temp_flag_success:
                 break
-            route_list, route_time_list, team_list, y_sol = routing_solver.get_plan(flag_sub_solver=True)
+            route_list, route_time_list, y_sol = routing_solver.get_plan(flag_sub_solver=True)
 
             # Store intermediate results
-            sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, z_sol, y_sol, human_demand_bool)
+            sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, y_sol, human_demand_bool)
             if self.flag_verbose:
                 print('sum_obj2 = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
             sum_obj_list[2*i_iter+1] = sum_obj
@@ -258,4 +249,4 @@ class MatchRouteWrapper:
 
         # Check whether the optimization is successful
         flag_success = i_iter >= 1 # TODO: This condition is just a placeholder, not the actual condition
-        return flag_success, route_list, route_time_list, team_list, human_in_team, y_sol, z_sol, sum_obj_list, demand_obj_list, result_max_time_list
+        return flag_success, route_list, route_time_list, y_sol, sum_obj_list, demand_obj_list, result_max_time_list
