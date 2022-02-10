@@ -47,7 +47,7 @@ class OrtoolRoutingSolver:
         print ("For tribhi !!!")
         print (human_demand_bool)
         for i in range(place_num):
-            penalty_mat[i] = (human_demand_bool[:, i]).sum()
+            penalty_mat[i] = human_demand_bool[i].sum()
         # print('penalty_mat = ', penalty_mat)
         def temp_distance_callback(from_index, to_index):
             """Returns the distance between the two nodes."""
