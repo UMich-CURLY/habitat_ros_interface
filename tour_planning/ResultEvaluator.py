@@ -59,11 +59,11 @@ class ResultEvaluator:
             # TODO: This value is correct only when GurobiRoutingSolver.flag_alpha_var == True
             # However, since this result_time_cvar[k] is not used in the paper, for now, this problem is not fixed yet
             # result_time_cvar[k] = norm.cdf((500 - route_time) / np.sqrt(route_var))
-        result_sum_time = result_time_list.sum()
+        result_sum_time = result_time_list
         sum_obj = self.demand_penalty * demand_obj + self.time_penalty * result_sum_time
         obj_dict = {}
         obj_dict['result_time_list'] = result_time_list
-        obj_dict['result_max_time'] = result_time_list.max()
+        obj_dict['result_max_time'] = result_time_list
         obj_dict['result_sum_time'] = result_sum_time
         obj_dict['result_time_cvar'] = result_time_cvar
         if flag_dict:
