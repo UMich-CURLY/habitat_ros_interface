@@ -222,15 +222,15 @@ class OrtoolRoutingSolver:
             route_node_list.append(self.start_node)
         route_time_list = []
 
-	assert len(route_node_list) > 2, 'OrtoolRoutingSolver.get_random_plan: An empty route!'
-	route_time = 0.0
-	route_time_list.append([route_time])
-	for i_node in range(len(route_node_list) - 1):
-	    node_i = route_node_list[i_node]
-	    node_j = route_node_list[i_node+1]
-	    route_time += edge_time[node_i,node_j] + node_time[node_i]
-	    route_time_list.append(route_time)
-        return route_node_list, route_time_list, y_sol
+        assert len(route_node_list) > 2, 'OrtoolRoutingSolver.get_random_plan: An empty route!'
+        route_time = 0.0
+        route_time_list.append([route_time])
+        for i_node in range(len(route_node_list) - 1):
+            node_i = route_node_list[i_node]
+            node_j = route_node_list[i_node+1]
+            route_time += edge_time[node_i,node_j] + node_time[node_i]
+            route_time_list.append(route_time)
+            return route_node_list, route_time_list, y_sol
 
     def get_plan(self, flag_sub_solver = False, flag_verbose = False):
         # Output the plans
