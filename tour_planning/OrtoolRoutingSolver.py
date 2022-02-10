@@ -116,7 +116,7 @@ class OrtoolRoutingSolver:
 
     def set_model(self, edge_time, node_time, node_seq = None):
         # Create Routing Model.
-        self.manager = pywrapcp.RoutingIndexManager(self.node_num-1, self.veh_num, self.start_node)
+        self.manager = pywrapcp.RoutingIndexManager(self.node_num-1, self.start_node)
         self.solver = pywrapcp.RoutingModel(self.manager)
         self.solution = None
 
@@ -221,15 +221,15 @@ class OrtoolRoutingSolver:
             y_sol[node_id] = 1.0
             route_node_list.append(self.start_node)
         route_time_list = []
-        for i_veh in range(self.veh_num):
-            assert len(route_node_list) > 2, 'OrtoolRoutingSolver.get_random_plan: An empty route!'
-            route_time = 0.0
-            route_time_list.append([route_time])
-            for i_node in range(len(route_node_list) - 1):
-                node_i = route_node_list[i_node]
-                node_j = route_node_list[i_node+1]
-                route_time += edge_time[node_i,node_j] + node_time[node_i]
-                route_time_list.append(route_time)
+
+	assert len(route_node_list) > 2, 'OrtoolRoutingSolver.get_random_plan: An empty route!'
+	route_time = 0.0
+	route_time_list.append([route_time])
+	for i_node in range(len(route_node_list) - 1):
+	    node_i = route_node_list[i_node]
+	    node_j = route_node_list[i_node+1]
+	    route_time += edge_time[node_i,node_j] + node_time[node_i]
+	    route_time_list.append(route_time)
         return route_node_list, route_time_list, y_sol
 
     def get_plan(self, flag_sub_solver = False, flag_verbose = False):

@@ -44,8 +44,6 @@ class ResultEvaluator:
         node_visit = np.zeros(self.node_num, dtype=int)
         result_time_list = 0.0
         result_time_cvar = 0.0
-        if len(route_list) <= 2:
-            continue
         route_time = 0.0
         route_var = 0.0
         for i in range(len(route_list) - 1):
