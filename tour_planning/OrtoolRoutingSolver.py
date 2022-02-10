@@ -39,7 +39,7 @@ class OrtoolRoutingSolver:
         self.sub_manager = []
         self.sub_solver = []
         self.sub_solution = []
-        a_sub_manager = pywrapcp.RoutingIndexManager(self.node_num-1, 1, self.start_node)
+        a_sub_manager = pywrapcp.RoutingIndexManager(self.node_num-1, self.start_node)
         a_sub_solver = pywrapcp.RoutingModel(a_sub_manager)
         self.sub_manager.append(a_sub_manager)
         self.sub_solver.append(a_sub_solver)
