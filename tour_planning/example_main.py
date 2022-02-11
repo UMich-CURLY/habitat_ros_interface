@@ -76,7 +76,7 @@ flag_success, route_list, route_time_list,y_sol, result_dict = global_planner.pl
 print('sum_obj = demand_penalty * demand_obj + time_penalty * sum_time = %f * %f + %f * %f = %f' % (demand_penalty, result_dict['demand_obj'], time_penalty, result_dict['result_sum_time'], result_dict['sum_obj']))
 
 # See the plots in the folder ./temp/
-visualizer.print_results(route_list, route_time_list, team_list)
+visualizer.print_results(route_list, route_time_list)
 if flag_show_plot:
     sum_obj_list = result_dict['sum_obj_list']
     demand_obj_list = result_dict['demand_obj_list']

@@ -134,15 +134,13 @@ class MatchRouteWrapper:
         result_dict['result_max_time'] = obj_dict['result_max_time']
         result_dict['result_sum_time'] = obj_dict['result_sum_time']
         result_dict['result_time_cvar'] = obj_dict['result_time_cvar']
-        result_dict['result_max_time_cvar'] = obj_dict['result_max_time_cvar']
-        result_dict['result_sum_time_cvar'] = obj_dict['result_sum_time_cvar']
         # Print
         print('\n')
         for key, value in result_dict.items():
             print(key, ':', value)
         print('\n')
         print('optimization_time = ', optimization_time)
-        return flag_success, route_list, route_time_list, team_list, human_in_team, y_sol, z_sol, result_dict
+        return flag_success, route_list, route_time_list, y_sol, result_dict
 
     def initialize_plan(self, edge_time, node_time, flag_initialize = 0):
         '''

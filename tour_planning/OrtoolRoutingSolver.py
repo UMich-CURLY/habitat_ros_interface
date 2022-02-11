@@ -20,7 +20,7 @@ class OrtoolRoutingSolver:
         self.global_penalty = 1.0               # Keep this constant
         self.solver_time_limit = int(solver_time_limit)     # Time limit for the solver
 
-    def optimize_sub(self, edge_time, node_time, z_sol, human_demand_bool, node_seq, route_list = None, flag_verbose = False):
+    def optimize_sub(self, edge_time, node_time, human_demand_bool, node_seq, route_list = None, flag_verbose = False):
         '''
         Optimize the routing problem
         ------------------------------------------------------
@@ -36,18 +36,12 @@ class OrtoolRoutingSolver:
         start_time = time.time()
 
         # Create sub-routing model
-        self.sub_manager = []
-        self.sub_solver = []
         self.sub_solution = []
-        a_sub_manager = pywrapcp.RoutingIndexManager(self.node_num-1, 1, self.start_node)
-        a_sub_solver = pywrapcp.RoutingModel(a_sub_manager)
-        self.sub_manager.append(a_sub_manager)
-        self.sub_solver.append(a_sub_solver)
+        self.sub_manager = pywrapcp.RoutingIndexManager(self.node_num-1, 1, self.start_node)
+        self.sub_solver = pywrapcp.RoutingModel(self.sub_manager)
         self.sub_solution.append(None)
-        print ("For tribhi !!!")
-        print (human_demand_bool)
         for i in range(place_num):
-            penalty_mat[i] = human_demand_bool[i].sum()
+            penalty_mat[i] = human_demand_bool[0][i].sum()
         # print('penalty_mat = ', penalty_mat)
         def temp_distance_callback(from_index, to_index):
             """Returns the distance between the two nodes."""

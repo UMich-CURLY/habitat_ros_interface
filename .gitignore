@@ -6,3 +6,5 @@ result.dat
 scripts/.*
 scripts/__pycache__/
 tour_planning/__pycache__/
+tour_planning/temp/
+

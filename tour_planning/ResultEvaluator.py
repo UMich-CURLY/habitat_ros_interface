@@ -36,7 +36,7 @@ class ResultEvaluator:
             place_num = self.node_num-2
             penalty_mat = np.zeros(place_num, dtype=np.float64) # (veh_num, place_num)
             for i in range(place_num):
-                penalty_mat [i] = (human_demand_bool[:, i]).sum()
+                penalty_mat [i] = (human_demand_bool[0][i]).sum()
             demand_obj = ((1-y_sol) * penalty_mat).sum()
             # for k in range(self.veh_num):
             #     print(k, np.nonzero(penalty_mat[k]))
@@ -46,9 +46,9 @@ class ResultEvaluator:
         result_time_cvar = 0.0
         route_time = 0.0
         route_var = 0.0
-        for i in range(len(route_list) - 1):
-            node_i = route_list[i]
-            node_j = route_list[i+1]
+        for i in range(len(route_list[0]) - 1):
+            node_i = route_list[0][i]
+            node_j = route_list[0][i+1]
             route_time += edge_time[node_i,node_j] + node_time[node_i]
             node_visit[node_i] += 1
             if beta is not None:
