@@ -278,9 +278,8 @@ class OrtoolRoutingSolver:
             print('Max time of all routes: {}min'.format(total_max_time))
 
         y_sol = np.zeros(self.node_num-2, dtype=np.float64)
-        for i in range(self.node_num-2):
+        for i in route_node_list[0][1:-1]:
             y_sol[i] = 1.0
-        # print(route_node_list)
         # print(route_time_list)
         # print(team_list)
         return route_node_list, route_time_list, y_sol

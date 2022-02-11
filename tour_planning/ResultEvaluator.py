@@ -29,14 +29,13 @@ class ResultEvaluator:
             # node_time_std = node_time * 0.3
         else:
             beta = beta_input
-
         if (y_sol is None) or (human_demand_bool is None):
             demand_obj = 0.0
         else:
             place_num = self.node_num-2
             penalty_mat = np.zeros(place_num, dtype=np.float64) # (veh_num, place_num)
             for i in range(place_num):
-                penalty_mat [i] = (human_demand_bool[0][i]).sum()
+                penalty_mat [i] = (human_demand_bool[:][i]).sum()
             demand_obj = ((1-y_sol) * penalty_mat).sum()
             # for k in range(self.veh_num):
             #     print(k, np.nonzero(penalty_mat[k]))
