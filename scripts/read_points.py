@@ -23,7 +23,19 @@ display = True
 if display:
     from habitat.utils.visualizations import maps
 
-test_scene = "/home/trippy/Documents/Matterport_dataset/v1/tasks/mp3d/17DRP5sb8fy/17DRP5sb8fy.glb"
+
+import sys
+sys.path.append("/opt/conda/envs/robostackenv/lib/python3.9/site-packages")
+import rospy
+from rospy.numpy_msg import numpy_msg
+from rospy_tutorials.msg import Floats
+from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PointStamped, PoseStamped
+import threading
+import tf
+
+
+test_scene = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/17DRP5sb8fy/17DRP5sb8fy.glb"
 
 rgb_sensor = True  # @param {type:"boolean"}
 depth_sensor = True  # @param {type:"boolean"}
@@ -150,6 +162,9 @@ def make_cfg(settings):
     }
 
     return habitat_sim.Configuration(sim_cfg, [agent_cfg])
+
+
+
 
 cfg = make_cfg(sim_settings)
 # Needed to handle out of order cell run in Colab

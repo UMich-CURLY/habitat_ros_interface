@@ -114,9 +114,34 @@ class sim_env(threading.Thread):
 
     def _update_position(self):
         state = self.env.sim.get_agent_state(0)
+        vz = -state.velocity[0]
+        vx = state.velocity[1]
+        dt = self._dt
+
+        start_pos = self.env._sim.agents[0].scene_node.absolute_translation
+
+        ax = (
+            self.env._sim.agents[0]
+            .scene_node.absolute_transformation()[self._z_axis]
+            .xyz
+        )
+        self.env._sim.agents[0].scene_node.translate_local(ax * vz * dt)
+
+        ax = (
+            self.env._sim.agents[0]
+            .scene_node.absolute_transformation()[self._x_axis]
+            .xyz
+        )
+        self.env._sim.agents[0].scene_node.translate_local(ax * vx * dt)
+
+        end_pos = self.env._sim.agents[0].scene_node.absolute_translation
+        filter_end = self.env._sim.agents[0].move_filter_fn(start_pos, end_pos)
+        # Update the position to respect the filter
+        self.env._sim.agents[0].scene_node.translate(filter_end - end_pos)
         heading_vector = quaternion_rotate_vector(
             state.rotation.inverse(), np.array([0, 0, -1])
         )
+        state = self.env.sim.get_agent_state(0)
         phi = cartesian_to_polar(-heading_vector[2], heading_vector[0])[1]
         top_down_map_angle = phi - np.pi / 2 
         agent_pos = state.position
@@ -136,31 +161,8 @@ class sim_env(threading.Thread):
         self.poseMsg.pose.position.y = agent_pos_in_map_frame[0][1]
         self.poseMsg.pose.position.z = 0.0
         self._pub_pose.publish(self.poseMsg)
-    #     vz = -state.velocity[0]
-    #     vx = state.velocity[1]
-    #     dt = self._dt
-
-    #     start_pos = self.env._sim.agents[0].scene_node.absolute_translation
-
-    #     ax = (
-    #         self.env._sim.agents[0]
-    #         .scene_node.absolute_transformation()[self._z_axis]
-    #         .xyz
-    #     )
-    #     self.env._sim.agents[0].scene_node.translate_local(ax * vz * dt)
-
-    #     ax = (
-    #         self.env._sim.agents[0]
-    #         .scene_node.absolute_transformation()[self._x_axis]
-    #         .xyz
-    #     )
-    #     self.env._sim.agents[0].scene_node.translate_local(ax * vx * dt)
-
-    #     end_pos = self.env._sim.agents[0].scene_node.absolute_translation
-    #     filter_end = self.env._sim.agents[0].move_filter_fn(start_pos, end_pos)
-    #     # Update the position to respect the filter
-    #     self.env._sim.agents[0].scene_node.translate(filter_end - end_pos)
-    #     # self._render()
+        
+        # self._render()
 
     # def _update_attitude(self):
     #     """ update agent orientation given angular velocity and delta time"""
