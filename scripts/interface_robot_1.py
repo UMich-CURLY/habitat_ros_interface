@@ -215,6 +215,7 @@ class sim_env(threading.Thread):
             self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_depth.publish(np.float32(depth_with_res))
             self._update_position()
+            print(self.observations["rgb"].ravel().size)
             lock.release()
             self._r.sleep()
             

@@ -8,9 +8,7 @@
 
 from habitat.utils.geometry_utils import quaternion_rotate_vector
 from habitat.tasks.utils import cartesian_to_polar
-# sys.path = [
-#     b for b in sys.path if "2.7" not in b
-# ]  # remove path's related to ROS from environment or else certain packages like cv2 can't be imported
+from habitat_sim.utils import common as utils
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 import habitat
 import habitat_sim.bindings as hsim
@@ -68,6 +66,11 @@ class sim_env(threading.Thread):
     action_uncertainty_rate = 0.9
     follower = []
     new_goal = False
+    control_frequency = 500
+    time_step = 1.0 / (control_frequency)
+    linear_velocity = np.array([0.0,0.0,0.0])
+    angular_velocity = np.array([0.0,0.0,0.0])
+    received_vel = False
     def __init__(self, env_config_file):
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
@@ -80,14 +83,6 @@ class sim_env(threading.Thread):
         self.observations = self.env.reset()
         agent_state.position = [-2.293175119872487,0.0,-1.2777875958067]
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
-        self.env._sim.agents[0].state.velocity = np.float32([1, 1, 0])
-        self.env._sim.agents[0].state.angular_velocity = np.float32([0, 0, 0])
-        print(self.env._sim.agents[0].state.velocity)
-        # self._sensor_resolution = {
-        #     "RGB": self.env._sim.config["RGB_SENSOR"]["HEIGHT"],
-        #     "DEPTH": self.env._sim.config["DEPTH_SENSOR"]["HEIGHT"],
-        #     "BC_SENSOR": self.env._sim.config["BC_SENSOR"]["HEIGHT"],
-        # }
         config = self.env._sim.config
         print(self.env._sim.active_dataset)
         self._sensor_resolution = {
@@ -105,24 +100,21 @@ class sim_env(threading.Thread):
         self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
         rospy.Subscriber("~plan_3d", numpy_msg(Floats),self.plan_callback, queue_size=1)
         rospy.Subscriber("/clicked_point", PointStamped,self.point_callback,queue_size=1)    
-        # additional RGB sensor I configured
         goal_radius = self.env.episodes[0].goals[0].radius
         if goal_radius is None:
             goal_radius = config.SIMULATOR.FORWARD_STEP_SIZE
         self.follower = ShortestPathFollower(
             self.env.sim, goal_radius, False
         )
+        self.vel_control = habitat_sim.physics.VelocityControl()
+        self.vel_control.controlling_lin_vel = True
+        self.vel_control.lin_vel_is_local = True
+        self.vel_control.controlling_ang_vel = True
+        self.vel_control.ang_vel_is_local = True
         print("created habitat_plant succsefully")
 
     def _render(self):
-        # self.env._update_step_stats()  # think this increments episode count
-        sim_obs = self.env.sim.get_sensor_observations()
-        self.observations = self.env.sim._sensor_suite.get_observations(sim_obs)
-        self.observations.update(
-            self.env._task.sensor_suite.get_observations(
-                observations=self.observations, episode=self.env.current_episode
-            )
-        )
+        self.observations.update(self.env._task._sim.get_observations_at())
     
 
     def _update_position(self):
@@ -150,54 +142,36 @@ class sim_env(threading.Thread):
         self.poseMsg.pose.position.z = 0.0
         self._pub_pose.publish(self.poseMsg)
         
-        # self._render()
-
-    def _update_attitude(self):
-        """ update agent orientation given angular velocity and delta time"""
-        state = self.env.sim.get_agent_state(0)
-        yaw = state.angular_velocity[2] / 3.1415926 * 180
-        dt = self._dt
-
-        _rotate_local_fns = [
-            hsim.SceneNode.rotate_x_local,
-            hsim.SceneNode.rotate_y_local,
-            hsim.SceneNode.rotate_z_local,
-        ]
-        _rotate_local_fns[self._y_axis](
-            self.env._sim.agents[0].scene_node, mn.Deg(yaw * dt)
-        )
-        self.env._sim.agents[0].scene_node.rotation = self.env._sim.agents[
-            0
-        ].scene_node.rotation.normalized()
-        # self._render()
-
+        # self._render()        
     def update_pos_vel(self):
-        state = self.env.sim.get_agent_state(0)
-        vz = -state.velocity[0]
-        vx = state.velocity[1]
-        dt = self._dt
-
-        start_pos = self.env._sim.agents[0].scene_node.absolute_translation
-
-        ax = (
-            self.env._sim.agents[0]
-            .scene_node.absolute_transformation()[self._z_axis]
-            .xyz
+        agent_state = self.env.sim.get_agent_state(0)
+        previous_rigid_state = habitat_sim.RigidState(
+            utils.quat_to_magnum(agent_state.rotation), agent_state.position
         )
-        self.env._sim.agents[0].scene_node.translate_local(ax * vz * dt)
 
-        ax = (
-            self.env._sim.agents[0]
-            .scene_node.absolute_transformation()[self._x_axis]
-            .xyz
+        # manually integrate the rigid state
+        target_rigid_state = self.vel_control.integrate_transform(
+            self.time_step, previous_rigid_state
         )
-        self.env._sim.agents[0].scene_node.translate_local(ax * vx * dt)
 
-        end_pos = self.env._sim.agents[0].scene_node.absolute_translation
-        filter_end = self.env._sim.agents[0].move_filter_fn(start_pos, end_pos)
-        # Update the position to respect the filter
-        self.env._sim.agents[0].scene_node.translate(filter_end - end_pos)
-        # self._render()
+        # snap rigid state to navmesh and set state to object/agent
+        # calls pathfinder.try_step or self.pathfinder.try_step_no_sliding
+        end_pos = self.env._sim.step_filter(
+            previous_rigid_state.translation, target_rigid_state.translation
+        )
+
+        # set the computed state
+        agent_state.position = end_pos
+        agent_state.rotation = utils.quat_from_magnum(
+            target_rigid_state.rotation
+        )
+        self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
+        # run any dynamics simulation
+        self.env.sim.step_physics(self.time_step)
+
+        # render observation
+        self.observations.update(self.env._task._sim.get_sensor_observations())
+        
 
 
     def run(self):
@@ -209,7 +183,7 @@ class sim_env(threading.Thread):
             lock.acquire()
             rgb_with_res = np.concatenate(
                 (
-                    np.float32(self.observations["rgb"].ravel()),
+                    np.float32(self.observations["rgb"][:,:,0:3].ravel()),
                     np.array(
                         [self._sensor_resolution["RGB"], self._sensor_resolution["RGB"]]
                     ),
@@ -237,60 +211,23 @@ class sim_env(threading.Thread):
             self._r.sleep()
             
 
-    def set_linear_velocity(self, vx, vy):
-        state = self.env._sim.get_agent_state()
-        # state.velocity[0] = vx
-        # state.velocity[1] = vy
-        abc = np.array([vx,vy,0.0],dtype=float32)
-        self.env.sim.set_agent_state(state.position, state.rotation,abc)
-        
-
-    def set_yaw(self, yaw):
-        self.env._sim.agents[0].state.angular_velocity[2] = yaw
-
     def update_orientation(self):
-        lock.acquire()
-        self._update_attitude()
+        if self.received_vel:
+            print("In update orientation")
+            self.received_vel = False
+            self.vel_control.linear_velocity = self.linear_velocity
+            self.vel_control.angular_velocity = self.angular_velocity
         self.update_pos_vel()
-        self._render()
-        lock.release()
+        rospy.sleep(self.time_step)
+        self.linear_velocity = np.array([0.0,0.0,0.0])
+        self.angular_velocity = np.array([0.0,0.0,0.0])
+        self.vel_control.linear_velocity = self.linear_velocity
+        self.vel_control.angular_velocity = self.angular_velocity
+        # self._render()
 
     def set_dt(self, dt):
         self._dt = dt
-
-    def navigate(self):
-        print("In navigate")
-        if (self.new_goal == True):
-                agent_state = self.env.sim.get_agent_state(0)
-                # sample1 = agent_state.position
-                # sample2 = self.current_goal
-                # agent_state.position = sample1
-                # self.env.reset()
-                self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
-                self.env.sim.set_agent_state(self.current_goal, agent_state.rotation)
-                self.observations.update(self.env._task._sim.get_observations_at())
-                # print(self.env.step(6,position = self.current_goal, rotation = [1,0,0,0]))
-                # self.env._sim.agents[0].set_state(agent_state)
-                print("Navigation episode " + str(self._current_episode))
-        # while self._current_episode>0 and not self.env.episode_over:
-        #     lock.acquire()
-        #     best_action = self.follower.get_next_action(
-        #         self.current_goal
-        #     )
-        #     if best_action is None:
-        #         break
-        #     print("action %d happened!", best_action)
-        #     if self.flag_action_uncertainty is True:
-        #         action_uncertainty = np.random.rand(1)
-        #         if action_uncertainty > self.action_uncertainty_rate:
-        #             best_action = random.randint(1,3)
-        #             print("random action %d happened!", best_action)
-        #     self.observations.update(self.env.step(best_action))
-        #     lock.release()
-        #     rospy.sleep(0.2)
-        # if self.env.episode_over:
-        #     self.new_goal = False
-        
+      
         
     def plan_callback(self,msg):
         lock.acquire()
@@ -306,37 +243,6 @@ class sim_env(threading.Thread):
             print("Exiting plan_callback")
             self.start_time = rospy.get_time()
         lock.release()
-    
-    # def goal_pose_stamped_callback(self,msg):
-    #     map_points = maps.from_grid(
-    #                     int(float(msg.pose.pose.position.y)),
-    #                     int(float(msg.pose.pose.position.x)),
-    #                     my_env.grid_dimensions,
-    #                     pathfinder=my_env.env._sim.pathfinder,
-    #                 )
-    
-    #     map_points_3d = np.array([map_points[1], floor_y, map_points[0]])
-    #     map_quat = msg.pose.pose.orientation
-    #     heading_vector = quaternion_rotate_vector(
-    #         map_quat.inverse(), np.array([0, 0, -1])
-    #     )
-    #     phi = cartesian_to_polar(-heading_vector[2], heading_vector[0])[1]
-    #     top_down_map_angle = phi - np.pi / 2 
-    #     point_quat = quat_to_coeff(map_quat)
-    #     euler = list(tf.transformations.euler_from_quaternion(point_quat))
-    #     proj_quat = tf.transformations.quaternion_from_euler(0.0,0.0,top_down_map_angle-np.pi)
-    #     # proj_quat = tf.transformations.quaternion_from_euler(euler[0]+np.pi,euler[2],euler[1])
-    #     self.poseMsg = PoseStamped()
-    #     self.poseMsg.header.frame_id = "world"
-    #     self.poseMsg.pose.orientation.x = map_quat[0]
-    #     self.poseMsg.pose.orientation.y = map_quat[1]
-    #     self.poseMsg.pose.orientation.z = map_quat[2]
-    #     self.poseMsg.pose.orientation.w = map_quat[3]
-    #     self.poseMsg.header.stamp = rospy.Time.now()
-    #     self.poseMsg.pose.position.x = map_points[0][0]
-    #     self.poseMsg.pose.position.y = agent_pos_in_map_frame[0][1]
-    #     self.poseMsg.pose.position.z = 0.0
-    #     self._pub_pose.publish(self.poseMsg)
 
     def point_callback(self,point):
         agent_state = self.env.sim.get_agent_state(0)    
@@ -357,39 +263,12 @@ class sim_env(threading.Thread):
 
 
 def callback(vel, my_env):
-    lock.acquire()
     print ("received velocity")
-    my_env.set_linear_velocity(vel.linear.x, vel.linear.y)
-    my_env.set_yaw(vel.angular.z)
-    lock.release()
+    my_env.linear_velocity = np.array([0, 0, -vel.linear.x])
+    my_env.angular_velocity = np.array([0, vel.angular.z, 0])
+    my_env.received_vel = True
+    # my_env.update_orientation()
 
-# def point_callback(point, my_env):
-#     agent_state = my_env.env.sim.get_agent_state(0)    
-#     floor_y = 0.0
-#     print(point)
-#     map_points = maps.from_grid(
-#                         int(float(point.point.y)),
-#                         int(float(point.point.x)),
-#                         my_env.grid_dimensions,
-#                         pathfinder=my_env.env._sim.pathfinder,
-#                     )
-    
-#     map_points_3d = np.array([map_points[1], floor_y, map_points[0]])
-#     my_env.current_goal = [map_points[1], floor_y, map_points[0]]
-#     goal_position = np.array(episode.goals[0].position, dtype=np.float32)
-#     # to be sure that the rotation is the same for the same episode_id
-#     # since the task is currently using pointnav Dataset.
-#     seed = abs(hash(episode.episode_id)) % (2**32)
-#     rng = np.random.RandomState(seed)
-#     angle = rng.uniform(0, 2 * np.pi)
-#     source_rotation = [0, np.sin(angle / 2), 0, np.cos(angle / 2)]
-#     goal_observation = self._sim.get_observations_at(
-#         position=goal_position.tolist(), rotation=source_rotation
-#     )
-#     return goal_observation[self._rgb_sensor_uuid]
-#     my_env._current_episode = my_env._current_episode+1
-#     my_env.new_goal = True
-    
 def main():
 
     my_env = sim_env(env_config_file="configs/tasks/pointnav_rgbd.yaml")
@@ -405,7 +284,7 @@ def main():
     # # Old code
     while not rospy.is_shutdown():
    
-        my_env.navigate()
+        my_env.update_orientation()
         # rospy.spin()
         my_env._r.sleep()
 
