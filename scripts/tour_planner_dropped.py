@@ -267,24 +267,24 @@ class tour_planner():
 		counter = 0
 		for wp in self.final_plan:
 			marker = Marker()
-			marker.id = counter;
+			marker.id = counter
 			marker.header.frame_id = "world"
 			marker.header.stamp = rospy.Time.now()
 			marker.type = Marker.SPHERE
-			marker.pose.position.x = wp[0];
-			marker.pose.position.y = wp[1];
-			marker.pose.position.z = 0.0;
-			marker.pose.orientation.x = 0.0;
-			marker.pose.orientation.y = 0.0;
-			marker.pose.orientation.z = 0.0;
-			marker.pose.orientation.w = 1.0;
-			marker.scale.x = 0.2;
-			marker.scale.y = 0.2;
-			marker.scale.z = 0.01;
-			marker.color.a = 1.0; 
-			marker.color.r = 1.0;
-			marker.color.g = 0.0;
-			marker.color.b = 0.0;
+			marker.pose.position.x = wp[0]
+			marker.pose.position.y = wp[1]
+			marker.pose.position.z = 0.0
+			marker.pose.orientation.x = 0.0
+			marker.pose.orientation.y = 0.0
+			marker.pose.orientation.z = 0.0
+			marker.pose.orientation.w = 1.0
+			marker.scale.x = 0.2
+			marker.scale.y = 0.2
+			marker.scale.z = 0.01
+			marker.color.a = 1.0
+			marker.color.r = 1.0
+			marker.color.g = 0.0
+			marker.color.b = 0.0
 			counter = counter+1
 			msg.markers.append(marker)
 		rospy.loginfo("Publishing Markers...")
@@ -309,7 +309,7 @@ class tour_planner():
 			marker.scale.x = 0.7
 			marker.scale.y = 0.7
 			marker.scale.z = 0.01
-			marker.color.a = 1.0 
+			marker.color.a = 1.0
 			rgb = get_rgb_from_demand(self.demand_list[counter])
 			marker.color.r = 0
 			marker.color.g = 0
