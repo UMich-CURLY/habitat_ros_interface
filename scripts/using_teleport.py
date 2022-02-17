@@ -86,8 +86,8 @@ class sim_env(threading.Thread):
         config = self.env._sim.config
         print(self.env._sim.active_dataset)
         self._sensor_resolution = {
-            "RGB": 256,  
-            "DEPTH": 256,
+            "RGB": 720,  
+            "DEPTH": 720,
         }
         print(self.env._sim.pathfinder.get_bounds())
         floor_y = 0.0
@@ -106,6 +106,7 @@ class sim_env(threading.Thread):
         self.follower = ShortestPathFollower(
             self.env.sim, goal_radius, False
         )
+        self.env._sim.enable_physics = True
         self.vel_control = habitat_sim.physics.VelocityControl()
         self.vel_control.controlling_lin_vel = True
         self.vel_control.lin_vel_is_local = True
@@ -131,7 +132,7 @@ class sim_env(threading.Thread):
         # proj_quat = tf.transformations.quaternion_from_euler(euler[0]+np.pi,euler[2],euler[1])
         agent_pos_in_map_frame = convert_points_to_topdown(self.env.sim.pathfinder, [agent_pos])
         self.poseMsg = PoseStamped()
-        self.poseMsg.header.frame_id = "world"
+        # self.poseMsg.header.frame_id = "world"
         self.poseMsg.pose.orientation.x = proj_quat[0]
         self.poseMsg.pose.orientation.y = proj_quat[2]
         self.poseMsg.pose.orientation.z = proj_quat[1]
@@ -140,7 +141,7 @@ class sim_env(threading.Thread):
         self.poseMsg.pose.position.x = agent_pos_in_map_frame[0][0]
         self.poseMsg.pose.position.y = agent_pos_in_map_frame[0][1]
         self.poseMsg.pose.position.z = 0.0
-        self._pub_pose.publish(self.poseMsg)
+        # self._pub_pose.publish(self.poseMsg)
         
         # self._render()        
     def update_pos_vel(self):
@@ -192,7 +193,7 @@ class sim_env(threading.Thread):
             # multiply by 10 to get distance in meters
             depth_with_res = np.concatenate(
                 (
-                    np.float32(self.observations["depth"].ravel() * 10),
+                    np.float32(self.observations["depth"].ravel() ),
                     np.array(
                         [
                             self._sensor_resolution["DEPTH"],
@@ -219,10 +220,10 @@ class sim_env(threading.Thread):
             self.vel_control.angular_velocity = self.angular_velocity
         self.update_pos_vel()
         rospy.sleep(self.time_step)
-        self.linear_velocity = np.array([0.0,0.0,0.0])
-        self.angular_velocity = np.array([0.0,0.0,0.0])
-        self.vel_control.linear_velocity = self.linear_velocity
-        self.vel_control.angular_velocity = self.angular_velocity
+        # self.linear_velocity = np.array([0.0,0.0,0.0])
+        # self.angular_velocity = np.array([0.0,0.0,0.0])
+        # self.vel_control.linear_velocity = self.linear_velocity
+        # self.vel_control.angular_velocity = self.angular_velocity
         # self._render()
 
     def set_dt(self, dt):
@@ -264,7 +265,7 @@ class sim_env(threading.Thread):
 
 def callback(vel, my_env):
     print ("received velocity")
-    my_env.linear_velocity = np.array([0, 0, -vel.linear.x])
+    my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (-1.0 * vel.linear.x)])
     my_env.angular_velocity = np.array([0, vel.angular.z, 0])
     my_env.received_vel = True
     # my_env.update_orientation()

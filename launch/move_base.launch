@@ -1,11 +1,11 @@
 <launch>
 
-   <arg name="map_path" default="$(find habitat_interface)/maps/gibson.yaml"/>
+   <!-- <arg name="map_path" default="$(find habitat_interface)/maps/gibson.yaml"/> -->
 
    <master auto="start"/>
 
    <!-- Run the map server -->
-   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_path)"/>
+   <!-- <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_path)"/> -->
 
 
    <!--- Run AMCL -->
@@ -54,6 +54,7 @@
       <rosparam file="$(find habitat_interface)/navigation_params/base_local_planner_params.yaml" command="load" />
    </node>
 
+
    <node pkg="rosservice" type="rosservice" name="global_loc" args="call --wait /global_localization"/>
 
 
@@ -65,7 +66,7 @@
 
 
    <node pkg="hector_trajectory_server" type="hector_trajectory_server" name="hector_trajectory_server" output="screen">
-      <param name="target_frame_name" type="string" value="/map" />
+      <param name="target_frame_name" type="string" value="map" />
       <param name="source_frame_name" type="string" value="$(arg trajectory_source_frame_name)" />
       <param name="trajectory_update_rate" type="double" value="$(arg trajectory_update_rate)" />
       <param name="trajectory_publish_rate" type="double" value="$(arg trajectory_publish_rate)" />
@@ -81,5 +82,5 @@
       <param name="plugins" type="string" value="hector_geotiff_plugins/TrajectoryMapWriter" />
    </node>
    
-   <node pkg="rviz" type="rviz" name="rviz" required="false" args="-d $(find turtlebot3_navigation)/rviz/turtlebot3_navigation.rviz"/>
+   <!-- <node pkg="rviz" type="rviz" name="rviz" required="false" args="-d $(find turtlebot3_navigation)/rviz/turtlebot3_navigation.rviz"/> -->
 </launch>
