@@ -6,7 +6,7 @@ raytrace_range: 0.8
 
 robot_radius: 0.1
 
-inflation_radius: 0.55
+inflation_radius: 0.2
 transform_tolerance: 1
 
 controller_patience: 2.0
