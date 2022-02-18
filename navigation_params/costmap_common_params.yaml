@@ -5,9 +5,22 @@ obstacle_range: 0.8
 raytrace_range: 0.8
 
 robot_radius: 0.1
-inflation_radius: 0.3
 
-observation_sources: laser_scan_sensor
+inflation_radius: 0.55
+transform_tolerance: 1
 
-laser_scan_sensor: {sensor_frame: laser, data_type: LaserScan, topic: /scan, marking: true, clearing: true}
+controller_patience: 2.0
+
+NavfnROS:
+    allow_unknown: true
+
+recovery_behaviors: [
+    {name: conservative_clear, type: clear_costmap_recovery/ClearCostmapRecovery},
+    {name: aggressive_clear, type: clear_costmap_recovery/ClearCostmapRecovery}
+]
+
+conservative_clear: 
+    reset_distance: 3.00
+aggressive_clear:
+    reset_distance: 1.84
 

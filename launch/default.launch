@@ -56,9 +56,9 @@
 		<param name="fixed_frame" value="odom"/>
 
 	</node> -->
-	<node type="rviz" name="rviz" pkg="rviz" args="-d $(find habitat_interface)/rviz_config.rviz" />
+	<!-- <node type="rviz" name="rviz" pkg="rviz" args="-d $(find habitat_interface)/rviz_config.rviz" /> -->
 
-	<node pkg="tf" type="static_transform_publisher" name="base_frame_to_laser" args="0.0 0.0 0.0 0.0 0.0 0.0 /base_frame laser 1" />
+	<!-- <node pkg="tf" type="static_transform_publisher" name="base_frame_to_laser" args="0.0 0.0 0.0 0.0 0.0 0.0 /base_frame laser 1" /> -->
 	<node pkg="tf" type="static_transform_publisher" name="base_frame_to_camera" args="0 0 1.0 -1.5707963267948966 0 -1.5707963267948966 /base_frame camera_frame 5" />
 	<!-- <node pkg="tf" type="static_transform_publisher" name="map_to_base_frame" args="0.0 0.0 0.0 0.0 0.0 0.0 map /base_frame 1" /> -->
 	<!-- <node pkg="tf" type="static_transform_publisher" name="map_to_world_frame" args="0.0 0.48977 0.0 0.0 0.0 3.1415 map world 1" /> -->
