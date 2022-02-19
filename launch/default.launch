@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-	<!-- <arg name="map_path" default="$(find habitat_interface)/maps/sample_map.yaml"/> -->
+	<!-- <arg name="map_path" default="$(find habitat_interface)/data/maps/my_map.yaml"/> -->
 
     <master auto="start"/>
 
