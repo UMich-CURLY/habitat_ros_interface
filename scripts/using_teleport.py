@@ -214,7 +214,6 @@ class sim_env(threading.Thread):
 
     def update_orientation(self):
         if self.received_vel:
-            print("In update orientation")
             self.received_vel = False
             self.vel_control.linear_velocity = self.linear_velocity
             self.vel_control.angular_velocity = self.angular_velocity
@@ -248,7 +247,7 @@ class sim_env(threading.Thread):
     def point_callback(self,point):
         agent_state = self.env.sim.get_agent_state(0)    
         floor_y = 0.0
-        print(point)
+        print(self._current_episode+1, point)
         map_points = maps.from_grid(
                             int(float(point.point.y)),
                             int(float(point.point.x)),
@@ -257,14 +256,13 @@ class sim_env(threading.Thread):
                         )
         
         map_points_3d = np.array([map_points[1], floor_y, map_points[0]])
-        self.current_goal = [map_points[1], floor_y, map_points[0]]
-        goal_position = np.array([map_points[1], floor_y, map_points[0]], dtype=np.float32)
+        # self.current_goal = [map_points[1], floor_y, map_points[0]]
+        # goal_position = np.array([map_points[1], floor_y, map_points[0]], dtype=np.float32)
         self._current_episode = self._current_episode+1
-        self.new_goal = True   
+        # self.new_goal = True   
 
 
 def callback(vel, my_env):
-    print ("received velocity")
     my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (-1.0 * vel.linear.x)])
     my_env.angular_velocity = np.array([0, vel.angular.z, 0])
     my_env.received_vel = True

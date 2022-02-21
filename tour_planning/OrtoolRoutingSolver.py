@@ -41,7 +41,7 @@ class OrtoolRoutingSolver:
         self.sub_solver = pywrapcp.RoutingModel(self.sub_manager)
         self.sub_solution.append(None)
         for i in range(place_num):
-            penalty_mat[i] = human_demand_bool[0][i].sum()
+            penalty_mat[i] = human_demand_bool[:,i].sum()
         # print('penalty_mat = ', penalty_mat)
         def temp_distance_callback(from_index, to_index):
             """Returns the distance between the two nodes."""
@@ -177,6 +177,9 @@ class OrtoolRoutingSolver:
         result_dict['Optimized'] = self.solver.status() == 1
         result_dict['Status'] = self.solver.status()
         result_dict['Runtime'] = end_time - start_time
+        print(self)
+        # print("Constraint solver stats ",self.solver.GetConstraintSolverStatistics())
+        # print("Localm Search Stats", self.solver.GetLocalSearchStatistics())
         # result_dict['IterCount'] = self.solver.iterations()
         # result_dict['NodeCount'] = self.solver.nodes()
 

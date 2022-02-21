@@ -19,8 +19,8 @@ beta = 0.8                  # A number that will affect the penalty on the time 
 node_num = 12               # The number of nodes (places of interest + 2). The "2" is due to a start and terminal node
 demand_penalty = 1000.0     # The penalty on dropping a human requested POI
 time_penalty = 1.0          # The penalty on the total time consumption of the tours
-time_limit = 800            # The time limit on the tours
-human_num = 10              # The number of human
+time_limit = 300            # The time limit on the tours
+human_num = 5              # The number of human
 human_choice = 5            # The maximum number of POIs that a human can request to visit
 max_iter = 10               # The maximum number of iterations for the OrTool heuristic solver
 place_num = node_num - 2    # The number of places of interest (POI)
@@ -28,13 +28,13 @@ place_num = node_num - 2    # The number of places of interest (POI)
 # To initialize a larger randomized problem, uncomment the following
 # veh_num = 10
 # node_num = 50
-# demand_penalty = 1000.0
-# time_penalty = 1.0
-# time_limit = 900
-# human_num = 100
+# demand_penalty = 0.0
+# time_penalty = 0.0
+# time_limit = 9000
+# human_num = 5
 # human_choice = 10
 # max_iter = 10
-# max_human_in_team = np.ones(veh_num, dtype=int) * 15 # (human_num // veh_num + 5)
+# # max_human_in_team = np.ones(veh_num, dtype=int) * 15 # (human_num // veh_num + 5)
 # place_num = node_num - 2
 
 # Set sequence constraints

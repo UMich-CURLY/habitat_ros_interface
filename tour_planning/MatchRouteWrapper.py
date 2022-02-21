@@ -205,10 +205,9 @@ class MatchRouteWrapper:
         # Run the large neighborhood search (LNS) algorithm
         # Initialize some lists to store intermediate results
         route_list = route_list_initial # Shallow copy
-        sum_obj_list = np.empty(2*max_iter, dtype=np.float64)
-        demand_obj_list = np.empty(2*max_iter, dtype=np.float64)
-        result_max_time_list = np.empty(2*max_iter, dtype=np.float64)
-
+        sum_obj_list = 0.0
+        demand_obj_list = 0.0
+        result_max_time_list = 0.0
         # Initialize the solvers for the routing and matching problems
         routing_solver = OrtoolRoutingSolver(self.node_num, self.human_num, self.demand_penalty, self.time_penalty, self.time_limit, self.solver_time_limit)
 
@@ -217,16 +216,18 @@ class MatchRouteWrapper:
         if self.flag_verbose:
             # Print the intial objective function value
             sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, y_sol, human_demand_bool)
+            print(route_list, y_sol)
             print('sum_obj = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
         # Start iterating
-        for i_iter in range(max_iter):
+        for i_iter in range(1):
             # Store intermediate results
             sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, y_sol, human_demand_bool)
             if self.flag_verbose:
-                print('sum_obj1 = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f ... (1)' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
-            sum_obj_list[2*i_iter] = sum_obj
-            demand_obj_list[2*i_iter] = demand_obj
-            result_max_time_list[2*i_iter] = result_max_time
+                print(route_list, y_sol)
+                # print('sum_obj1 = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f ... (1)' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
+            sum_obj_list= sum_obj
+            demand_obj_list = demand_obj
+            result_max_time_list= result_max_time
 
             if (self.flag_initialize != 0) and (i_iter == 0):
                 # if flag_initialize != 0, it means there is no initial routes, therefore, set to None
@@ -235,15 +236,16 @@ class MatchRouteWrapper:
             temp_flag_success, result_dict = routing_solver.optimize_sub(edge_time, node_time, human_demand_bool, node_seq, route_list)
             if not temp_flag_success:
                 break
-            route_list, route_time_list, y_sol = routing_solver.get_plan(flag_sub_solver=True)
+            route_list, route_time_list, y_sol = routing_solver.get_plan(flag_sub_solver=True, flag_verbose=True)
 
             # Store intermediate results
             sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, y_sol, human_demand_bool)
             if self.flag_verbose:
+                print(route_list, y_sol)
                 print('sum_obj2 = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
-            sum_obj_list[2*i_iter+1] = sum_obj
-            demand_obj_list[2*i_iter+1] = demand_obj
-            result_max_time_list[2*i_iter+1] = result_max_time
+            sum_obj_list = sum_obj
+            demand_obj_list = demand_obj
+            result_max_time_list = result_max_time
 
         # Check whether the optimization is successful
         flag_success = i_iter >= 1 # TODO: This condition is just a placeholder, not the actual condition

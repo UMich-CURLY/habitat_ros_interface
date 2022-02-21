@@ -61,10 +61,6 @@ class tour_planner():
 		self._pub_markers_initial = rospy.Publisher("~selected_points", MarkerArray, queue_size = 1)
 		self._pub_plan_3d_robot_1 = rospy.Publisher("robot_1/plan_3d", numpy_msg(Floats),queue_size = 1)
 		self._pub_plan_robot_1 = rospy.Publisher("robot_1/global_plan", Path, queue_size=1)
-		self._pub_plan_3d_robot_2 = rospy.Publisher("robot_2/plan_3d", numpy_msg(Floats),queue_size = 1)
-		self._pub_plan_robot_2 = rospy.Publisher("robot_2/global_plan", Path, queue_size=1)
-		self._pub_plan_3d_robot_3 = rospy.Publisher("robot_3/plan_3d", numpy_msg(Floats),queue_size = 1)
-		self._pub_plan_robot_3 = rospy.Publisher("robot_3/global_plan", Path, queue_size=1)
 		self.selected_points = []
 		self.selected_points_3d = []
 		self.final_plan_1 = []
