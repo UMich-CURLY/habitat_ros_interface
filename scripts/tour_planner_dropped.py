@@ -131,13 +131,13 @@ class tour_planner():
 		flag_initialize = 0 # 0: VRP, 1: random
 		flag_solver = 1 # 0 GUROBI exact solver, 1: OrTool heuristic solver
 		solver_time_limit = 300.0
-		flag_uncertainty = True
+		flag_uncertainty = False
 		beta = 0.98
 		sigma = 1.0
 
 		scale_time = 1.0
 
-		veh_num = 3
+		veh_num = 1
 		node_num = len(self.selected_points)
 		demand_penalty = 1000.0
 		time_penalty = 10.0
@@ -177,7 +177,7 @@ class tour_planner():
 		    node_time_std = None
 
 		# Initialize human selections
-		global_planner = MatchRouteWrapper(veh_num, node_num, human_choice, human_num, max_human_in_team, demand_penalty, time_penalty, time_limit, solver_time_limit, beta, flag_verbose)
+		global_planner = MatchRouteWrapper(node_num, human_choice, human_num, demand_penalty, time_penalty, time_limit, solver_time_limit, beta, flag_verbose)
 		human_demand_bool, human_demand_int_unique = global_planner.initialize_human_demand()
 
 		if flag_load >= 1:
@@ -189,7 +189,7 @@ class tour_planner():
 		# Do optimization
 		if flag_load >= 2:
 			flag_solver = 1
-		flag_success, route_list, route_time_list, team_list, human_in_team, y_sol, z_sol, result_dict = global_planner.plan(edge_time, node_time, edge_time_std, node_time_std, human_demand_bool, node_seq, max_iter, flag_initialize, flag_solver)
+		flag_success, route_list, route_time_list, y_sol, result_dict = global_planner.plan(edge_time, node_time, edge_time_std, node_time_std, human_demand_bool, node_seq, max_iter, flag_initialize, flag_solver)
 		print('sum_obj = demand_penalty * demand_obj + time_penalty * sum_time = %f * %f + %f * %f = %f' % (demand_penalty, result_dict['demand_obj'], time_penalty, result_dict['result_sum_time'], result_dict['sum_obj']))
 
 		if flag_load >= 2:
