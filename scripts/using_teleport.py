@@ -100,7 +100,7 @@ class sim_env(threading.Thread):
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
         self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
         rospy.Subscriber("~plan_3d", numpy_msg(Floats),self.plan_callback, queue_size=1)
-        rospy.Subscriber("/clicked_point", PointStamped,self.point_callback,queue_size=1)    
+        # rospy.Subscriber("/clicked_point", PointStamped,self.point_callback,queue_size=1)    
         self.pub_goal = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=1)
         goal_radius = self.env.episodes[0].goals[0].radius
         if goal_radius is None:
@@ -262,22 +262,22 @@ class sim_env(threading.Thread):
             self.pub_goal(poseMsg)
         lock.release()
 
-    def point_callback(self,point):
-        agent_state = self.env.sim.get_agent_state(0)    
-        floor_y = 0.0
-        print(self._current_episode+1, point)
-        map_points = maps.from_grid(
-                            int(float(point.point.y)),
-                            int(float(point.point.x)),
-                            self.grid_dimensions,
-                            pathfinder=self.env._sim.pathfinder,
-                        )
+    # def point_callback(self,point):
+    #     agent_state = self.env.sim.get_agent_state(0)    
+    #     floor_y = 0.0
+    #     print(self._current_episode+1, point)
+    #     map_points = maps.from_grid(
+    #                         int(float(point.point.y)),
+    #                         int(float(point.point.x)),
+    #                         self.grid_dimensions,
+    #                         pathfinder=self.env._sim.pathfinder,
+    #                     )
         
-        map_points_3d = np.array([map_points[1], floor_y, map_points[0]])
-        # self.current_goal = [map_points[1], floor_y, map_points[0]]
-        # goal_position = np.array([map_points[1], floor_y, map_points[0]], dtype=np.float32)
-        self._current_episode = self._current_episode+1
-        # self.new_goal = True   
+    #     map_points_3d = np.array([map_points[1], floor_y, map_points[0]])
+    #     # self.current_goal = [map_points[1], floor_y, map_points[0]]
+    #     # goal_position = np.array([map_points[1], floor_y, map_points[0]], dtype=np.float32)
+    #     self._current_episode = self._current_episode+1
+    #     # self.new_goal = True   
 
 
 def callback(vel, my_env):
@@ -292,6 +292,7 @@ def main():
     # start the thread that publishes sensor readings
     my_env.start()
     tour_plan = tour_planner(my_env.env)
+
     rospy.Subscriber("/cmd_vel", Twist, callback, (my_env), queue_size=1)
     # define a list capturing how long it took
     # to update agent orientation for past 3 instances

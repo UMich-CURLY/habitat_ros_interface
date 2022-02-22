@@ -19,7 +19,7 @@ from ortools.constraint_solver import pywrapcp
 # function to display the topdown map
 from PIL import Image
 import sys
-sys.path.insert(1, '/home/matching_routing/')
+sys.path.insert(1, './tour_planning/')
 from MatchRouteWrapper import MatchRouteWrapper
 from ResultVisualizer import ResultVisualizer
 import helper
@@ -76,7 +76,7 @@ class tour_planner():
 			[[255, 255, 255], [128, 128, 128], [0, 0, 0]], dtype=np.uint8
 		)
 		self.topdown_map = recolor_map[self.topdown_map]
-		with open('./scripts/handpicked_points_3d.csv', newline='') as csvfile:
+		with open('./scripts/handpicked_points.csv', newline='') as csvfile:
 			spamreader = csv.reader(csvfile, delimiter=',')
 			for row in spamreader:
 				map_points = list(map(float,row))
@@ -246,7 +246,7 @@ class tour_planner():
 
 	def publish_plan(self, plan, robot_number):
 		msg = Path()
-		msg.header.frame_id = "world"
+		msg.header.frame_id = "map"
 		msg.header.stamp = rospy.Time.now()
 		for wp in plan:
 			pose = PoseStamped()
@@ -272,7 +272,7 @@ class tour_planner():
 		for wp in self.final_plan:
 			marker = Marker()
 			marker.id = counter;
-			marker.header.frame_id = "world"
+			marker.header.frame_id = "map"
 			marker.header.stamp = rospy.Time.now()
 			marker.type = Marker.SPHERE
 			marker.pose.position.x = wp[0];
@@ -300,7 +300,7 @@ class tour_planner():
 		for wp in self.selected_points:
 			marker = Marker()
 			marker.id = counter;
-			marker.header.frame_id = "world"
+			marker.header.frame_id = "map"
 			marker.header.stamp = rospy.Time.now()
 			marker.type = Marker.SPHERE
 			marker.pose.position.x = wp[0];
@@ -329,7 +329,7 @@ class tour_planner():
 		# for i in range(1,10):
 		# 	marker = Marker()
 		# 	marker.id = counter;
-		# 	marker.header.frame_id = "world"
+		# 	marker.header.frame_id = "map"
 		# 	marker.header.stamp = rospy.Time.now()
 		# 	marker.type = Marker.CUBE
 		# 	marker.pose.position.x = 1.78+3.6*(i-1);
@@ -354,7 +354,7 @@ class tour_planner():
 
 	def publish_plan_initial(self):
 		msg = Path()
-		msg.header.frame_id = "world"
+		msg.header.frame_id = "map"
 		msg.header.stamp = rospy.Time.now()
 		for wp in self.selected_points:
 			pose = PoseStamped()
@@ -434,6 +434,7 @@ def main():
 	# tour_plan.publish_markers_initial()
 	# tour_plan.publish_plan_initial()
 	rospy.Subscriber("/clicked_point", PointStamped,tour_plan.callback, tour_plan,queue_size=1)
+	tour_plan.generate_plan()
 	while not rospy.is_shutdown():
 		rospy.spin()
 	# # define a list capturing how long it took
