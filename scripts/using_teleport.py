@@ -28,6 +28,7 @@ from geometry_msgs.msg import Twist
 from geometry_msgs.msg import PointStamped, PoseStamped
 import threading
 import tf
+from tour_planner_dropped import tour_planner
 
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
@@ -66,7 +67,7 @@ class sim_env(threading.Thread):
     action_uncertainty_rate = 0.9
     follower = []
     new_goal = False
-    control_frequency = 500
+    control_frequency = 10
     time_step = 1.0 / (control_frequency)
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
@@ -100,6 +101,7 @@ class sim_env(threading.Thread):
         self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
         rospy.Subscriber("~plan_3d", numpy_msg(Floats),self.plan_callback, queue_size=1)
         rospy.Subscriber("/clicked_point", PointStamped,self.point_callback,queue_size=1)    
+        self.pub_goal = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=1)
         goal_radius = self.env.episodes[0].goals[0].radius
         if goal_radius is None:
             goal_radius = config.SIMULATOR.FORWARD_STEP_SIZE
@@ -236,12 +238,28 @@ class sim_env(threading.Thread):
             length = len(msg.data)
             self._nodes = msg.data.reshape(int(length/3),3)
             self._total_number_of_episodes = self._nodes.shape[0]
-            self.current_position = self._nodes[self._current_episode]
-            self.current_orientation = [0,0,0,1]
-            self.env._sim.set_agent_state(np.float32(self.current_position), np.float32(self.current_orientation))
             self.current_goal = self._nodes[self._current_episode+1]
             print("Exiting plan_callback")
             self.start_time = rospy.get_time()
+            self.new_goal = True
+        else:
+            if(self.goal_reached):
+                self.current_goal = self._nodes[self._current_episode+1]
+                self._current_episode = self._current_episode+1
+                self.new_goal=True
+        if(self.new_goal):
+            self.new_goal= False
+            self.poseMsg = PoseStamped()
+            # self.poseMsg.header.frame_id = "world"
+            self.poseMsg.pose.orientation.x = 0
+            self.poseMsg.pose.orientation.y = 0
+            self.poseMsg.pose.orientation.z = 0
+            self.poseMsg.pose.orientation.w = 1
+            self.poseMsg.header.stamp = rospy.Time.now()
+            self.poseMsg.pose.position.x = self.current_goal[0]
+            self.poseMsg.pose.position.y = self.current_goal[1]
+            self.poseMsg.pose.position.z = self.current_goal[3]
+            self.pub_goal(poseMsg)
         lock.release()
 
     def point_callback(self,point):
@@ -273,7 +291,7 @@ def main():
     my_env = sim_env(env_config_file="configs/tasks/pointnav_rgbd.yaml")
     # start the thread that publishes sensor readings
     my_env.start()
-    
+    tour_plan = tour_planner(my_env.env)
     rospy.Subscriber("/cmd_vel", Twist, callback, (my_env), queue_size=1)
     # define a list capturing how long it took
     # to update agent orientation for past 3 instances

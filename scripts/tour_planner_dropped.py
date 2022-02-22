@@ -79,15 +79,8 @@ class tour_planner():
 		with open('./scripts/handpicked_points_3d.csv', newline='') as csvfile:
 			spamreader = csv.reader(csvfile, delimiter=',')
 			for row in spamreader:
-				map_points_3d = list(map(float,row))
-				if(self.env._sim.pathfinder.is_navigable(map_points_3d)):
-					self.selected_points.append(list(map(float,row)))
-					self.selected_points_3d.append(list(map(float,row)))
-					self.navigable.append(self.env._sim.pathfinder.is_navigable(map_points_3d))
-		self.selected_points = np.array(self.selected_points)
-		self.selected_points = convert_points_to_topdown(self.env._sim.pathfinder, self.selected_points)
-		self.selected_points = np.array(self.selected_points)
-		self.selected_points_3d = np.array(self.selected_points_3d)
+				map_points = list(map(float,row))
+				self.selected_points.append(list(map(float,row)))				
 		# self.demand_list = [0, 1, 1, 3, 6, 3, 6, 8, 8, 1, 2 , 1, 2, 6, 6, 8, 8, 9, 1, 3, 5, 2, 8, 4]
 		self.demand_list = [8,6,3,1,6,2,4,1,3,7,9,5,9,5,2,6,6,9,7,5,5,3,2,0,0]
 		self.node_num = len(self.selected_points)
@@ -97,20 +90,12 @@ class tour_planner():
 
 	def generate_distance_matrix(self):
 		distance_matrix = []
-		for start_point in self.selected_points_3d:
+		for start_point in self.selected_points:
 			distances = []
 			# Check Size of the matrix
-			for end_point in self.selected_points_3d:
-				path = hsim.ShortestPath()
-				path.requested_start = start_point
-				path.requested_end = end_point
-				found_path = False
-				counter = 0
-				while(found_path==False and counter<30):
-					counter = counter+1
-					found_path = self.env._sim.pathfinder.find_path(path)
-				geodesic_distance = path.geodesic_distance
-				distances.append(geodesic_distance)
+			for end_point in self.selected_points:
+				euclidean_dist = (start_point[0]-end_point[0])**2+(start_point[1]-end_point[1])**2
+				distances.append(euclidean_dist)
 			distance_matrix.append(distances)
 		return distance_matrix
 
