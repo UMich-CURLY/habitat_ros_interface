@@ -4,7 +4,7 @@ from OrtoolRoutingSolver import OrtoolRoutingSolver
 from OrtoolHumanMatcher import OrtoolHumanMatcher
 from ResultEvaluator import ResultEvaluator
 from GurobiRoutingSolver import GurobiRoutingSolver
-
+from IPython import embed
 class MatchRouteWrapper:
     def __init__(self, node_num, human_choice, human_num, demand_penalty, time_penalty, time_limit, solver_time_limit, beta, flag_verbose = True):
         '''
@@ -121,6 +121,7 @@ class MatchRouteWrapper:
         optimization_time = end_time - start_time
 
         # Construct the result dictionary
+        result_dict['success'] = flag_success
         result_dict['optimization_time'] = optimization_time
         result_dict['sum_obj'] = sum_obj
         result_dict['demand_obj'] = demand_obj
@@ -217,7 +218,7 @@ class MatchRouteWrapper:
             # Print the intial objective function value
             sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, y_sol, human_demand_bool)
             print(route_list, y_sol)
-            print('sum_obj = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
+            print('Initial sum_obj = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
         # Start iterating
         for i_iter in range(1):
             # Store intermediate results
@@ -234,8 +235,8 @@ class MatchRouteWrapper:
                 route_list = None
             # Optimize the routing problem
             temp_flag_success, result_dict = routing_solver.optimize_sub(edge_time, node_time, human_demand_bool, node_seq, route_list)
-            if not temp_flag_success:
-                break
+            # if not temp_flag_success:
+            #     break
             route_list, route_time_list, y_sol = routing_solver.get_plan(flag_sub_solver=True, flag_verbose=True)
 
             # Store intermediate results
@@ -248,5 +249,5 @@ class MatchRouteWrapper:
             result_max_time_list = result_max_time
 
         # Check whether the optimization is successful
-        flag_success = i_iter >= 1 # TODO: This condition is just a placeholder, not the actual condition
+        flag_success = temp_flag_success
         return flag_success, route_list, route_time_list, y_sol, sum_obj_list, demand_obj_list, result_max_time_list

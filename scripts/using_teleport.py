@@ -25,11 +25,11 @@ import rospy
 from rospy.numpy_msg import numpy_msg
 from rospy_tutorials.msg import Floats
 from geometry_msgs.msg import Twist
-from geometry_msgs.msg import PointStamped, PoseStamped
+from geometry_msgs.msg import PointStamped, PoseStamped, PoseWithCovarianceStamped
 import threading
 import tf
 from tour_planner_dropped import tour_planner
-
+import csv
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
 
@@ -72,6 +72,9 @@ class sim_env(threading.Thread):
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
     received_vel = False
+    goal_reached = False
+    all_points = []
+    rtab_pose = []
     def __init__(self, env_config_file):
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
@@ -98,10 +101,12 @@ class sim_env(threading.Thread):
         self.grid_dimensions = (top_down_map.shape[0], top_down_map.shape[1])
         self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
-        self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
+        # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
         rospy.Subscriber("~plan_3d", numpy_msg(Floats),self.plan_callback, queue_size=1)
-        # rospy.Subscriber("/clicked_point", PointStamped,self.point_callback,queue_size=1)    
+        rospy.Subscriber("/rtabmap/localization_pose", PoseWithCovarianceStamped,self.rtabpose_callback,queue_size=1)    
+        # rospy.Subscriber("/move_base_simple/goal", PoseStamped,self.landmark_callback,queue_size=1)    
         self.pub_goal = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=1)
+        rospy.Subscriber("/clicked_point", PointStamped,self.point_callback, queue_size=1)
         goal_radius = self.env.episodes[0].goals[0].radius
         if goal_radius is None:
             goal_radius = config.SIMULATOR.FORWARD_STEP_SIZE
@@ -114,7 +119,19 @@ class sim_env(threading.Thread):
         self.vel_control.lin_vel_is_local = True
         self.vel_control.controlling_ang_vel = True
         self.vel_control.ang_vel_is_local = True
+        self.tour_plan = tour_planner()
+
+        
         print("created habitat_plant succsefully")
+
+    def __del__(self):
+        if (len(self.all_points)>1):
+            with open('./scripts/all_points.csv',  mode='w') as csvfile:
+                csv_writer = csv.writer(csvfile, delimiter=',')
+                for points in self.all_points:
+                    print(points)
+                    csv_writer.writerow(points)
+            csvfile.close()
 
     def _render(self):
         self.observations.update(self.env._task._sim.get_observations_at())
@@ -220,6 +237,25 @@ class sim_env(threading.Thread):
             self.vel_control.linear_velocity = self.linear_velocity
             self.vel_control.angular_velocity = self.angular_velocity
         self.update_pos_vel()
+        if(self._global_plan_published):
+            if(self.new_goal):
+                self.new_goal= False
+                poseMsg = PoseStamped()
+                poseMsg.header.frame_id = "map"
+                poseMsg.pose.orientation.x = 0
+                poseMsg.pose.orientation.y = 0
+                poseMsg.pose.orientation.z = 0
+                poseMsg.pose.orientation.w = 1
+                poseMsg.header.stamp = rospy.Time.now()
+                poseMsg.pose.position.x = self.current_goal[0]
+                poseMsg.pose.position.y = self.current_goal[1]
+                poseMsg.pose.position.z = self.current_goal[2]
+                self.pub_goal.publish(poseMsg)
+                if(self.goal_reached):
+                    self.current_goal = self._nodes[self._current_episode+1]
+                    self._current_episode = self._current_episode+1
+                    self.new_goal=True
+
         rospy.sleep(self.time_step)
         # self.linear_velocity = np.array([0.0,0.0,0.0])
         # self.angular_velocity = np.array([0.0,0.0,0.0])
@@ -232,52 +268,51 @@ class sim_env(threading.Thread):
       
         
     def plan_callback(self,msg):
-        lock.acquire()
+        print("In plan_callback ", self._global_plan_published)
         if(self._global_plan_published == False):
             self._global_plan_published = True
             length = len(msg.data)
-            self._nodes = msg.data.reshape(int(length/3),3)
+            self._nodes = msg.data.reshape(int(length/7),7)
             self._total_number_of_episodes = self._nodes.shape[0]
             self.current_goal = self._nodes[self._current_episode+1]
             print("Exiting plan_callback")
             self.start_time = rospy.get_time()
             self.new_goal = True
-        else:
-            if(self.goal_reached):
-                self.current_goal = self._nodes[self._current_episode+1]
-                self._current_episode = self._current_episode+1
-                self.new_goal=True
-        if(self.new_goal):
-            self.new_goal= False
-            self.poseMsg = PoseStamped()
-            # self.poseMsg.header.frame_id = "world"
-            self.poseMsg.pose.orientation.x = 0
-            self.poseMsg.pose.orientation.y = 0
-            self.poseMsg.pose.orientation.z = 0
-            self.poseMsg.pose.orientation.w = 1
-            self.poseMsg.header.stamp = rospy.Time.now()
-            self.poseMsg.pose.position.x = self.current_goal[0]
-            self.poseMsg.pose.position.y = self.current_goal[1]
-            self.poseMsg.pose.position.z = self.current_goal[3]
-            self.pub_goal(poseMsg)
-        lock.release()
+        # else:
+        #     if(self.goal_reached):
+        #         self.current_goal = self._nodes[self._current_episode+1]
+        #         self._current_episode = self._current_episode+1
+        #         self.new_goal=True
+        # if(self.new_goal):
+        #     self.new_goal= False
+        #     self.poseMsg = PoseStamped()
+        #     # self.poseMsg.header.frame_id = "world"
+        #     self.poseMsg.pose.orientation.x = 0
+        #     self.poseMsg.pose.orientation.y = 0
+        #     self.poseMsg.pose.orientation.z = 0
+        #     self.poseMsg.pose.orientation.w = 1
+        #     self.poseMsg.header.stamp = rospy.Time.now()
+        #     self.poseMsg.pose.position.x = self.current_goal[0]
+        #     self.poseMsg.pose.position.y = self.current_goal[1]
+        #     self.poseMsg.pose.position.z = self.current_goal[2]
+        #     self.pub_goal(poseMsg)
 
-    # def point_callback(self,point):
-    #     agent_state = self.env.sim.get_agent_state(0)    
-    #     floor_y = 0.0
-    #     print(self._current_episode+1, point)
-    #     map_points = maps.from_grid(
-    #                         int(float(point.point.y)),
-    #                         int(float(point.point.x)),
-    #                         self.grid_dimensions,
-    #                         pathfinder=self.env._sim.pathfinder,
-    #                     )
-        
+    def landmark_callback(self,point):
+        self.all_points.append([point.pose.position.x,point.pose.position.y,point.pose.position.z,point.pose.orientation.x,point.pose.orientation.y,point.pose.orientation.z,point.pose.orientation.w])        
+        print(self._current_episode+1, self.all_points[-1])
     #     map_points_3d = np.array([map_points[1], floor_y, map_points[0]])
     #     # self.current_goal = [map_points[1], floor_y, map_points[0]]
     #     # goal_position = np.array([map_points[1], floor_y, map_points[0]], dtype=np.float32)
     #     self._current_episode = self._current_episode+1
     #     # self.new_goal = True   
+    def point_callback(self,point):
+        depot = self.rtab_pose
+        self.tour_plan.plan(depot)
+
+    def rtabpose_callback(self,point):
+        pose = point.pose
+        self.rtab_pose = [pose.pose.position.x,pose.pose.position.y,pose.pose.position.z,pose.pose.orientation.x,pose.pose.orientation.y,pose.pose.orientation.z,pose.pose.orientation.w]
+
 
 
 def callback(vel, my_env):
@@ -291,7 +326,6 @@ def main():
     my_env = sim_env(env_config_file="configs/tasks/pointnav_rgbd.yaml")
     # start the thread that publishes sensor readings
     my_env.start()
-    tour_plan = tour_planner(my_env.env)
 
     rospy.Subscriber("/cmd_vel", Twist, callback, (my_env), queue_size=1)
     # define a list capturing how long it took
