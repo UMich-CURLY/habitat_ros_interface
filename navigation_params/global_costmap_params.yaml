@@ -3,3 +3,32 @@ global_costmap:
   robot_base_frame: base_frame
   update_frequency: 2.0
   static_map: true
+  
+
+plugins:
+- {name: static_layer, type: "costmap_2d::StaticLayer"} 
+- {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
+- {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+
+static_layer:
+  unknown_cost_value: 100 # default: 0
+  lethal_cost_threshold: 100 # default: 100
+  map_topic: map # default: "map"
+
+obstacle_layer:
+  combination_method: 1 #default 1, meaning we will combine the layers
+  observation_sources: point_cloud_sensor
+  track_unknown_space: true
+  map_type: costmap
+  point_cloud_sensor: {
+    sensor_frame: base_frame,
+    data_type: PointCloud2, 
+    topic: planner_cloud, 
+    expected_update_rate: 2.0, 
+    marking: true, 
+    clearing: true,
+    min_obstacle_height: -99999.0,
+    max_obstacle_height: 99999.0}                  # default: false
+
+inflation_layer:
+  inflation_radius: 0.45 # default: 0.55

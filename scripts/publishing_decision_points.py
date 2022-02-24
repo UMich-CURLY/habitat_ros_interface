@@ -8,7 +8,7 @@ import csv
 
 rospy.init_node("get_points",anonymous=False)
 rate = rospy.Rate(10)
-_pub_markers = rospy.Publisher("~points", MarkerArray, queue_size = 1)
+_pub_markers = rospy.Publisher("~points", MarkerArray, queue_size = 0)
 
 final_plan = []
 
@@ -44,10 +44,10 @@ def main():
         counter = counter+1
         msg.markers.append(marker)
     rospy.loginfo("Publishing Markers...")
+    _pub_markers.publish(msg)
+    rospy.loginfo("Publishing Markers...")
     
     while not rospy.is_shutdown():
-        _pub_markers.publish(msg)
-        rospy.loginfo("Publishing Markers...")
         rate.sleep()
 
 

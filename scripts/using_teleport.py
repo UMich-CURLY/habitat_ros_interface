@@ -24,12 +24,14 @@ sys.path.append("/opt/conda/envs/robostackenv/lib/python3.9/site-packages")
 import rospy
 from rospy.numpy_msg import numpy_msg
 from rospy_tutorials.msg import Floats
+from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import PointStamped, PoseStamped, PoseWithCovarianceStamped
 import threading
 import tf
 from tour_planner_dropped import tour_planner
 import csv
+from move_base_msgs.msg import MoveBaseActionResult
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
 
@@ -67,7 +69,7 @@ class sim_env(threading.Thread):
     action_uncertainty_rate = 0.9
     follower = []
     new_goal = False
-    control_frequency = 10
+    control_frequency = 20
     time_step = 1.0 / (control_frequency)
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
@@ -103,8 +105,11 @@ class sim_env(threading.Thread):
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
         rospy.Subscriber("~plan_3d", numpy_msg(Floats),self.plan_callback, queue_size=1)
+        rospy.Subscriber("/rtabmap/goal_reached", Bool,self.update_goal_status, queue_size=1)
+        rospy.Subscriber("/move_base/result", MoveBaseActionResult ,self.update_move_base_goal_status, queue_size=1)
         rospy.Subscriber("/rtabmap/localization_pose", PoseWithCovarianceStamped,self.rtabpose_callback,queue_size=1)    
         # rospy.Subscriber("/move_base_simple/goal", PoseStamped,self.landmark_callback,queue_size=1)    
+        # self.pub_goal = rospy.Publisher("~current_goal", PoseStamped, queue_size=1)
         self.pub_goal = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=1)
         rospy.Subscriber("/clicked_point", PointStamped,self.point_callback, queue_size=1)
         goal_radius = self.env.episodes[0].goals[0].radius
@@ -251,10 +256,7 @@ class sim_env(threading.Thread):
                 poseMsg.pose.position.y = self.current_goal[1]
                 poseMsg.pose.position.z = self.current_goal[2]
                 self.pub_goal.publish(poseMsg)
-                if(self.goal_reached):
-                    self.current_goal = self._nodes[self._current_episode+1]
-                    self._current_episode = self._current_episode+1
-                    self.new_goal=True
+                    
 
         rospy.sleep(self.time_step)
         # self.linear_velocity = np.array([0.0,0.0,0.0])
@@ -313,7 +315,16 @@ class sim_env(threading.Thread):
         pose = point.pose
         self.rtab_pose = [pose.pose.position.x,pose.pose.position.y,pose.pose.position.z,pose.pose.orientation.x,pose.pose.orientation.y,pose.pose.orientation.z,pose.pose.orientation.w]
 
+    def update_goal_status(self,msg):
+        self.goal_reached=msg.data
+        print("Rtabmap goal reached? ", self.goal_reached)
 
+    def update_move_base_goal_status(self,msg):
+        self.goal_reached = (msg.status.status ==3)
+        print("Move base goal reached? ", self.goal_reached)
+        self.current_goal = self._nodes[self._current_episode+1]
+        self._current_episode = self._current_episode+1
+        self.new_goal=True
 
 def callback(vel, my_env):
     my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (-1.0 * vel.linear.x)])

@@ -24,7 +24,8 @@ from MatchRouteWrapper import MatchRouteWrapper
 from ResultVisualizer import ResultVisualizer
 import helper
 from IPython import embed
-
+from nav_msgs.srv import GetPlan
+import math
 
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.5):
 	points_topdown = []
@@ -77,6 +78,10 @@ class tour_planner():
 		self.demand_list = [8,6,3,1,6,2,4,1,3,7,9,5,9,5,2,6,6,9,7,5,5,3,2,0,0]
 		self.node_num = len(self.selected_points)
 		self.capacity = 80
+		self.selected_points_pose_stamped = []
+		self.path_srv = GetPlan()
+		self.get_plan = rospy.ServiceProxy('/move_base/make_plan', GetPlan)
+		print("Created tour planner object")
 		self._r.sleep()
 
 	def generate_distance_matrix(self):
@@ -90,10 +95,38 @@ class tour_planner():
 			distance_matrix.append(distances)
 		return distance_matrix
 
+	def generate_distance_matrix_pose_stamped(self):
+		distance_matrix = []
+		for start_point in self.selected_points_pose_stamped:
+			distances = []
+			for end_point in self.selected_points_pose_stamped:
+				self.path_srv.start = start_point
+				self.path_srv.goal = end_point
+				self.path_srv.tolerance = .5
+				path = self.get_plan(self.path_srv.start, self.path_srv.goal, self.path_srv.tolerance)
+				prev_x = 0.0
+				prev_y = 0.0
+				total_distance = 0.0
+				first_time = True
+				print (len(distance_matrix))
+				for current_point in path.plan.poses:
+					x = current_point.pose.position.x
+					y = current_point.pose.position.y
+					if not first_time:
+						total_distance += math.hypot(prev_x - x, prev_y - y) 
+					else:
+						first_time = False
+					prev_x = x
+					prev_y = y
+				distances.append(total_distance)
+			distance_matrix.append(distances)
+		print("iN CREATE MODE, FOUND THE DISTANCE MATRIX ", distance_matrix)
+		return distance_matrix
+
 	def create_data_model(self):
 		"""Stores the data for the problem."""
 		data = {}
-		distance_matrix = self.generate_distance_matrix()	    
+		distance_matrix = self.generate_distance_matrix_pose_stamped()	    
 		data['distance_matrix'] = distance_matrix  # yapf: disable
 		data['demands'] = self.demand_list
 		data['vehicle_capacities'] = [self.capacity]
@@ -368,9 +401,24 @@ class tour_planner():
 		# self.run_demo()
 		self.selected_points.append(start_point)
 		self.selected_points.append(start_point)
-		self.selected_points = np.array(self.selected_points)
 		print(self.selected_points)
+		self.selected_points = np.array(self.selected_points)
+		i = 0
+		for point in self.selected_points:
+			start = PoseStamped()
+			start.header.seq = i
+			start.header.frame_id = "map"
+			start.header.stamp = rospy.Time(0)
+			start.pose.position.x = point[0]
+			start.pose.position.y = point[1]
+			start.pose.position.z = point[2]
+			start.pose.orientation.x = point[3]
+			start.pose.orientation.y = point[4]
+			start.pose.orientation.z = point[5]
+			start.pose.orientation.w = point[6]
+			self.selected_points_pose_stamped.append(start)
 		self.publish_markers_initial()
+		print(self.selected_points_pose_stamped)
 		self.generate_plan()
 
 

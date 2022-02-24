@@ -12,7 +12,8 @@ transform_tolerance: 1
 controller_patience: 2.0
 
 NavfnROS:
-    allow_unknown: true
+    allow_unknown: false
+
 
 recovery_behaviors: [
     {name: conservative_clear, type: clear_costmap_recovery/ClearCostmapRecovery},
