@@ -75,6 +75,8 @@ class sim_env(threading.Thread):
     angular_velocity = np.array([0.0,0.0,0.0])
     received_vel = False
     goal_reached = False
+    start_time = []
+    tour_planning_time = []
     all_points = []
     rtab_pose = []
     def __init__(self, env_config_file):
@@ -278,7 +280,8 @@ class sim_env(threading.Thread):
             self._total_number_of_episodes = self._nodes.shape[0]
             self.current_goal = self._nodes[self._current_episode+1]
             print("Exiting plan_callback")
-            self.start_time = rospy.get_time()
+            self.tour_planning_time = rospy.get_time() - self.start_time
+            print("Calculated a tour plan in ", self.tour_planning_time)
             self.new_goal = True
         # else:
         #     if(self.goal_reached):
@@ -309,6 +312,7 @@ class sim_env(threading.Thread):
     #     # self.new_goal = True   
     def point_callback(self,point):
         depot = self.rtab_pose
+        self.start_time = rospy.get_time()
         self.tour_plan.plan(depot)
 
     def rtabpose_callback(self,point):

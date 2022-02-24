@@ -401,7 +401,6 @@ class tour_planner():
 		# self.run_demo()
 		self.selected_points.append(start_point)
 		self.selected_points.append(start_point)
-		print(self.selected_points)
 		self.selected_points = np.array(self.selected_points)
 		i = 0
 		for point in self.selected_points:
@@ -418,7 +417,6 @@ class tour_planner():
 			start.pose.orientation.w = point[6]
 			self.selected_points_pose_stamped.append(start)
 		self.publish_markers_initial()
-		print(self.selected_points_pose_stamped)
 		self.generate_plan()
 
 

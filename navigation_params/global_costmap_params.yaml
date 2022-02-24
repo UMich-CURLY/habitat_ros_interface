@@ -11,9 +11,10 @@ plugins:
 - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
 
 static_layer:
-  unknown_cost_value: 100 # default: 0
+  unknown_cost_value: 0 # default: 0
   lethal_cost_threshold: 100 # default: 100
   map_topic: map # default: "map"
+  track_unknown_space: true
 
 obstacle_layer:
   combination_method: 1 #default 1, meaning we will combine the layers
