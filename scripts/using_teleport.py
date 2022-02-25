@@ -32,6 +32,8 @@ import tf
 from tour_planner_dropped import tour_planner
 import csv
 from move_base_msgs.msg import MoveBaseActionResult
+from nav_msgs.srv import GetPlan
+
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
 
@@ -245,7 +247,8 @@ class sim_env(threading.Thread):
             self.vel_control.angular_velocity = self.angular_velocity
         self.update_pos_vel()
         if(self._global_plan_published):
-            if(self.new_goal):
+            if(self.new_goal and self._current_episode<self._total_number_of_episodes):
+                print("Executing goal number ", self._current_episode, self._total_number_of_episodes)
                 self.new_goal= False
                 poseMsg = PoseStamped()
                 poseMsg.header.frame_id = "map"
@@ -258,6 +261,8 @@ class sim_env(threading.Thread):
                 poseMsg.pose.position.y = self.current_goal[1]
                 poseMsg.pose.position.z = self.current_goal[2]
                 self.pub_goal.publish(poseMsg)
+            if(self._current_episode==self._total_number_of_episodes):
+                print("Tour plan executed in ", rospy.get_time()-self.start_time)
                     
 
         rospy.sleep(self.time_step)
@@ -276,7 +281,7 @@ class sim_env(threading.Thread):
         if(self._global_plan_published == False):
             self._global_plan_published = True
             length = len(msg.data)
-            self._nodes = msg.data.reshape(int(length/7),7)
+            self._nodes = msg.data.reshape(int(length/7),7)   
             self._total_number_of_episodes = self._nodes.shape[0]
             self.current_goal = self._nodes[self._current_episode+1]
             print("Exiting plan_callback")

@@ -50,7 +50,7 @@ def get_rgb_from_demand(demand):
 
 class tour_planner():
 	selection_done = False
-	
+	flag_use_vulcan_path = True
 	def __init__(self):
 		if (not rospy.core.is_initialized()):
 			rospy.init_node("get_points",anonymous=False)
@@ -80,7 +80,9 @@ class tour_planner():
 		self.capacity = 80
 		self.selected_points_pose_stamped = []
 		self.path_srv = GetPlan()
+		self.vulcan_graph_srv = GetPlan()
 		self.get_plan = rospy.ServiceProxy('/move_base/make_plan', GetPlan)
+		self.get_vulcan_plan = rospy.ServiceProxy('/plan_path', GetPlan)
 		print("Created tour planner object")
 		self._r.sleep()
 
@@ -123,10 +125,46 @@ class tour_planner():
 		print("iN CREATE MODE, FOUND THE DISTANCE MATRIX ", distance_matrix)
 		return distance_matrix
 
+	def generate_distance_vulcan_grid(self):
+		print("In Vulcan grid distnace callback")
+		distance_matrix = []
+		for start_point in self.selected_points_pose_stamped:
+			distances = []
+			for end_point in self.selected_points_pose_stamped:
+				self.vulcan_graph_srv.start = start_point
+				self.vulcan_graph_srv.goal = end_point
+				self.vulcan_graph_srv.tolerance = .5
+				path = self.get_vulcan_plan(self.vulcan_graph_srv.start, self.vulcan_graph_srv.goal, self.vulcan_graph_srv.tolerance)
+				# total_total_distance = 0.0
+				# for i in range(0,len(path.plan.poses)-1):
+				# 	self.path_srv.start = path.plan.poses[i]
+				# 	self.path_srv.goal = path.plan.poses[i+1]
+				# 	self.path_srv.tolerance = .5
+				# 	a_star_path = self.get_plan(self.path_srv.start, self.path_srv.goal, self.path_srv.tolerance)
+				# 	prev_x = 0.0
+				# 	prev_y = 0.0
+				# 	total_distance = 0.0
+				# 	first_time = True
+				# 	for current_point in a_star_path.plan.poses:
+				# 		x = current_point.pose.position.x
+				# 		y = current_point.pose.position.y
+				# 		if not first_time:
+				# 			total_distance += math.hypot(prev_x - x, prev_y - y) 
+				# 		else:
+				# 			first_time = False
+				# 		prev_x = x
+				# 		prev_y = y
+				# 	total_total_distance = total_total_distance + total_distance
+				total_total_distance = path.plan.poses[0].pose.position.x
+				distances.append(total_total_distance)
+			distance_matrix.append(distances)
+		print("iN CREATE MODE, FOUND THE DISTANCE MATRIX ", distance_matrix)
+		return distance_matrix
+
 	def create_data_model(self):
 		"""Stores the data for the problem."""
 		data = {}
-		distance_matrix = self.generate_distance_matrix_pose_stamped()	    
+		distance_matrix = self.generate_distance_vulcan_grid()	    
 		data['distance_matrix'] = distance_matrix  # yapf: disable
 		data['demands'] = self.demand_list
 		data['vehicle_capacities'] = [self.capacity]
@@ -150,7 +188,7 @@ class tour_planner():
 		node_num = len(self.selected_points)
 		demand_penalty = 1000.0
 		time_penalty = 10.0
-		time_limit = 800 * scale_time
+		time_limit = 100 * scale_time
 		human_num = 5
 		human_choice = 3
 		max_iter = 1
@@ -244,8 +282,24 @@ class tour_planner():
 		# helper.save_dict('result.dat', result_dict)
 
 		robot_1_route = route_list[0]
-		print(robot_1_route)
-		self.final_plan_1 = self.selected_points[robot_1_route]
+		self.final_plan_1 = list(self.selected_points[robot_1_route])
+		self.final_plan_pose_stamped = list(np.array(self.selected_points_pose_stamped)[robot_1_route])
+		final_plan = []
+		j=0
+		if(self.flag_use_vulcan_path):
+			for i in range(0,len(self.final_plan_pose_stamped)-1):
+				self.vulcan_graph_srv.start = self.final_plan_pose_stamped[i]
+				self.vulcan_graph_srv.goal = self.final_plan_pose_stamped[i+1]
+				self.vulcan_graph_srv.tolerance = .5
+				path = self.get_vulcan_plan(self.vulcan_graph_srv.start, self.vulcan_graph_srv.goal, self.vulcan_graph_srv.tolerance)
+				print("Found vulcan path between ", i, " and ", i+1)
+				if(len(path.plan.poses)>2):
+					for pose in path.plan.poses[1:-1]:
+						j = j+1 
+						node = [pose.pose.position.x,pose.pose.position.y,pose.pose.position.z,pose.pose.orientation.x,pose.pose.orientation.y,pose.pose.orientation.z,pose.pose.orientation.w]						
+						self.final_plan_1.insert(i+j,node)
+						print(self.final_plan_1)
+			print("Number of path points inserted is ", j, "and total is ", len(self.final_plan_1))
 		self.publish_plan(self.final_plan_1, 1)
 		self.publish_3d_plan(self.final_plan_1,1)
 		# self.publish_markers()
@@ -418,6 +472,8 @@ class tour_planner():
 			self.selected_points_pose_stamped.append(start)
 		self.publish_markers_initial()
 		self.generate_plan()
+		# self.generate_distance_vulcan_grid()
+		
 
 
 		# if (tour_plan.selection_done == True):

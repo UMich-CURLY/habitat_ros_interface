@@ -3,6 +3,8 @@ global_costmap:
   robot_base_frame: base_frame
   update_frequency: 2.0
   static_map: true
+  map_topic: map # default: "map"
+  track_unknown_space: true
   
 
 plugins:
@@ -18,18 +20,9 @@ static_layer:
 
 obstacle_layer:
   combination_method: 1 #default 1, meaning we will combine the layers
-  observation_sources: point_cloud_sensor
-  track_unknown_space: true
   map_type: costmap
-  point_cloud_sensor: {
-    sensor_frame: base_frame,
-    data_type: PointCloud2, 
-    topic: planner_cloud, 
-    expected_update_rate: 2.0, 
-    marking: true, 
-    clearing: true,
-    min_obstacle_height: -99999.0,
-    max_obstacle_height: 99999.0}                  # default: false
+  map_topic: map # default: "map"
+  track_unknown_space: true
 
 inflation_layer:
   inflation_radius: 0.45 # default: 0.55

@@ -1,10 +1,15 @@
- TrajectoryPlannerROS:
-  max_vel_x: 2.0
-  min_vel_x: -0.1
-  max_vel_theta: 5
-  min_in_place_vel_theta: -3
+# Planner selection
+# base_global_planner: "rrt_star_global_planner/RRTStarPlanner"
+base_global_planner: "navfn/NavfnROS" 
+base_local_planner: "base_local_planner/TrajectoryPlannerROS"
 
-  acc_lim_theta: 1
+TrajectoryPlannerROS:
+  max_vel_x: 1.0
+  min_vel_x: -0.1
+  max_vel_theta: 3
+  min_in_place_vel_theta: -1
+
+  acc_lim_theta: 2.5
   acc_lim_x: 2.5
   acc_lim_y: 2.5
 
@@ -13,6 +18,9 @@
 
   controller_frequency: 20.0
   allow_unknown: false
+
+NavfnROS:
+    allow_unknown: false
 
 # TrajectoryPlannerROS:
 #   max_vel_x: 40 #0.12    
