@@ -26,6 +26,7 @@ import helper
 from IPython import embed
 from nav_msgs.srv import GetPlan
 import math
+import tf
 
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.5):
 	points_topdown = []
@@ -41,7 +42,7 @@ def get_rgb_from_demand(demand):
 	rgb = []
 	if demand == 0:
 		rgb = [0.0,0.0,0.0]
-	elif demand <= 5:
+	elif demand <= 3:  # was 5 before for 10 total 
 		rgb = [1-(0.25*(demand-1)), 0.25*(demand-1), 0.0]
 	else:
 		rgb = [0.25*(demand-6), 0.0, 1-(0.25*(demand-6))]
@@ -82,7 +83,7 @@ class tour_planner():
 		self.path_srv = GetPlan()
 		self.vulcan_graph_srv = GetPlan()
 		self.get_plan = rospy.ServiceProxy('/move_base/make_plan', GetPlan)
-		self.get_vulcan_plan = rospy.ServiceProxy('/plan_path', GetPlan)
+		self.get_vulcan_plan = rospy.ServiceProxy('/get_distance', GetPlan)
 		print("Created tour planner object")
 		self._r.sleep()
 
@@ -110,7 +111,6 @@ class tour_planner():
 				prev_y = 0.0
 				total_distance = 0.0
 				first_time = True
-				print (len(distance_matrix))
 				for current_point in path.plan.poses:
 					x = current_point.pose.position.x
 					y = current_point.pose.position.y
@@ -164,7 +164,11 @@ class tour_planner():
 	def create_data_model(self):
 		"""Stores the data for the problem."""
 		data = {}
-		distance_matrix = self.generate_distance_vulcan_grid()	    
+		if(flag_use_vulcan_path):
+			distance_matrix = self.generate_distance_vulcan_grid()	    
+		else:
+			distance_matrix = self.generate_distance_matrix_pose_stamped()
+
 		data['distance_matrix'] = distance_matrix  # yapf: disable
 		data['demands'] = self.demand_list
 		data['vehicle_capacities'] = [self.capacity]
@@ -284,7 +288,6 @@ class tour_planner():
 		robot_1_route = route_list[0]
 		self.final_plan_1 = list(self.selected_points[robot_1_route])
 		self.final_plan_pose_stamped = list(np.array(self.selected_points_pose_stamped)[robot_1_route])
-		final_plan = []
 		j=0
 		if(self.flag_use_vulcan_path):
 			for i in range(0,len(self.final_plan_pose_stamped)-1):
@@ -294,9 +297,16 @@ class tour_planner():
 				path = self.get_vulcan_plan(self.vulcan_graph_srv.start, self.vulcan_graph_srv.goal, self.vulcan_graph_srv.tolerance)
 				print("Found vulcan path between ", i, " and ", i+1)
 				if(len(path.plan.poses)>2):
+					k = 0
 					for pose in path.plan.poses[1:-1]:
-						j = j+1 
-						node = [pose.pose.position.x,pose.pose.position.y,pose.pose.position.z,pose.pose.orientation.x,pose.pose.orientation.y,pose.pose.orientation.z,pose.pose.orientation.w]						
+						j = j+1
+						k = k+1
+						y_diff =  path.plan.poses[k+1].pose.position.y - path.plan.poses[k].pose.position.y
+						x_diff =  path.plan.poses[k+1].pose.position.x - path.plan.poses[k].pose.position.x
+						yaw = math.atan2(y_diff,x_diff)
+						quat = tf.transformations.quaternion_from_euler(0.0,0.0,yaw)
+						print(quat)
+						node = [pose.pose.position.x,pose.pose.position.y,pose.pose.position.z,quat[0],quat[1],quat[2],quat[3]]						
 						self.final_plan_1.insert(i+j,node)
 						print(self.final_plan_1)
 			print("Number of path points inserted is ", j, "and total is ", len(self.final_plan_1))
@@ -321,11 +331,11 @@ class tour_planner():
 			pose = PoseStamped()
 			pose.pose.position.x = wp[0]
 			pose.pose.position.y = wp[1]
-			pose.pose.position.z = 0.0
-			pose.pose.orientation.x = 0.0
-			pose.pose.orientation.y = 0.0
-			pose.pose.orientation.z = 0.0
-			pose.pose.orientation.w = 1.0
+			pose.pose.position.z = wp[2]
+			pose.pose.orientation.x = wp[3]
+			pose.pose.orientation.y = wp[4]
+			pose.pose.orientation.z = wp[5]
+			pose.pose.orientation.w = wp[6]
 			msg.poses.append(pose)
 		rospy.loginfo("Publishing Plan...")
 		if robot_number == 1:
@@ -471,8 +481,12 @@ class tour_planner():
 			start.pose.orientation.w = point[6]
 			self.selected_points_pose_stamped.append(start)
 		self.publish_markers_initial()
-		self.generate_plan()
-		# self.generate_distance_vulcan_grid()
+		# self.generate_plan()
+		start_time = rospy.get_time()
+		self.generate_distance_vulcan_grid()
+		print("Calculated matrix in ", rospy.get_time()-start_time)
+		self.generate_distance_matrix_pose_stamped()
+		print("Calculated matrix in ", rospy.get_time()-start_time)
 		
 
 

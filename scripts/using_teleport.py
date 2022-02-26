@@ -252,17 +252,16 @@ class sim_env(threading.Thread):
                 self.new_goal= False
                 poseMsg = PoseStamped()
                 poseMsg.header.frame_id = "map"
-                poseMsg.pose.orientation.x = 0
-                poseMsg.pose.orientation.y = 0
-                poseMsg.pose.orientation.z = 0
-                poseMsg.pose.orientation.w = 1
+                poseMsg.pose.orientation.x = self.current_goal[3]
+                poseMsg.pose.orientation.y = self.current_goal[4]
+                poseMsg.pose.orientation.z = self.current_goal[5]
+                poseMsg.pose.orientation.w = self.current_goal[6]
                 poseMsg.header.stamp = rospy.Time.now()
                 poseMsg.pose.position.x = self.current_goal[0]
                 poseMsg.pose.position.y = self.current_goal[1]
                 poseMsg.pose.position.z = self.current_goal[2]
                 self.pub_goal.publish(poseMsg)
-            if(self._current_episode==self._total_number_of_episodes):
-                print("Tour plan executed in ", rospy.get_time()-self.start_time)
+            
                     
 
         rospy.sleep(self.time_step)
@@ -278,7 +277,8 @@ class sim_env(threading.Thread):
         
     def plan_callback(self,msg):
         print("In plan_callback ", self._global_plan_published)
-        if(self._global_plan_published == False):
+        # if(self._global_plan_published == False):
+        if (True):
             self._global_plan_published = True
             length = len(msg.data)
             self._nodes = msg.data.reshape(int(length/7),7)   
@@ -331,9 +331,12 @@ class sim_env(threading.Thread):
     def update_move_base_goal_status(self,msg):
         self.goal_reached = (msg.status.status ==3)
         print("Move base goal reached? ", self.goal_reached)
-        self.current_goal = self._nodes[self._current_episode+1]
-        self._current_episode = self._current_episode+1
-        self.new_goal=True
+        if(self._current_episode==self._total_number_of_episodes-1):
+                print("Tour plan executed in ", rospy.get_time()-self.start_time)
+        else:
+            self.current_goal = self._nodes[self._current_episode+1]
+            self._current_episode = self._current_episode+1
+            self.new_goal=True
 
 def callback(vel, my_env):
     my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (-1.0 * vel.linear.x)])
