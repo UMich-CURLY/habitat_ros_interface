@@ -71,6 +71,8 @@ global_planner = MatchRouteWrapper(node_num, human_choice, human_num, demand_pen
 human_demand_bool, human_demand_int_unique = global_planner.initialize_human_demand()
 print('human_demand_int_unique = \n', human_demand_int_unique)
 
+print('human_demand_bool = \n', human_demand_bool)
+
 # Do optimization
 flag_success, route_list, route_time_list,y_sol, result_dict = global_planner.plan(edge_time, node_time, edge_time_std, node_time_std, human_demand_bool, node_seq, max_iter, flag_initialize, flag_solver)
 print('sum_obj = demand_penalty * demand_obj + time_penalty * sum_time = %f * %f + %f * %f = %f' % (demand_penalty, result_dict['demand_obj'], time_penalty, result_dict['result_sum_time'], result_dict['sum_obj']))

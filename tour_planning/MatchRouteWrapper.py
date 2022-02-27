@@ -5,6 +5,11 @@ from OrtoolHumanMatcher import OrtoolHumanMatcher
 from ResultEvaluator import ResultEvaluator
 from GurobiRoutingSolver import GurobiRoutingSolver
 from IPython import embed
+
+import scipy.stats as ss
+import numpy as np
+import matplotlib.pyplot as plt
+import random
 class MatchRouteWrapper:
     def __init__(self, node_num, human_choice, human_num, demand_penalty, time_penalty, time_limit, solver_time_limit, beta, flag_verbose = True):
         '''
@@ -36,7 +41,7 @@ class MatchRouteWrapper:
         self.evaluator = ResultEvaluator(node_num, human_num, demand_penalty, time_penalty)
 
 
-    def initialize_human_demand(self, human_demand_int = None):
+    def initialize_human_demand(self, human_demand_int = None, std_dev = 3):
         '''
         Inputs:
         human_demand_int: Let it be None
@@ -45,15 +50,24 @@ class MatchRouteWrapper:
         human_demand_bool: bool array of (human_num, place_num) indicating whether a human want to goto a place
         human_demand_int_unique: list of size (human_num, ), each list element is a int array indicating the place id that that human want to visit
         '''
-        if human_demand_int is None:
-            human_demand_int = np.random.randint(0, self.place_num, (self.human_num,self.human_choice) )
-        temp_index = np.arange(self.human_num).reshape(-1,1).repeat(self.human_choice,axis=1)
+        random.seed(100)
+        popularity_order = list(range(0,self.place_num))
+        random.shuffle(popularity_order)
+        print("Popular locations are in order:", popularity_order)
+        x = np.arange(0,self.place_num)
+        xU, xL = x + 0.5, x - 0.5 
+        prob = ss.norm.cdf(xU, scale = std_dev) - ss.norm.cdf(xL, scale = std_dev)
+        prob = prob / prob.sum() # normalize the probabilities so their sum is 1
+        human_demand_int = []
         human_demand_bool = np.zeros((self.human_num, self.place_num), dtype=np.float64)
-        human_demand_bool[temp_index.reshape(-1), human_demand_int.reshape(-1)] = 1.0
-        human_demand_int_unique = []
-        for l in range(self.human_num):
-            human_demand_int_unique.append(np.unique(human_demand_int[l]))
-        return human_demand_bool, human_demand_int_unique
+        for i in range(0, self.human_num):
+            human_choice = np.random.randint(2,self.human_choice)
+            nums = np.random.choice(x, size = human_choice, p = prob, replace = False)
+            order = np.array(popularity_order)
+            human_demand_int.append(order[nums])
+            for j in list(order[nums]):
+                human_demand_bool[i,j] = 1.0
+        return human_demand_bool, human_demand_int
 
     def plan(self, edge_time, node_time, edge_time_std, node_time_std, human_demand_bool, node_seq = None, max_iter = 10, flag_initialize = 0, flag_solver = 1):
         '''

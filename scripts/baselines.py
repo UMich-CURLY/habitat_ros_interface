@@ -1,5 +1,9 @@
-from PIL import Image
-import sys
+import rospy
+from rospy_tutorials.msg import Floats
+from rospy.numpy_msg import numpy_msg
+from geometry_msgs.msg import PointStamped, PoseStamped
+from nav_msgs.msg import Path
+from visualization_msgs.msg import MarkerArray, Marker
 import numpy as np
 import habitat
 import habitat_sim.bindings as hsim
@@ -9,36 +13,20 @@ from habitat.utils.visualizations import maps
 # %matplotlib inline
 from matplotlib import pyplot as plt
 
-from ortools.constraint_solver import routing_enums_pb2
-from ortools.constraint_solver import pywrapcp
-import sys
-sys.path.append("/opt/conda/envs/robostackenv/lib/python3.9/site-packages")
-import rospy
-from rospy_tutorials.msg import Floats
-from rospy.numpy_msg import numpy_msg
-from geometry_msgs.msg import PointStamped, PoseStamped
-from nav_msgs.msg import Path
-from visualization_msgs.msg import MarkerArray, Marker
-# function to display the topdown map
+# from ortools.constraint_solver import routing_enums_pb2
+# from ortools.constraint_solver import pywrapcp
 
-sys.path.insert(1, './tour_planning/')
-from MatchRouteWrapper import MatchRouteWrapper
-from ResultVisualizer import ResultVisualizer
+# function to display the topdown map
+from PIL import Image
+import sys
+# sys.path.insert(1, './tour_planning/')
+# from MatchRouteWrapper import MatchRouteWrapper
+# from ResultVisualizer import ResultVisualizer
 import helper
 from IPython import embed
 from nav_msgs.srv import GetPlan
 import math
 import tf
-
-def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.5):
-	points_topdown = []
-	bounds = pathfinder.get_bounds()
-	for point in points:
-		# convert 3D x,z to topdown x,y
-		px = (point[0] - bounds[0][0]) / meters_per_pixel
-		py = (point[2] - bounds[0][2]) / meters_per_pixel
-		points_topdown.append(np.array([px, py]))
-	return points_topdown
 
 def get_rgb_from_demand(demand):
 	rgb = []
@@ -49,6 +37,8 @@ def get_rgb_from_demand(demand):
 	else:
 		rgb = [0.25*(demand-6), 0.0, 1-(0.25*(demand-6))]
 	return rgb	
+
+
 
 
 class tour_planner():
@@ -89,80 +79,6 @@ class tour_planner():
 		print("Created tour planner object")
 		self._r.sleep()
 
-	def generate_distance_matrix(self):
-		distance_matrix = []
-		for start_point in self.selected_points:
-			distances = []
-			# Check Size of the matrix
-			for end_point in self.selected_points:
-				euclidean_dist = (start_point[0]-end_point[0])**2+(start_point[1]-end_point[1])**2
-				distances.append(euclidean_dist)
-			distance_matrix.append(distances)
-		return distance_matrix
-
-	def generate_distance_matrix_pose_stamped(self):
-		distance_matrix = []
-		for start_point in self.selected_points_pose_stamped:
-			distances = []
-			for end_point in self.selected_points_pose_stamped:
-				self.path_srv.start = start_point
-				self.path_srv.goal = end_point
-				self.path_srv.tolerance = .5
-				path = self.get_plan(self.path_srv.start, self.path_srv.goal, self.path_srv.tolerance)
-				prev_x = 0.0
-				prev_y = 0.0
-				total_distance = 0.0
-				first_time = True
-				for current_point in path.plan.poses:
-					x = current_point.pose.position.x
-					y = current_point.pose.position.y
-					if not first_time:
-						total_distance += math.hypot(prev_x - x, prev_y - y) 
-					else:
-						first_time = False
-					prev_x = x
-					prev_y = y
-				distances.append(total_distance)
-			distance_matrix.append(distances)
-		print("iN CREATE MODE, FOUND THE DISTANCE MATRIX ", distance_matrix)
-		return distance_matrix
-
-	def generate_distance_vulcan_grid(self):
-		print("In Vulcan grid distnace callback")
-		distance_matrix = []
-		for start_point in self.selected_points_pose_stamped:
-			distances = []
-			for end_point in self.selected_points_pose_stamped:
-				self.vulcan_graph_srv.start = start_point
-				self.vulcan_graph_srv.goal = end_point
-				self.vulcan_graph_srv.tolerance = .5
-				path = self.get_vulcan_plan(self.vulcan_graph_srv.start, self.vulcan_graph_srv.goal, self.vulcan_graph_srv.tolerance)
-				# total_total_distance = 0.0
-				# for i in range(0,len(path.plan.poses)-1):
-				# 	self.path_srv.start = path.plan.poses[i]
-				# 	self.path_srv.goal = path.plan.poses[i+1]
-				# 	self.path_srv.tolerance = .5
-				# 	a_star_path = self.get_plan(self.path_srv.start, self.path_srv.goal, self.path_srv.tolerance)
-				# 	prev_x = 0.0
-				# 	prev_y = 0.0
-				# 	total_distance = 0.0
-				# 	first_time = True
-				# 	for current_point in a_star_path.plan.poses:
-				# 		x = current_point.pose.position.x
-				# 		y = current_point.pose.position.y
-				# 		if not first_time:
-				# 			total_distance += math.hypot(prev_x - x, prev_y - y) 
-				# 		else:
-				# 			first_time = False
-				# 		prev_x = x
-				# 		prev_y = y
-				# 	total_total_distance = total_total_distance + total_distance
-				total_total_distance = path.plan.poses[0].pose.position.x
-				distances.append(total_total_distance)
-			distance_matrix.append(distances)
-		print("iN CREATE MODE, FOUND THE DISTANCE MATRIX ", distance_matrix)
-		return distance_matrix
-
 	def create_data_model(self):
 		"""Stores the data for the problem."""
 		data = {}
@@ -195,7 +111,7 @@ class tour_planner():
 		time_penalty = 10.0
 		time_limit = 100 * scale_time
 		human_num = 5
-		human_choice = 5
+		human_choice = 3
 		max_iter = 1
 		max_human_in_team = np.ones(veh_num, dtype=int) * 10 # (human_num // veh_num + 5)
 
@@ -217,7 +133,6 @@ class tour_planner():
 		node_pose = self.selected_points
 		edge_dist = np.array(data['distance_matrix']) # squareform(pdist(node_pose))
 		veh_speed = 1.25/angular_offset
-		veh_speed = veh_speed/3
 		edge_time = edge_dist.reshape(node_num,node_num) / veh_speed* scale_time
 		node_time = np.ones(node_num) * 5.5 * scale_time
 		node_time[-2:] = 0.0
@@ -231,7 +146,7 @@ class tour_planner():
 
 		# Initialize human selections
 		global_planner = MatchRouteWrapper(node_num, human_choice, human_num, demand_penalty, time_penalty, time_limit, solver_time_limit, beta, flag_verbose)
-		human_demand_bool, human_demand_int_unique = global_planner.initialize_human_demand(std_dev = 10)
+		human_demand_bool, human_demand_int_unique = global_planner.initialize_human_demand()
 
 		if flag_load >= 1:
 			human_demand_bool = setup_dict['human_demand_bool']
@@ -285,10 +200,9 @@ class tour_planner():
 		# result_dict['flag_initialize'] = flag_initialize
 		# result_dict['flag_solver'] = flag_solver
 		# result_dict['node_pose'] = node_pose
-		helper.save_dict('result.csv', result_dict)
+		# helper.save_dict('result.dat', result_dict)
 
 		robot_1_route = route_list[0]
-		print("Route time is ", route_time_list)
 		self.final_plan_1 = list(self.selected_points[robot_1_route])
 		self.final_plan_pose_stamped = list(np.array(self.selected_points_pose_stamped)[robot_1_route])
 		j=0
@@ -316,6 +230,7 @@ class tour_planner():
 		self.publish_plan(self.final_plan_1, 1)
 		self.publish_3d_plan(self.final_plan_1,1)
 		# self.publish_markers()
+
 
 	def publish_3d_plan(self, plan, robot_number):
 		if robot_number==1:
@@ -530,7 +445,7 @@ def main():
 	# tour_plan.publish_markers_initial()
 	# tour_plan.publish_plan_initial()
 	# rospy.Subscriber("/clicked_point", PointStamped,tour_plan.callback, tour_plan,queue_size=1)
-	tour_plan.plan([0.0,0.0,0.0,0.0,0.0,0.0,1.0])
+	tour_plan.generate_plan()
 	while not rospy.is_shutdown():
 		rospy.spin()
 	# # define a list capturing how long it took

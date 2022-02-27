@@ -4,20 +4,23 @@ base_global_planner: "navfn/NavfnROS"
 base_local_planner: "base_local_planner/TrajectoryPlannerROS"
 
 TrajectoryPlannerROS:
-  max_vel_x: 0.5
-  min_vel_x: -0.1
-  max_vel_theta: 0.5
-  min_in_place_vel_theta: -0.5
+  max_vel_x:  0.5 # 40 #0.12    
+  min_vel_x:  -0.1  # -40 #-0.1
+  max_vel_theta: 5  #20  #5
+  min_in_place_vel_theta: -3 # 0  #-3
 
-  acc_lim_theta: 2.5
-  acc_lim_x: 2.5
-  acc_lim_y: 2.5
+  acc_lim_theta: 12.5  #1
+  acc_lim_x: 20  #2.5
+  acc_lim_y: 20  #2.5
 
   holonomic_robot: false
   meter_scoring: true
 
-  controller_frequency: 20.0
+  controller_frequency: 20    #10.0
   allow_unknown: false
+
+  dwa: true
+  sim_time: 3
 
 NavfnROS:
     allow_unknown: false
@@ -37,3 +40,16 @@ NavfnROS:
 
 #   controller_frequency: 10    #10.0
 
+# max_vel_x: 0.5
+#   min_vel_x: -0.1
+#   max_vel_theta: 0.5
+#   min_in_place_vel_theta: -0.5
+
+#   acc_lim_theta: 2.5
+#   acc_lim_x: 2.5
+#   acc_lim_y: 2.5
+
+#   holonomic_robot: false
+#   meter_scoring: true
+
+#   controller_frequency: 20.0

@@ -81,6 +81,7 @@ class sim_env(threading.Thread):
     tour_planning_time = []
     all_points = []
     rtab_pose = []
+    goal_time = []
     def __init__(self, env_config_file):
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
@@ -93,6 +94,7 @@ class sim_env(threading.Thread):
         self.observations = self.env.reset()
         agent_state.position = [-2.293175119872487,0.0,-1.2777875958067]
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
+        print(self.env.sim)
         config = self.env._sim.config
         print(self.env._sim.active_dataset)
         self._sensor_resolution = {
@@ -288,6 +290,7 @@ class sim_env(threading.Thread):
             self.tour_planning_time = rospy.get_time() - self.start_time
             print("Calculated a tour plan in ", self.tour_planning_time)
             self.new_goal = True
+            self.goal_time = rospy.get_time()
         # else:
         #     if(self.goal_reached):
         #         self.current_goal = self._nodes[self._current_episode+1]
@@ -331,6 +334,9 @@ class sim_env(threading.Thread):
     def update_move_base_goal_status(self,msg):
         self.goal_reached = (msg.status.status ==3)
         print("Move base goal reached? ", self.goal_reached)
+        self.goal_time = rospy.get_time()-self.goal_time
+        print("Time to execute this tour is", self.goal_time)
+        self.goal_time = rospy.get_time()
         if(self._current_episode==self._total_number_of_episodes-1):
                 print("Tour plan executed in ", rospy.get_time()-self.start_time)
         else:
