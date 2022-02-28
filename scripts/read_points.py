@@ -35,7 +35,7 @@ import threading
 import tf
 
 
-test_scene = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/17DRP5sb8fy/17DRP5sb8fy.glb"
+test_scene = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/Vt2qJdWjCF2/Vt2qJdWjCF2.glb"
 
 rgb_sensor = True  # @param {type:"boolean"}
 depth_sensor = True  # @param {type:"boolean"}
@@ -204,69 +204,71 @@ all_points = []
     # csvfile.close()
 # agent = sim.initialize_agent(sim_settings["default_agent"])
 # agent_state = habitat_sim.AgentState()
-with open('my_src/handpicked_points.csv', newline='') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter=',')
-        for row in spamreader:
-            map_points = maps.from_grid(
-                        int(float(row[1])),
-                        int(float(row[0])),
-                        grid_dimensions,
-                        pathfinder=sim.pathfinder,
-                    )
-            map_points_3d = np.array([map_points[1], floor_y, map_points[0]])
-            # # agent_state.position = np.array(map_points_3d)  # in world space
-            # # agent.set_state(agent_state)
-            # map_points_3d = sim.pathfinder.snap_point(map_points_3d)
+# with open('my_src/handpicked_points.csv', newline='') as csvfile:
+#         spamreader = csv.reader(csvfile, delimiter=',')
+#         for row in spamreader:
+#             map_points = maps.from_grid(
+#                         int(float(row[1])),
+#                         int(float(row[0])),
+#                         grid_dimensions,
+#                         pathfinder=sim.pathfinder,
+#                     )
+#             map_points_3d = np.array([map_points[1], floor_y, map_points[0]])
+#             # # agent_state.position = np.array(map_points_3d)  # in world space
+#             # # agent.set_state(agent_state)
+#             # map_points_3d = sim.pathfinder.snap_point(map_points_3d)
             
             
-            if(sim.pathfinder.is_navigable(map_points_3d)):
-            #     print(row)
-            #     chosen_points.append(list(map(float,row)))
-            #     final_map_points_3d.append(map_points_3d)
-            #     navigable.append(sim.pathfinder.is_navigable(map_points_3d))
-                final_map_points_3d.append(map_points_3d)
-                navigable.append(sim.pathfinder.is_navigable(map_points_3d))
-grid_points = []
-for points in final_map_points_3d:
-    grid_points_back = maps.to_grid(
-                        points[2],
-                        points[0],
-                        grid_dimensions,
-                        pathfinder=sim.pathfinder,
-                    )
-    grid_points.append([grid_points_back[1], grid_points_back[0]])
+#             if(sim.pathfinder.is_navigable(map_points_3d)):
+#             #     print(row)
+#             #     chosen_points.append(list(map(float,row)))
+#             #     final_map_points_3d.append(map_points_3d)
+#             #     navigable.append(sim.pathfinder.is_navigable(map_points_3d))
+#                 final_map_points_3d.append(map_points_3d)
+#                 navigable.append(sim.pathfinder.is_navigable(map_points_3d))
+# grid_points = []
+# for points in final_map_points_3d:
+#     grid_points_back = maps.to_grid(
+#                         points[2],
+#                         points[0],
+#                         grid_dimensions,
+#                         pathfinder=sim.pathfinder,
+#                     )
+#     grid_points.append([grid_points_back[1], grid_points_back[0]])
 
-distance_matrix = []
-for start_point in final_map_points_3d:
-    distances = []
-    for end_point in final_map_points_3d:
-        path = habitat_sim.ShortestPath()
-        path.requested_start = start_point
-        path.requested_end = end_point
-        found_path = False
-        print(start_point, end_point)
-        counter = 0
-        while(found_path==False and counter<30):
-            counter = counter+1
-            found_path = sim.pathfinder.find_path(path)
-        geodesic_distance = path.geodesic_distance
-        distances.append(geodesic_distance)
-    distance_matrix.append(distances)
-print(distance_matrix)
+# distance_matrix = []
+# for start_point in final_map_points_3d:
+#     distances = []
+#     for end_point in final_map_points_3d:
+#         path = habitat_sim.ShortestPath()
+#         path.requested_start = start_point
+#         path.requested_end = end_point
+#         found_path = False
+#         print(start_point, end_point)
+#         counter = 0
+#         while(found_path==False and counter<30):
+#             counter = counter+1
+#             found_path = sim.pathfinder.find_path(path)
+#         geodesic_distance = path.geodesic_distance
+#         distances.append(geodesic_distance)
+#     distance_matrix.append(distances)
+# print(distance_matrix)
 
-with open('my_src/distance_matrix.csv', mode='w') as csvfile:
-    csv_writer = csv.writer(csvfile, delimiter=',')
-    for distances in distance_matrix:
-            csv_writer.writerow(distances)
-
-# with open('my_src/handpicked_points_3d.csv', mode='w') as csvfile:
+# with open('my_src/distance_matrix.csv', mode='w') as csvfile:
 #     csv_writer = csv.writer(csvfile, delimiter=',')
-#     for points in final_map_points_3d:
-#             csv_writer.writerow(points)
+#     for distances in distance_matrix:
+#             csv_writer.writerow(distances)
 
-xy_vis_points['points'] = convert_points_to_topdown(
-                sim.pathfinder, final_map_points_3d, meters_per_pixel=0.05
-            )
+# # with open('my_src/handpicked_points_3d.csv', mode='w') as csvfile:
+# #     csv_writer = csv.writer(csvfile, delimiter=',')
+# #     for points in final_map_points_3d:
+# #             csv_writer.writerow(points)
+
+# xy_vis_points['points'] = convert_points_to_topdown(
+#                 sim.pathfinder, final_map_points_3d, meters_per_pixel=0.05
+#             )
+
+print(sim.pathfinder.save_nav_mesh("./temp/mesh.png"))
 
 # for points in chosen_points:
 #     xy_vis_points['points'].append(points)
@@ -274,5 +276,5 @@ xy_vis_points['points'] = convert_points_to_topdown(
 # xy_vis_points['points'] = grid_points
 xy_vis_points['navigable'] = navigable
 
-display_map(top_down_map, key_points = xy_vis_points)
+# display_map(top_down_map, key_points = xy_vis_points)
 input("Press Enter to exit")

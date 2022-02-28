@@ -26,6 +26,26 @@ from IPython import embed
 
 folder_name = './temp/'
 
+def save_results(full_result, file_appender):
+        embed()
+        visualizer = ResultVisualizer()
+
+        visualizer.save_plots(folder_name)
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.plot(full_result['human_num'], full_result['dropped_demand_rate'])
+        ax.set_xlabel('human_num')
+        ax.set_ylabel('Tour Plan time')
+        fig_file = folder_name + "obj" + file_appender +".png"
+        fig.savefig(fig_file, bbox_inches='tight')
+        csv_file = folder_name + "human_num_with_std_bins" + file_appender+ ".csv"
+        keys = sorted(full_result.keys())
+        with open(csv_file,'w', newline = '') as csvfile:
+            writer = csv.writer(csvfile, delimiter = ",")
+            writer.writerow(keys)
+            writer.writerows(zip(*[full_result[key] for key in keys]))
+        
+
 class tour_planner():
     selection_done = False
     selected_points = []
@@ -97,9 +117,9 @@ class tour_planner():
     def generate_distance_vulcan_grid(self):
         print("In Vulcan grid distance callback")
         distance_matrix = []
-        for start_point in self.selected_points_pose_stamped[0:1]:
+        for start_point in self.selected_points_pose_stamped:
             distances = []
-            for end_point in self.selected_points_pose_stamped[0:1]:
+            for end_point in self.selected_points_pose_stamped:
                 self.vulcan_graph_srv.start = start_point
                 self.vulcan_graph_srv.goal = end_point
                 self.vulcan_graph_srv.tolerance = .5
@@ -145,7 +165,7 @@ class tour_planner():
         # data['depot'] = 0
         return data	
 
-    def generate_plan(self, time_limit = 1000 , std_dev = 3, human_num = 5, human_choice = 5):
+    def generate_plan(self, time_limit = 1000 , std_dev = 3, human_num = 5, human_choice = 5, human_demand_bool=[], human_demand_int_unique=[]):
         data = self.create_data_model()
         flag_verbose = True
 
@@ -162,14 +182,11 @@ class tour_planner():
         node_num = len(self.selected_points)
         demand_penalty = 1000.0
         time_penalty = 10.0
-        # time_limit = 1000 * scale_time
-        # human_num = 5
-        # human_choice = 5
         max_iter = 1
         max_human_in_team = np.ones(veh_num, dtype=int) * 10 # (human_num // veh_num + 5)
 
         node_seq = None
-        # node_seq = [[0,1,2], [3,4]]
+        # node_seq = [[0,15], [3,4,13]]
 
         angular_offset = 2.9
 
@@ -190,9 +207,9 @@ class tour_planner():
             edge_time_std = None
             node_time_std = None
 
-        # Initialize human selections
+        # # Initialize human selections
         global_planner = MatchRouteWrapper(node_num, human_choice, human_num, demand_penalty, time_penalty, time_limit, solver_time_limit, beta, flag_verbose)
-        human_demand_bool, human_demand_int_unique = global_planner.initialize_human_demand(std_dev)
+        # human_demand_bool, human_demand_int_unique = global_planner.initialize_human_demand(std_dev)
 
         if flag_load >= 1:
             human_demand_bool = setup_dict['human_demand_bool']
@@ -224,22 +241,189 @@ class tour_planner():
         # self.final_plan_pose_stamped = list(np.array(self.selected_points_pose_stamped)[robot_1_route])
         return result_dict
 
+    def greedy_agent(self, time_limit = 1000 , std_dev = 3, human_num = 5, human_choice = 5, flag_greedy_in_time = True, human_demand_bool = [], human_demand_int_unique= []):
+        data = self.create_data_model()
+        flag_verbose = True
+
+        flag_initialize = 0 # 0: VRP, 1: random
+        flag_solver = 1 # 0 GUROBI exact solver, 1: OrTool heuristic solver
+        solver_time_limit = 300.0
+        flag_uncertainty = False
+        beta = 0.98
+        sigma = 1.0
+        flag_load = 0.0
+        scale_time = 1.0
+
+        veh_num = 1
+        node_num = len(self.selected_points)
+        demand_penalty = 1000.0
+        time_penalty = 10.0
+        max_iter = 1
+        max_human_in_team = np.ones(veh_num, dtype=int) * 10 # (human_num // veh_num + 5)
+
+        node_seq = None
+        node_seq = [[0,15], [3,4,13]]
+
+        angular_offset = 2.9
+
+
+        # Initialize spacial maps
+        node_pose = self.selected_points
+        edge_dist = np.array(data['distance_matrix']) # squareform(pdist(node_pose))
+        veh_speed = 1.25/angular_offset
+        veh_speed = veh_speed/3
+        edge_time = edge_dist.reshape(node_num,node_num) / veh_speed* scale_time
+        node_time = np.ones(node_num) * 5.5 * scale_time
+        node_time[-2:] = 0.0
+        print('node_time = ', node_time)
+        if flag_uncertainty:
+            edge_time_std = edge_time * sigma
+            node_time_std = np.ones((veh_num,node_num), dtype=np.float64) * 1.5
+        else:
+            edge_time_std = None
+            node_time_std = None
+        start_time = rospy.get_time()
+        # Initialize human selections
+        global_planner = MatchRouteWrapper(node_num, human_choice, human_num, demand_penalty, time_penalty, time_limit, solver_time_limit, beta, flag_verbose)
+        # human_demand_bool, human_demand_int_unique = global_planner.initialize_human_demand(std_dev)
+
+        if flag_load >= 1:
+            human_demand_bool = setup_dict['human_demand_bool']
+            human_demand_int_unique = setup_dict['human_demand_int_unique']
+        print('human_demand_bool = \n', human_demand_bool)
+        print('human_demand_int_unique = \n', human_demand_int_unique)
+
+        place_num = node_num-2
+        penalty_mat = np.zeros(place_num, dtype=np.float64) # (veh_num, place_num)
+        for i in range(place_num):
+            penalty_mat[i] = (human_demand_bool[:,i]).sum()
+
+
+        if(flag_greedy_in_time):
+            demanded_pois = []
+            for i in range(place_num):
+                if (penalty_mat[i]>0):
+                    demanded_pois.append(i)
+            
+            route_list = []
+            current_poi_index = place_num
+            route_list.append(current_poi_index)
+            max_time_to_get_back = max(edge_time[demanded_pois,-2])
+            total_time = 0.0
+            route_time_list = []
+            route_time_list.append(total_time)
+            while (total_time <= time_limit - max_time_to_get_back and len(demanded_pois)>0): 
+                next_poi_index = demanded_pois[np.argmin(edge_time[current_poi_index, demanded_pois])]
+                demanded_pois.remove(next_poi_index)
+                total_time = total_time+ edge_time[current_poi_index, next_poi_index] + node_time[current_poi_index]
+                route_list.append(next_poi_index)
+                route_time_list.append(total_time)
+                current_poi_index = next_poi_index
+            route_list.append(place_num)
+            print(route_list)
+            print(route_time_list)
+            y_sol = np.zeros(place_num)
+            y_sol[route_list[1:-1]] = 1.0
+            demand_satisfied = penalty_mat[route_list[1:-1]].sum()
+            sum_obj, demand_obj, result_sum_time,  node_visit = global_planner.evaluator.objective_fcn(edge_time, node_time, [route_list], y_sol, human_demand_bool)
+            result_dict = {}
+            result_dict['sum_obj'] = sum_obj
+            result_dict['total_demand'] = penalty_mat.sum()
+            result_dict['demand_obj'] = demand_obj
+            result_dict['dropped_demand_rate'] = result_dict['demand_obj']/result_dict['total_demand']
+            result_dict['result_max_time'] = route_time_list[-1]
+            result_dict['optimization_time'] = rospy.get_time()-start_time
+            result_dict['success'] = True
+            return result_dict
+            
+
+
 def main():
     tour_plan = tour_planner()
     full_result_list = []
+    full_result_greedy = {}
     full_result = {}
+    flag_visualize = False
+    flag_initialize = 0 # 0: VRP, 1: random
+    flag_solver = 1 # 0 GUROBI exact solver, 1: OrTool heuristic solver
+    solver_time_limit = 300.0
+    flag_uncertainty = False
+    beta = 0.98
+    sigma = 1.0
+    flag_load = 0.0
+    scale_time = 1.0
+
+    veh_num = 1
+    node_num = len(tour_plan.selected_points)
+    demand_penalty = 1000.0
+    time_penalty = 10.0
+    max_iter = 1
+    max_human_in_team = np.ones(veh_num, dtype=int) * 10 # (human_num // veh_num + 5)
+
+    node_seq = None
+    node_seq = [[0,15], [3,4,13]]
+
+    angular_offset = 2.9
+    data = tour_plan.create_data_model()
+
+    # Initialize spacial maps
+    node_pose = tour_plan.selected_points
+    edge_dist = np.array(data['distance_matrix']) # squareform(pdist(node_pose))
+    veh_speed = 1.25/angular_offset
+    veh_speed = veh_speed/3
+    edge_time = edge_dist.reshape(node_num,node_num) / veh_speed* scale_time
+    node_time = np.ones(node_num) * 5.5 * scale_time
+    node_time[-2:] = 0.0
+    print('node_time = ', node_time)
+    if flag_uncertainty:
+        edge_time_std = edge_time * sigma
+        node_time_std = np.ones((veh_num,node_num), dtype=np.float64) * 1.5
+    else:
+        edge_time_std = None
+        node_time_std = None
+    start_time = rospy.get_time()
+    # Initialize human selections
+    
     for i in range(1,10,2):
         for j in range(1,30,5):
             human_num = i
             human_choice = 5
             std_dev = j
-            result_dict = tour_plan.generate_plan(time_limit = 1000, std_dev = std_dev, human_choice = human_choice, human_num = human_num)
-            actual_time_limit = 200
+            time_limit = 600
+            global_planner = MatchRouteWrapper(node_num, human_choice, human_num, demand_penalty, time_penalty, time_limit, solver_time_limit, beta, flag_verbose = False)
+            human_demand_bool, human_demand_int_unique = global_planner.initialize_human_demand(std_dev)
+            result_dict = tour_plan.greedy_agent(time_limit = time_limit, std_dev = std_dev, human_choice = human_choice, human_num = human_num, human_demand_bool = human_demand_bool, human_demand_int_unique = human_demand_int_unique)
+            if (i ==1):   
+                full_result_greedy['std_dev'] = [std_dev]
+                full_result_greedy['human_num'] = [human_num]
+                full_result_greedy['human_choice'] = [human_choice]
+                full_result_greedy['time_limit'] = [time_limit]
+                full_result_greedy['sum_obj'] = [result_dict['sum_obj']]
+                full_result_greedy['total_demand'] = [result_dict['total_demand']]
+                full_result_greedy['demand_obj'] = [result_dict['demand_obj']]
+                full_result_greedy['dropped_demand_rate'] = [result_dict['dropped_demand_rate']]
+                full_result_greedy['result_max_time'] = [result_dict['result_max_time']]
+                full_result_greedy['optimization_time'] = [result_dict['optimization_time']]
+                full_result_greedy['success'] = [result_dict['success']]       
+            else:
+                full_result_greedy['std_dev'].append(i)
+                full_result_greedy['human_num'].append(human_num)
+                full_result_greedy['human_choice'].append(human_choice)
+                full_result_greedy['time_limit'].append(time_limit)
+                full_result_greedy['sum_obj'].append(result_dict['sum_obj'])
+                full_result_greedy['total_demand'].append(result_dict['total_demand'])
+                full_result_greedy['demand_obj'].append(result_dict['demand_obj'])
+                full_result_greedy['dropped_demand_rate'].append(result_dict['dropped_demand_rate'])
+                full_result_greedy['result_max_time'].append(result_dict['result_max_time'])
+                full_result_greedy['optimization_time'].append(result_dict['optimization_time'])
+                full_result_greedy['success'].append(result_dict['success'])
+                
+            result_dict = tour_plan.generate_plan(time_limit = time_limit, std_dev = std_dev, human_choice = human_choice, human_num = human_num, human_demand_bool = human_demand_bool, human_demand_int_unique = human_demand_int_unique)
             if (i ==1):   
                 full_result['std_dev'] = [std_dev]
                 full_result['human_num'] = [human_num]
                 full_result['human_choice'] = [human_choice]
-                full_result['time_limit'] = [actual_time_limit]
+                full_result['time_limit'] = [time_limit]
                 full_result['sum_obj'] = [result_dict['sum_obj']]
                 full_result['total_demand'] = [result_dict['total_demand']]
                 full_result['demand_obj'] = [result_dict['demand_obj']]
@@ -251,7 +435,7 @@ def main():
                 full_result['std_dev'].append(i)
                 full_result['human_num'].append(human_num)
                 full_result['human_choice'].append(human_choice)
-                full_result['time_limit'].append(actual_time_limit)
+                full_result['time_limit'].append(time_limit)
                 full_result['sum_obj'].append(result_dict['sum_obj'])
                 full_result['total_demand'].append(result_dict['total_demand'])
                 full_result['demand_obj'].append(result_dict['demand_obj'])
@@ -261,24 +445,9 @@ def main():
                 full_result['success'].append(result_dict['success'])
     print(full_result)
 
-    visualizer = ResultVisualizer()
+    save_results(full_result_greedy, "greedy_in_time")
+    save_results(full_result, "optimal")
 
-    visualizer.save_plots(folder_name)
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.plot(full_result['human_num'], full_result['result_max_time'])
-    ax.set_xlabel('human_num')
-    ax.set_ylabel('Tour Plan time')
-    fig_file = folder_name + "plan_time_w_human_num.png"
-    fig.savefig(fig_file, bbox_inches='tight')
-
-    field_names = list(full_result.keys())
-    with open('human_num_with_std_bins.csv','w') as csvfile:
-        writer = csv.DictWriter(csvfile,fieldnames = field_names, extrasaction='ignore', delimiter = ';')
-        writer.writeheader()
-        writer.writerows(full_result)
-    
-    embed()
     while not rospy.is_shutdown():
         rospy.spin()
 

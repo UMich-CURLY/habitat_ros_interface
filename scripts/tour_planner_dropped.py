@@ -193,14 +193,14 @@ class tour_planner():
 		node_num = len(self.selected_points)
 		demand_penalty = 1000.0
 		time_penalty = 10.0
-		time_limit = 100 * scale_time
+		time_limit = 300 * scale_time
 		human_num = 5
 		human_choice = 5
 		max_iter = 1
 		max_human_in_team = np.ones(veh_num, dtype=int) * 10 # (human_num // veh_num + 5)
 
-		node_seq = None
-		# node_seq = [[0,1,2], [3,4]]
+		# node_seq = None
+		node_seq = [[0,1,2], [3,4]]
 
 		angular_offset = 2.9
 

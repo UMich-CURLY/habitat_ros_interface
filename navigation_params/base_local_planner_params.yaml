@@ -1,6 +1,7 @@
 # Planner selection
 # base_global_planner: "rrt_star_global_planner/RRTStarPlanner"
-base_global_planner: "navfn/NavfnROS" 
+base_global_planner: "global_planner/GlobalPlanner" 
+# base_global_planner: "navfn/NavfnROS" 
 base_local_planner: "base_local_planner/TrajectoryPlannerROS"
 
 TrajectoryPlannerROS:
