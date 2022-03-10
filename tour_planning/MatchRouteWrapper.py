@@ -53,7 +53,7 @@ class MatchRouteWrapper:
         random.seed(100)
         popularity_order = list(range(0,self.place_num))
         random.shuffle(popularity_order)
-        print("Popular locations are in order:", popularity_order)
+        # print("Popular locations are in order:", popularity_order)
         x = np.arange(0,self.place_num)
         xU, xL = x + 0.5, x - 0.5 
         prob = ss.norm.cdf(xU, scale = std_dev) - ss.norm.cdf(xL, scale = std_dev)
@@ -61,7 +61,7 @@ class MatchRouteWrapper:
         human_demand_int = []
         human_demand_bool = np.zeros((self.human_num, self.place_num), dtype=np.float64)
         for i in range(0, self.human_num):
-            human_choice = np.random.randint(2,self.human_choice)
+            human_choice = np.random.randint(1,self.human_choice)
             nums = np.random.choice(x, size = human_choice, p = prob, replace = False)
             order = np.array(popularity_order)
             human_demand_int.append(order[nums])
@@ -150,11 +150,11 @@ class MatchRouteWrapper:
         result_dict['result_sum_time'] = obj_dict['result_sum_time']
         result_dict['result_time_cvar'] = obj_dict['result_time_cvar']
         # Print
-        print('\n')
-        for key, value in result_dict.items():
-            print(key, ':', value)
-        print('\n')
-        print('optimization_time = ', optimization_time)
+        # print('\n')
+        # for key, value in result_dict.items():
+            # print(key, ':', value)
+        # print('\n')
+        # print('optimization_time = ', optimization_time)
         return flag_success, route_list, route_time_list, y_sol, result_dict
 
     def initialize_plan(self, edge_time, node_time, flag_initialize = 0):
@@ -231,14 +231,14 @@ class MatchRouteWrapper:
         if self.flag_verbose:
             # Print the intial objective function value
             sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, y_sol, human_demand_bool)
-            print(route_list, y_sol)
-            print('Initial sum_obj = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
+            # print(route_list, y_sol)
+            # print('Initial sum_obj = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
         # Start iterating
         for i_iter in range(1):
             # Store intermediate results
             sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, y_sol, human_demand_bool)
-            if self.flag_verbose:
-                print(route_list, y_sol)
+            # if self.flag_verbose:
+                # print(route_list, y_sol)
                 # print('sum_obj1 = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f ... (1)' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
             sum_obj_list= sum_obj
             demand_obj_list = demand_obj
@@ -255,9 +255,9 @@ class MatchRouteWrapper:
 
             # Store intermediate results
             sum_obj, demand_obj, result_max_time, node_visit = self.evaluator.objective_fcn(edge_time, node_time, route_list, y_sol, human_demand_bool)
-            if self.flag_verbose:
-                print(route_list, y_sol)
-                print('sum_obj2 = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
+            # if self.flag_verbose:
+                # print(route_list, y_sol)
+                # print('sum_obj2 = demand_penalty * demand_obj + time_penalty * max_time = %f * %f + %f * %f = %f' % (self.demand_penalty, demand_obj, self.time_penalty, result_max_time, sum_obj))
             sum_obj_list = sum_obj
             demand_obj_list = demand_obj
             result_max_time_list = result_max_time
