@@ -37,7 +37,7 @@ def save_results(full_result, file_appender):
         ax.set_ylabel('dropped_demand_rate')
         fig_file = folder_name + "obj" + file_appender +".png"
         fig.savefig(fig_file, bbox_inches='tight')
-        csv_file = folder_name + "batch_demand_plots_time_800_" + file_appender + ".csv"
+        csv_file = folder_name + "plots_time_800_" + file_appender + ".csv"
         keys = sorted(full_result.keys())
         with open(csv_file,'w', newline = '') as csvfile:
             writer = csv.writer(csvfile, delimiter = ",")
@@ -68,9 +68,10 @@ class tour_planner():
         self._r = rospy.Rate(_sensor_rate)
         self._pub_markers_initial = rospy.Publisher("~selected_points", MarkerArray, queue_size = 1)
         self._pub_plan_3d_robot_1 = rospy.Publisher("robot_1/plan_3d", numpy_msg(Floats),queue_size = 1)
-        self._pub_plan_robot_1 = rospy.Publisher("robot_1/global_plan", Path, queue_size=1)
-        self._pub_plan_robot_2 = rospy.Publisher("robot_2/global_plan", Path, queue_size=1)
-        self._pub_plan_robot_3 = rospy.Publisher("robot_3/global_plan", Path, queue_size=1)
+        self._pub_plan_robot_1 = rospy.Publisher("robot_1/global_plan", Path, queue_size=0)
+        self._pub_plan_robot_2 = rospy.Publisher("robot_2/global_plan", Path, queue_size=0)
+        self._pub_plan_robot_3 = rospy.Publisher("robot_3/global_plan", Path, queue_size=0)
+        self._pub_plan_robot_4 = rospy.Publisher("robot_4/global_plan", Path, queue_size=0)
         depot = [0.0,0.0,0.0,0.0,0.0,0.0,1.0]
         with open('./scripts/all_points.csv') as csvfile:
             spamreader = csv.reader(csvfile, delimiter=',')
@@ -245,7 +246,7 @@ class tour_planner():
         # visualizer.print_results(route_list, route_time_list, team_list)
         # print('route_list = \n', route_list)
 
-    
+        result_dict['route_list'] = route_list
         # helper.save_dict('result.csv', result_dict)
 
         robot_1_route = route_list
@@ -353,7 +354,7 @@ class tour_planner():
             result_dict['result_max_time'] = route_time_list[-1]
             result_dict['optimization_time'] = rospy.get_time()-start_time
             result_dict['success'] = True
-            
+            result_dict['route_list'] = route_list
             robot_1_route = route_list
             # print("Route time is ", route_time_list)
             self.final_plan_1 = list(self.selected_points[robot_1_route])
@@ -409,6 +410,7 @@ class tour_planner():
             result_dict['result_max_time'] = route_time_list[-1]
             result_dict['optimization_time'] = rospy.get_time()-start_time
             result_dict['success'] = True
+            result_dict['route_list'] = route_list
             robot_1_route = route_list
             # print("Route time is ", route_time_list)
             self.final_plan_1 = list(self.selected_points[robot_1_route])
@@ -422,7 +424,14 @@ class tour_planner():
             pose = PoseStamped()
             pose.pose.position.x = wp[0]
             pose.pose.position.y = wp[1]
-            pose.pose.position.z = wp[2]
+            if robot_number == 1:
+                pose.pose.position.z = wp[2] + 2
+            elif robot_number == 2:
+                pose.pose.position.z = wp[2] + 1
+            elif robot_number == 3:
+                pose.pose.position.z = wp[2] + 3
+            else:
+                pose.pose.position.z = wp[2]          
             pose.pose.orientation.x = wp[3]
             pose.pose.orientation.y = wp[4]
             pose.pose.orientation.z = wp[5]
@@ -433,8 +442,11 @@ class tour_planner():
             self._pub_plan_robot_1.publish(msg)
         elif robot_number == 2:
             self._pub_plan_robot_2.publish(msg)
-        else:
+        elif robot_number == 3:
             self._pub_plan_robot_3.publish(msg)
+        else:
+            self._pub_plan_robot_4.publish(msg)
+
             
 
 
@@ -444,6 +456,7 @@ def main():
     full_result_greedy = {}
     full_result = {}
     full_result_greedy_demand = {}
+    full_result_unconstrained = {}
     flag_visualize = False
     flag_initialize = 0 # 0: VRP, 1: random
     flag_solver = 1 # 0 GUROBI exact solver, 1: OrTool heuristic solver
@@ -496,8 +509,8 @@ def main():
     total_demand_req = penalty_mat.sum()
     # Initialize human selections
     
-    total_demand_list = [5,10,15,20,25,30]
-    number_of_samples = 5*np.ones(len(total_demand_list))
+    total_demand_list = list(np.arange(1,25))
+    number_of_samples = 1*np.ones(len(total_demand_list))
     got_demand_right = np.array(np.zeros(len(total_demand_list)), dtype = bool)
     counter_of_samples = np.zeros(len(total_demand_list))
     while(not np.all(got_demand_right)):
@@ -505,7 +518,7 @@ def main():
             # for j in range(5,20,5):
             human_num = i
             human_choice = 5
-            std_dev = 1
+            std_dev = 5
             time_limit = 800
             global_planner = MatchRouteWrapper(node_num, human_choice, human_num, demand_penalty, time_penalty, time_limit, solver_time_limit, beta, flag_verbose = False)
             human_demand_bool, human_demand_int_unique = global_planner.initialize_human_demand(std_dev = std_dev)
@@ -521,31 +534,37 @@ def main():
             if (got_demand_right[index]):
                 continue
             # got_demand_right[total_demand_req-1] = True
-            result_dict = tour_plan.greedy_agent(time_limit = time_limit, std_dev = std_dev, human_choice = human_choice, human_num = human_num, flag_greedy_in_time = True, human_demand_bool = human_demand_bool, human_demand_int_unique = human_demand_int_unique)
-            if (len(full_result_greedy)==0):   
-                full_result_greedy['std_dev'] = [std_dev]
-                full_result_greedy['human_num'] = [human_num]
-                full_result_greedy['human_choice'] = [human_choice]
-                full_result_greedy['time_limit'] = [time_limit]
-                full_result_greedy['sum_obj'] = [result_dict['sum_obj']]
-                full_result_greedy['total_demand'] = [result_dict['total_demand']]
-                full_result_greedy['demand_obj'] = [result_dict['demand_obj']]
-                full_result_greedy['dropped_demand_rate'] = [result_dict['dropped_demand_rate']]
-                full_result_greedy['result_max_time'] = [result_dict['result_max_time']]
-                full_result_greedy['optimization_time'] = [result_dict['optimization_time']]
-                full_result_greedy['success'] = [result_dict['success']]       
+            result_dict = tour_plan.generate_plan(time_limit = time_limit+100000, std_dev = std_dev, human_choice = human_choice, human_num = human_num, human_demand_bool = human_demand_bool, human_demand_int_unique = human_demand_int_unique)
+            if (len(full_result_unconstrained)==0):   
+                full_result_unconstrained['std_dev'] = [std_dev]
+                full_result_unconstrained['human_num'] = [human_num]
+                full_result_unconstrained['human_choice'] = [human_choice]
+                full_result_unconstrained['time_limit'] = [time_limit]
+                full_result_unconstrained['sum_obj'] = [result_dict['sum_obj']]
+                full_result_unconstrained['total_demand'] = [result_dict['total_demand']]
+                full_result_unconstrained['demand_obj'] = [result_dict['demand_obj']]
+                full_result_unconstrained['dropped_demand_rate'] = [result_dict['dropped_demand_rate']]
+                full_result_unconstrained['result_max_time'] = [result_dict['result_max_time']]
+                full_result_unconstrained['optimization_time'] = [result_dict['optimization_time']]
+                full_result_unconstrained['success'] = [result_dict['success']]       
+                robot_4_route = result_dict['route_list']
+                final_plan_1 = list(tour_plan.selected_points[robot_4_route])
+                tour_plan.publish_plan(final_plan_1,4)
             else:
-                full_result_greedy['std_dev'].append(std_dev)
-                full_result_greedy['human_num'].append(human_num)
-                full_result_greedy['human_choice'].append(human_choice)
-                full_result_greedy['time_limit'].append(time_limit)
-                full_result_greedy['sum_obj'].append(result_dict['sum_obj'])
-                full_result_greedy['total_demand'].append(result_dict['total_demand'])
-                full_result_greedy['demand_obj'].append(result_dict['demand_obj'])
-                full_result_greedy['dropped_demand_rate'].append(result_dict['dropped_demand_rate'])
-                full_result_greedy['result_max_time'].append(result_dict['result_max_time'])
-                full_result_greedy['optimization_time'].append(result_dict['optimization_time'])
-                full_result_greedy['success'].append(result_dict['success'])
+                full_result_unconstrained['std_dev'].append(std_dev)
+                full_result_unconstrained['human_num'].append(human_num)
+                full_result_unconstrained['human_choice'].append(human_choice)
+                full_result_unconstrained['time_limit'].append(time_limit)
+                full_result_unconstrained['sum_obj'].append(result_dict['sum_obj'])
+                full_result_unconstrained['total_demand'].append(result_dict['total_demand'])
+                full_result_unconstrained['demand_obj'].append(result_dict['demand_obj'])
+                full_result_unconstrained['dropped_demand_rate'].append(result_dict['dropped_demand_rate'])
+                full_result_unconstrained['result_max_time'].append(result_dict['result_max_time'])
+                full_result_unconstrained['optimization_time'].append(result_dict['optimization_time'])
+                full_result_unconstrained['success'].append(result_dict['success'])
+                robot_4_route = result_dict['route_list']
+                final_plan_1 = list(tour_plan.selected_points[robot_4_route])
+                tour_plan.publish_plan(final_plan_1,4)
             result_dict = {}
             result_dict = tour_plan.greedy_agent(time_limit = time_limit, std_dev = std_dev, human_choice = human_choice, human_num = human_num, flag_greedy_in_time = False, human_demand_bool = human_demand_bool, human_demand_int_unique = human_demand_int_unique)
             if (len(full_result_greedy_demand)==0):   
@@ -559,7 +578,10 @@ def main():
                 full_result_greedy_demand['dropped_demand_rate'] = [result_dict['dropped_demand_rate']]
                 full_result_greedy_demand['result_max_time'] = [result_dict['result_max_time']]
                 full_result_greedy_demand['optimization_time'] = [result_dict['optimization_time']]
-                full_result_greedy_demand['success'] = [result_dict['success']]       
+                full_result_greedy_demand['success'] = [result_dict['success']]      
+                robot_2_route = result_dict['route_list']
+                final_plan_1 = list(tour_plan.selected_points[robot_2_route])
+                tour_plan.publish_plan(final_plan_1,2) 
             else:
                 full_result_greedy_demand['std_dev'].append(std_dev)
                 full_result_greedy_demand['human_num'].append(human_num)
@@ -572,6 +594,41 @@ def main():
                 full_result_greedy_demand['result_max_time'].append(result_dict['result_max_time'])
                 full_result_greedy_demand['optimization_time'].append(result_dict['optimization_time'])
                 full_result_greedy_demand['success'].append(result_dict['success'])
+                robot_2_route = result_dict['route_list']
+                final_plan_1 = list(tour_plan.selected_points[robot_2_route])
+                tour_plan.publish_plan(final_plan_1,2)
+            result_dict = {}
+            result_dict = tour_plan.greedy_agent(time_limit = time_limit, std_dev = std_dev, human_choice = human_choice, human_num = human_num, flag_greedy_in_time = True, human_demand_bool = human_demand_bool, human_demand_int_unique = human_demand_int_unique)
+            if (len(full_result_greedy)==0):   
+                full_result_greedy['std_dev'] = [std_dev]
+                full_result_greedy['human_num'] = [human_num]
+                full_result_greedy['human_choice'] = [human_choice]
+                full_result_greedy['time_limit'] = [time_limit]
+                full_result_greedy['sum_obj'] = [result_dict['sum_obj']]
+                full_result_greedy['total_demand'] = [result_dict['total_demand']]
+                full_result_greedy['demand_obj'] = [result_dict['demand_obj']]
+                full_result_greedy['dropped_demand_rate'] = [result_dict['dropped_demand_rate']]
+                full_result_greedy['result_max_time'] = [result_dict['result_max_time']]
+                full_result_greedy['optimization_time'] = [result_dict['optimization_time']]
+                full_result_greedy['success'] = [result_dict['success']]       
+                robot_1_route = result_dict['route_list']
+                final_plan_1 = list(tour_plan.selected_points[robot_1_route])
+                tour_plan.publish_plan(final_plan_1,1)
+            else:
+                full_result_greedy['std_dev'].append(std_dev)
+                full_result_greedy['human_num'].append(human_num)
+                full_result_greedy['human_choice'].append(human_choice)
+                full_result_greedy['time_limit'].append(time_limit)
+                full_result_greedy['sum_obj'].append(result_dict['sum_obj'])
+                full_result_greedy['total_demand'].append(result_dict['total_demand'])
+                full_result_greedy['demand_obj'].append(result_dict['demand_obj'])
+                full_result_greedy['dropped_demand_rate'].append(result_dict['dropped_demand_rate'])
+                full_result_greedy['result_max_time'].append(result_dict['result_max_time'])
+                full_result_greedy['optimization_time'].append(result_dict['optimization_time'])
+                full_result_greedy['success'].append(result_dict['success'])
+                robot_1_route = result_dict['route_list']
+                final_plan_1 = list(tour_plan.selected_points[robot_1_route])
+                tour_plan.publish_plan(final_plan_1,1)
             result_dict = {}
             result_dict = tour_plan.generate_plan(time_limit = time_limit, std_dev = std_dev, human_choice = human_choice, human_num = human_num, human_demand_bool = human_demand_bool, human_demand_int_unique = human_demand_int_unique)
             if (len(full_result)==0):   
@@ -585,7 +642,10 @@ def main():
                 full_result['dropped_demand_rate'] = [result_dict['dropped_demand_rate']]
                 full_result['result_max_time'] = [result_dict['result_max_time']]
                 full_result['optimization_time'] = [result_dict['optimization_time']]
-                full_result['success'] = [result_dict['success']]       
+                full_result['success'] = [result_dict['success']]    
+                robot_3_route = result_dict['route_list']
+                final_plan_1 = list(tour_plan.selected_points[robot_3_route])
+                tour_plan.publish_plan(final_plan_1,3)   
             else:
                 full_result['std_dev'].append(std_dev)
                 full_result['human_num'].append(human_num)
@@ -598,12 +658,18 @@ def main():
                 full_result['result_max_time'].append(result_dict['result_max_time'])
                 full_result['optimization_time'].append(result_dict['optimization_time'])
                 full_result['success'].append(result_dict['success'])
+                robot_3_route = result_dict['route_list']
+                final_plan_1 = list(tour_plan.selected_points[robot_3_route])
+                tour_plan.publish_plan(final_plan_1,3)
+            
             print("Here we go ", got_demand_right)
-    print(full_result)
+    print(full_result, full_result_greedy_demand)
 
-    save_results(full_result_greedy, "std_dev_0_greedy_in_time")
-    save_results(full_result_greedy_demand, "std_dev_0_greedy_in_demand")
-    save_results(full_result, "std_dev_0_optimal")
+    save_results(full_result_greedy, "std_dev_5_greedy_in_time")
+    save_results(full_result_greedy_demand, "std_dev_5_greedy_in_demand")
+    save_results(full_result, "std_dev_5_optimal")
+    save_results(full_result_unconstrained, "std_dev_5_unconstrained")
+
 
     while not rospy.is_shutdown():
         rospy.spin()

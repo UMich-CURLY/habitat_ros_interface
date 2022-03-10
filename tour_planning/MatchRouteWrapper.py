@@ -53,17 +53,18 @@ class MatchRouteWrapper:
         random.seed(100)
         popularity_order = list(range(0,self.place_num))
         random.shuffle(popularity_order)
-        # print("Popular locations are in order:", popularity_order)
+        print("Popular locations are in order:", popularity_order)
         x = np.arange(0,self.place_num)
         xU, xL = x + 0.5, x - 0.5 
         prob = ss.norm.cdf(xU, scale = std_dev) - ss.norm.cdf(xL, scale = std_dev)
         prob = prob / prob.sum() # normalize the probabilities so their sum is 1
         human_demand_int = []
         human_demand_bool = np.zeros((self.human_num, self.place_num), dtype=np.float64)
+        order = np.array(popularity_order)
+        print("Popular locations are in order:", list(order[x]), std_dev)
         for i in range(0, self.human_num):
             human_choice = np.random.randint(1,self.human_choice)
             nums = np.random.choice(x, size = human_choice, p = prob, replace = False)
-            order = np.array(popularity_order)
             human_demand_int.append(order[nums])
             for j in list(order[nums]):
                 human_demand_bool[i,j] = 1.0
