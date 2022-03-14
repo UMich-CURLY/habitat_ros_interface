@@ -29,15 +29,15 @@ folder_name = './temp/'
 def save_results(full_result, file_appender):
         visualizer = ResultVisualizer()
 
-        visualizer.save_plots(folder_name)
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.plot(full_result['total_demand'], full_result['dropped_demand_rate'])
-        ax.set_xlabel('total_demand')
-        ax.set_ylabel('dropped_demand_rate')
-        fig_file = folder_name + "obj" + file_appender +".png"
-        fig.savefig(fig_file, bbox_inches='tight')
-        csv_file = folder_name + "batch_demand_plots_time_800_" + file_appender + ".csv"
+        # visualizer.save_plots(folder_name)
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111)
+        # ax.plot(full_result['total_demand'], full_result['dropped_demand_rate'])
+        # ax.set_xlabel('total_demand')
+        # ax.set_ylabel('dropped_demand_rate')
+        # fig_file = folder_name + "obj" + file_appender +".png"
+        # fig.savefig(fig_file, bbox_inches='tight')
+        csv_file = folder_name + "batch_20_demand_plots_time_800_" + file_appender + ".csv"
         keys = sorted(full_result.keys())
         with open(csv_file,'w', newline = '') as csvfile:
             writer = csv.writer(csvfile, delimiter = ",")
@@ -497,7 +497,7 @@ def main():
     # Initialize human selections
     
     total_demand_list = [5,10,15,20,25,30]
-    number_of_samples = 5*np.ones(len(total_demand_list))
+    number_of_samples = 20*np.ones(len(total_demand_list))
     got_demand_right = np.array(np.zeros(len(total_demand_list)), dtype = bool)
     counter_of_samples = np.zeros(len(total_demand_list))
     while(not np.all(got_demand_right)):
@@ -601,9 +601,9 @@ def main():
             print("Here we go ", got_demand_right)
     print(full_result)
 
-    save_results(full_result_greedy, "std_dev_0_greedy_in_time")
-    save_results(full_result_greedy_demand, "std_dev_0_greedy_in_demand")
-    save_results(full_result, "std_dev_0_optimal")
+    save_results(full_result_greedy, "std_dev_1_greedy_in_time")
+    save_results(full_result_greedy_demand, "std_dev_1_greedy_in_demand")
+    save_results(full_result, "std_dev_1_optimal")
 
     while not rospy.is_shutdown():
         rospy.spin()
