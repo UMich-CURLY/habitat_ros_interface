@@ -135,7 +135,7 @@ class tour_planner():
 		flag_initialize = 0 # 0: VRP, 1: random
 		flag_solver = 1 # 0 GUROBI exact solver, 1: OrTool heuristic solver
 		solver_time_limit = 300.0
-		flag_uncertainty = True
+		flag_uncertainty = False
 		beta = 0.98
 		sigma = 1.0
 
@@ -156,15 +156,6 @@ class tour_planner():
 
 		angular_offset = 2.9
 
-		flag_load = 0
-		if flag_load >= 1:
-			# setup_dict = helper.load_dict('setup2.dat')
-			# setup_dict = helper.load_dict('setup3_uncertain.dat')
-			# setup_dict = helper.load_dict('setup4_guboridet.dat')
-			# setup_dict = helper.load_dict('setup6_uncertainty.dat')
-			setup_dict = helper.load_dict('sigma/sigma4.dat')
-			# setup_dict = helper.load_dict('sigma/sigma4.dat')
-
 		# Initialize spacial maps
 		node_pose = self.selected_points
 		edge_dist = np.array(data['distance_matrix']) # squareform(pdist(node_pose))
@@ -174,36 +165,22 @@ class tour_planner():
 		node_time[:, -2:] = 0.0
 		print('node_time = ', node_time)
 		if flag_uncertainty:
-		    edge_time_std = edge_time * sigma
-		    node_time_std = np.ones((veh_num,node_num), dtype=np.float64) * 1.5
+			edge_time_std = edge_time * sigma
+			node_time_std = np.ones((veh_num,node_num), dtype=np.float64) * 1.5
 		else:
-		    edge_time_std = None
-		    node_time_std = None
+			edge_time_std = None
+			node_time_std = None
 
 		# Initialize human selections
 		global_planner = MatchRouteWrapper(veh_num, node_num, human_choice, human_num, max_human_in_team, demand_penalty, time_penalty, time_limit, solver_time_limit, beta, flag_verbose)
 		human_demand_bool, human_demand_int_unique = global_planner.initialize_human_demand()
 
-		if flag_load >= 1:
-			human_demand_bool = setup_dict['human_demand_bool']
-			human_demand_int_unique = setup_dict['human_demand_int_unique']
-		print('human_demand_bool = \n', human_demand_bool)
-		print('human_demand_int_unique = \n', human_demand_int_unique)
-
-		# Do optimization
-		if flag_load >= 2:
-			flag_solver = 1
+		# Solve the routing and matching problem to find a plan
 		flag_success, route_list, route_time_list, team_list, human_in_team, y_sol, z_sol, result_dict = global_planner.plan(edge_time, node_time, edge_time_std, node_time_std, human_demand_bool, node_seq, max_iter, flag_initialize, flag_solver)
-		print('sum_obj = demand_penalty * demand_obj + time_penalty * sum_time = %f * %f + %f * %f = %f' % (demand_penalty, result_dict['demand_obj'], time_penalty, result_dict['result_sum_time'], result_dict['sum_obj']))
 
-		if flag_load >= 2:
-			route_list = setup_dict['route_list']
-			route_time_list = setup_dict['route_time_list']
-			team_list = setup_dict['team_list']
-
+		# Visualize results
 		visualizer = ResultVisualizer()
 		visualizer.print_results(route_list, route_time_list, team_list)
-		print('route_list = \n', route_list)
 
 		# Save results
 		result_dict['flag_success'] = flag_success
@@ -236,7 +213,7 @@ class tour_planner():
 		result_dict['flag_initialize'] = flag_initialize
 		result_dict['flag_solver'] = flag_solver
 		result_dict['node_pose'] = node_pose
-		helper.save_dict('result.dat', result_dict)
+		# helper.save_dict('result.dat', result_dict)
 
 		robot_1_route = route_list[0]
 		robot_2_route = route_list[1]
@@ -290,24 +267,24 @@ class tour_planner():
 		counter = 0
 		for wp in self.final_plan:
 			marker = Marker()
-			marker.id = counter;
+			marker.id = counter
 			marker.header.frame_id = "world"
 			marker.header.stamp = rospy.Time.now()
 			marker.type = Marker.SPHERE
-			marker.pose.position.x = wp[0];
-			marker.pose.position.y = wp[1];
-			marker.pose.position.z = 0.0;
-			marker.pose.orientation.x = 0.0;
-			marker.pose.orientation.y = 0.0;
-			marker.pose.orientation.z = 0.0;
-			marker.pose.orientation.w = 1.0;
-			marker.scale.x = 0.2;
-			marker.scale.y = 0.2;
-			marker.scale.z = 0.01;
-			marker.color.a = 1.0; 
-			marker.color.r = 1.0;
-			marker.color.g = 0.0;
-			marker.color.b = 0.0;
+			marker.pose.position.x = wp[0]
+			marker.pose.position.y = wp[1]
+			marker.pose.position.z = 0.0
+			marker.pose.orientation.x = 0.0
+			marker.pose.orientation.y = 0.0
+			marker.pose.orientation.z = 0.0
+			marker.pose.orientation.w = 1.0
+			marker.scale.x = 0.2
+			marker.scale.y = 0.2
+			marker.scale.z = 0.01
+			marker.color.a = 1.0
+			marker.color.r = 1.0
+			marker.color.g = 0.0
+			marker.color.b = 0.0
 			counter = counter+1
 			msg.markers.append(marker)
 		rospy.loginfo("Publishing Markers...")
@@ -318,25 +295,25 @@ class tour_planner():
 		counter = 0
 		for wp in self.selected_points:
 			marker = Marker()
-			marker.id = counter;
+			marker.id = counter
 			marker.header.frame_id = "world"
 			marker.header.stamp = rospy.Time.now()
 			marker.type = Marker.SPHERE
-			marker.pose.position.x = wp[0];
-			marker.pose.position.y = wp[1];
-			marker.pose.position.z = 0.0;
-			marker.pose.orientation.x = 0.0;
-			marker.pose.orientation.y = 0.0;
-			marker.pose.orientation.z = 0.0;
-			marker.pose.orientation.w = 1.0;
-			marker.scale.x = 0.7;
-			marker.scale.y = 0.7;
-			marker.scale.z = 0.01;
-			marker.color.a = 1.0; 
+			marker.pose.position.x = wp[0]
+			marker.pose.position.y = wp[1]
+			marker.pose.position.z = 0.0
+			marker.pose.orientation.x = 0.0
+			marker.pose.orientation.y = 0.0
+			marker.pose.orientation.z = 0.0
+			marker.pose.orientation.w = 1.0
+			marker.scale.x = 0.7
+			marker.scale.y = 0.7
+			marker.scale.z = 0.01
+			marker.color.a = 1.0
 			rgb = get_rgb_from_demand(self.demand_list[counter])
-			marker.color.r = 0;
-			marker.color.g = 0;
-			marker.color.b = 0;
+			marker.color.r = 0
+			marker.color.g = 0
+			marker.color.b = 0
 			counter = counter+1
 			# msg.markers.append(marker)
 			# marker.id = counter
