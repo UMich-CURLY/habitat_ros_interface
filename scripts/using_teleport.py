@@ -33,6 +33,7 @@ from tour_planner_dropped import tour_planner
 import csv
 from move_base_msgs.msg import MoveBaseActionResult
 from nav_msgs.srv import GetPlan
+from habitat_sim.robots import FetchRobot
 
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
@@ -88,13 +89,27 @@ class sim_env(threading.Thread):
         self.env = habitat.Env(config=habitat.get_config(self.env_config_file))
         print("Initializeed environment")
         # always assume height equals width
+        print(self.env._sim.get_physics_simulation_library())
+        config=habitat.get_config(self.env_config_file)
+        print(config.SIMULATOR.ROBOT_URDF)
+        self.env._sim.robot = FetchRobot(config.SIMULATOR.ROBOT_URDF, self.env._sim)
+        self.env._sim.robot.reconfigure()
+        # self.env._sim.robot.reset()
+        if config.get("IK_ARM_URDF", None) is not None:
+            self.env._sim.ik_helper = IkHelper(
+                config.IK_ARM_URDF,
+                np.array(self.env._sim.robot.params.arm_init_params),
+            )
         
         self.env._sim.agents[0].move_filter_fn = self.env._sim.step_filter
         agent_state = self.env.sim.get_agent_state(0)
         self.observations = self.env.reset()
         agent_state.position = [-2.293175119872487,0.0,-1.2777875958067]
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
-        print(self.env.sim)
+        self.env._sim.robot.base_pos = mn.Vector3([agent_state.position[0], agent_state.position[1], agent_state.position[2]])
+        magnum_quat =  mn.Quaternion(mn.Vector3([agent_state.rotation.x, agent_state.rotation.y, agent_state.rotation.z]),agent_state.rotation.w)
+        self.env._sim.robot.sim_obj.rotation = utils.quat_to_magnum(agent_state.rotation)
+        print(self.env._sim.robot.sim_obj.transformation)
         config = self.env._sim.config
         print(self.env._sim.active_dataset)
         self._sensor_resolution = {
@@ -125,6 +140,7 @@ class sim_env(threading.Thread):
             self.env.sim, goal_radius, False
         )
         self.env._sim.enable_physics = True
+        print(self.env.sim.get_agent_state())
         self.vel_control = habitat_sim.physics.VelocityControl()
         self.vel_control.controlling_lin_vel = True
         self.vel_control.lin_vel_is_local = True
@@ -197,9 +213,10 @@ class sim_env(threading.Thread):
             target_rigid_state.rotation
         )
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
+        # self.env._sim.robot.update()
         # run any dynamics simulation
         self.env.sim.step_physics(self.time_step)
-
+        # self.env._sim.robot.update()
         # render observation
         self.observations.update(self.env._task._sim.get_sensor_observations())
         
@@ -214,20 +231,20 @@ class sim_env(threading.Thread):
             lock.acquire()
             rgb_with_res = np.concatenate(
                 (
-                    np.float32(self.observations["rgb"][:,:,0:3].ravel()),
+                    np.float32(self.observations["robot_third_rgb"][:,:,0:3].ravel()),
                     np.array(
-                        [self._sensor_resolution["RGB"], self._sensor_resolution["RGB"]]
+                        [512,512]
                     ),
                 )
             )
             # multiply by 10 to get distance in meters
             depth_with_res = np.concatenate(
                 (
-                    np.float32(self.observations["depth"].ravel() ),
+                    np.float32(self.observations["robot_head_depth"].ravel() ),
                     np.array(
                         [
-                            self._sensor_resolution["DEPTH"],
-                            self._sensor_resolution["DEPTH"],
+                            128,
+                            128
                         ]
                     ),
                 )
@@ -352,7 +369,7 @@ def callback(vel, my_env):
 
 def main():
 
-    my_env = sim_env(env_config_file="configs/tasks/pointnav_rgbd.yaml")
+    my_env = sim_env(env_config_file="configs/tasks/pointnav_fetch.yaml")
     # start the thread that publishes sensor readings
     my_env.start()
 

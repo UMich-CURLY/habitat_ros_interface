@@ -11,8 +11,8 @@ import std_msgs.msg
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 
-DEPTH_IMG_WIDTH = 720
-DEPTH_IMG_HEIGHT = 720
+DEPTH_IMG_WIDTH = 128
+DEPTH_IMG_HEIGHT = 128
 
 pub_1 = rospy.Publisher("robot_1_depth", Image, queue_size=10)
 camera_info_pub_1 = rospy.Publisher("robot_1_camera_info_topic", CameraInfo, queue_size=0)
