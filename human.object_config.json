@@ -1,0 +1,6 @@
+{ "render_asset": "SPRING0001.obj",
+  "join_collision_meshes":false,
+  "mass":0.066,
+  "friction_coefficient": 0.5,
+  "restituion_coefficient": 0.2
+}
