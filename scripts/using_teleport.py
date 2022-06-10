@@ -51,8 +51,19 @@ def quat_to_coeff(quat):
         quaternion = [quat.x, quat.y, quat.z, quat.w]
         return quaternion
 
-class sim_env(threading.Thread):
+# Set an object transform relative to the agent state
+def set_object_state_from_agent(
+    sim,
+    obj,
+    offset=np.array([0, 2.0, -1.5]),
+    orientation=mn.Quaternion(((0, 0, 0), 1)),
+    ):
+    agent_transform = sim.agents[0].scene_node.transformation_matrix()
+    ob_translation = agent_transform.transform_point(offset)
+    obj.translation = ob_translation
+    obj.rotation = orientation
 
+class sim_env(threading.Thread):
     _x_axis = 0
     _y_axis = 1
     _z_axis = 2
@@ -131,8 +142,20 @@ class sim_env(threading.Thread):
         self.vel_control.controlling_ang_vel = True
         self.vel_control.ang_vel_is_local = True
         self.tour_plan = tour_planner()
-
-        
+        print("before initialized object")
+        global rigid_obj_mgr = self.env._sim.get_rigid_object_manager()
+        global obj_template_mgr = self.env._sim.get_object_template_manager()
+        rigid_obj_mgr.remove_all_objects()
+        self.human_template_id = obj_template_mgr.load_configs(
+            str(os.path.join(data_path, "scripts/human"))
+            )[0]
+        self.obj_1 = rigid_obj_mgr.add_object_by_template_id(human_template_id)
+        self.obj_template_handle = 'scripts/human.object_configj.json'
+        self.obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
+        self.file_obj = rigid_obj_mgr.add_object_by_template_id(obj_template_handle) 
+        objs = [self.file_obj]
+        offset= np.array([0,1,-1.5])
+        set_object_state_from_agent       
         print("created habitat_plant succsefully")
 
     def __del__(self):
