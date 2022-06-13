@@ -93,6 +93,7 @@ class sim_env(threading.Thread):
     all_points = []
     rtab_pose = []
     goal_time = []
+    
     def __init__(self, env_config_file):
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
@@ -143,19 +144,21 @@ class sim_env(threading.Thread):
         self.vel_control.ang_vel_is_local = True
         self.tour_plan = tour_planner()
         print("before initialized object")
-        global rigid_obj_mgr = self.env._sim.get_rigid_object_manager()
-        global obj_template_mgr = self.env._sim.get_object_template_manager()
+        global rigid_obj_mgr
+        rigid_obj_mgr = self.env._sim.get_rigid_object_manager()
+        global obj_template_mgr
+        obj_template_mgr = self.env._sim.get_object_template_manager()
         rigid_obj_mgr.remove_all_objects()
-        self.human_template_id = obj_template_mgr.load_configs(
-            str(os.path.join(data_path, "scripts/human"))
-            )[0]
-        self.obj_1 = rigid_obj_mgr.add_object_by_template_id(human_template_id)
-        self.obj_template_handle = 'scripts/human.object_configj.json'
-        self.obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
-        self.file_obj = rigid_obj_mgr.add_object_by_template_id(obj_template_handle) 
+        self.human_template_id = obj_template_mgr.load_configs('./scripts/human')[0]
+        print(self.human_template_id)
+        self.obj_1 = rigid_obj_mgr.add_object_by_template_id(self.human_template_id)
+        self.obj_template_handle = './scripts/human.object_config.json'
+        self.obj_template = obj_template_mgr.get_template_by_handle(self.obj_template_handle)
+        self.file_obj = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle) 
         objs = [self.file_obj]
         offset= np.array([0,1,-1.5])
-        set_object_state_from_agent       
+        set_object_state_from_agent(self.env._sim, self.file_obj, offset=offset)
+        self.obj_template.scale *= 3   
         print("created habitat_plant succsefully")
 
     def __del__(self):
