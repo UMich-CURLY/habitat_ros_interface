@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+ #!/usr/bin/env python3
 
 # Copyright (c) Facebook, Inc. and its affiliates.
 # This source code is licensed under the MIT license found in the
@@ -157,8 +157,18 @@ class sim_env(threading.Thread):
         self.file_obj = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle) 
         objs = [self.file_obj]
         offset= np.array([0,1,-1.5])
-        set_object_state_from_agent(self.env._sim, self.file_obj, offset=offset)
+        
         self.obj_template.scale *= 3   
+        orientation_x = 0  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        # compose the rotations
+        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0, 0, 1.0))
+        object_orientation = rotation_z * rotation_y * rotation_x
+        print(object_orientation)
+        set_object_state_from_agent(self.env._sim, self.file_obj, offset=offset, orientation = object_orientation)
         print("created habitat_plant succsefully")
 
     def __del__(self):
