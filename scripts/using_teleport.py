@@ -169,6 +169,18 @@ class sim_env(threading.Thread):
         object_orientation = rotation_z * rotation_y * rotation_x
         print(object_orientation)
         set_object_state_from_agent(self.env._sim, self.file_obj, offset=offset, orientation = object_orientation)
+
+        self.banana_template_id = obj_template_mgr.load_configs('./banana')[0]
+        print(self.banana_template_id)
+        self.obj_2 = rigid_obj_mgr.add_object_by_template_id(self.banana_template_id)
+        self.obj_template_handle2 = './banana.object_config.json'
+        self.obj_template2 = obj_template_mgr.get_template_by_handle(self.obj_template_handle2)
+        self.file_obj2 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle2) 
+        objs2 = [self.file_obj2]
+        offset2= np.array([0,-4,0.0])
+        
+        self.obj_template2.scale *= 10  
+        set_object_state_from_agent(self.env._sim, self.file_obj2, offset=offset2, orientation = object_orientation)
         print("created habitat_plant succsefully")
 
     def __del__(self):
