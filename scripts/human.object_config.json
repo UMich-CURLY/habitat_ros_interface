@@ -1,6 +1,6 @@
 { "render_asset": "human.obj",
-  "join_collision_meshes":false,
-  "mass": 6,
-  "friction_coefficient": 0.5,
+  "join_collision_meshes":true,
+  "mass": 60,
+  "friction_coefficient": 5,
   "restituion_coefficient": 0.2
 }

@@ -156,7 +156,7 @@ class sim_env(threading.Thread):
         self.obj_template = obj_template_mgr.get_template_by_handle(self.obj_template_handle)
         self.file_obj = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle) 
         objs = [self.file_obj]
-        offset= np.array([0,1,-1.5])
+        offset= np.array([3,0,-1.5])
         
         self.obj_template.scale *= 3   
         orientation_x = 0  # @param {type:"slider", min:-180, max:180, step:1}
@@ -176,10 +176,10 @@ class sim_env(threading.Thread):
         self.obj_template_handle2 = './scripts/banana.object_config.json'
         #self.obj_template_handle2 = './banana.object_config.json'
         self.obj_template2 = obj_template_mgr.get_template_by_handle(self.obj_template_handle2)
-        self.obj_template2.scale *= 1  
+        self.obj_template2.scale *= 3  
         self.file_obj2 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle2) 
         objs2 = [self.file_obj2]
-        offset2= np.array([0.0,3.0,-1.0])
+        offset2= np.array([0,1,-1.5])
         rotation_x = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(1.0, 0, 0))
         rotation_y = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 1.0, 0))
         rotation_z = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 0, 1.0))
