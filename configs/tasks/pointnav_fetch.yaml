@@ -1,0 +1,86 @@
+ENVIRONMENT:
+    MAX_EPISODE_STEPS: 500
+SIMULATOR:
+    ACTION_SPACE_CONFIG: v0
+    GRASP_IMPULSE: 1000.0
+    HOLD_THRESH: 0.09
+    AC_FREQ_RATIO: 4
+    AGENTS: ['AGENT_0']
+    AGENT_0:
+        ANGULAR_ACCELERATION: 12.56
+        ANGULAR_FRICTION: 1.0
+        COEFFICIENT_OF_RESTITUTION: 0.0
+        HEIGHT: 1.5
+        IS_SET_START_STATE: False
+        LINEAR_ACCELERATION: 20.0
+        LINEAR_FRICTION: 0.5
+        MASS: 32.0
+        RADIUS: 0.1
+        SENSORS: ['HEAD_RGB_SENSOR', 'HEAD_DEPTH_SENSOR', 'ARM_RGB_SENSOR', 'ARM_DEPTH_SENSOR', 'THIRD_RGB_SENSOR']
+        START_POSITION: [-2.293175119872487,0.0,-1.2777875958067]
+        START_ROTATION: [0, 0, 0, 1]
+    HEAD_RGB_SENSOR:
+        WIDTH: 128
+        HEIGHT: 128
+    THIRD_RGB_SENSOR:
+        WIDTH: 512
+        HEIGHT: 512
+        POSITION: [0, 1.25, 1.5]
+    HEAD_DEPTH_SENSOR:
+        WIDTH: 128
+        HEIGHT: 128
+        MIN_DEPTH: 0.0
+        MAX_DEPTH: 10.0
+        NORMALIZE_DEPTH: True
+    ARM_DEPTH_SENSOR:
+        HEIGHT: 128
+        MAX_DEPTH: 10.0
+        MIN_DEPTH: 0.0
+        NORMALIZE_DEPTH: True
+        WIDTH: 128
+    ARM_RGB_SENSOR:
+        HEIGHT: 128
+        WIDTH: 128
+    ARM_REST: [0.6, 0.0, 0.9]
+    CTRL_FREQ: 120.0
+    DEFAULT_AGENT_ID: 0
+    FORWARD_STEP_SIZE: 0.25
+    HABITAT_SIM_V0:
+        ALLOW_SLIDING: True
+        ENABLE_PHYSICS: True
+        GPU_DEVICE_ID: 0
+        GPU_GPU: False
+        PHYSICS_CONFIG_FILE: /habitat-lab/data/default.physics_config.json
+    LAG_OBSERVATIONS: 1
+    ROBOT_URDF: /habitat-lab/data/robots/hab_fetch/robots/hab_fetch.urdf
+    IK_ARM_URDF: /habitat-lab/data/robots/hab_fetch/robots/fetch_onlyarm.urdf
+    SEED: 100
+    SEMANTIC_SENSOR:
+        HEIGHT: 480
+        HFOV: 90
+        ORIENTATION: [0.0, 0.0, 0.0]
+        POSITION: [0, 1.25, 0]
+        TYPE: HabitatSimSemanticSensor
+        WIDTH: 640
+    TILT_ANGLE: 15
+    TURN_ANGLE: 10
+    
+TASK:
+    TYPE: Nav-v0
+    SUCCESS_DISTANCE: 0.2
+
+    SENSORS: ['POINTGOAL_WITH_GPS_COMPASS_SENSOR']
+    POINTGOAL_WITH_GPS_COMPASS_SENSOR:
+        GOAL_FORMAT: "POLAR"
+        DIMENSIONALITY: 2
+    GOAL_SENSOR_UUID: pointgoal_with_gps_compass
+    POSSIBLE_ACTIONS: ["STOP", "MOVE_FORWARD", "TURN_LEFT", "TURN_RIGHT", "LOOK_UP", "LOOK_DOWN", "TELEPORT"]
+
+    MEASUREMENTS: ['DISTANCE_TO_GOAL', 'SUCCESS', 'SPL']
+    SUCCESS:
+        SUCCESS_DISTANCE: 0.2
+DATASET:
+    TYPE: PointNav-v1
+    SPLIT: test
+    DATA_PATH: "data/datasets/pointnav/mp3d/v1/{split}/content/Vt2qJdWjCF20.json.gz" # "data/datasets/pointnav/mp3d/v1/{split}/{split}.json.gz" 
+    SCENES_DIR: "data/scene_datasets/"
