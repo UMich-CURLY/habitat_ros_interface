@@ -170,40 +170,43 @@ class sim_env(threading.Thread):
         print(object_orientation)
         set_object_state_from_agent(self.env._sim, self.file_obj, offset=offset, orientation = object_orientation)
 
-        self.banana_template_id = obj_template_mgr.load_configs('./scripts/banana')[0]
+        self.banana_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
         print(self.banana_template_id)
         self.obj_2 = rigid_obj_mgr.add_object_by_template_id(self.banana_template_id)
-        self.obj_template_handle2 = './scripts/banana.object_config.json'
-        #self.obj_template_handle2 = './banana.object_config.json'
+        self.obj_template_handle2 = './scripts/humantwo.object_config.json'
         self.obj_template2 = obj_template_mgr.get_template_by_handle(self.obj_template_handle2)
         self.obj_template2.scale *= 3  
         self.file_obj2 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle2) 
         objs2 = [self.file_obj2]
-        offset2= np.array([0,1,-1.5])
-        rotation_x = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(1.0, 0, 0))
-        rotation_y = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 1.0, 0))
-        rotation_z = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 0, 1.0))
+        offset2= np.array([1,1,-1.5])
+        self.obj_template.scale *= 3   
+        orientation_x = 0  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0, 0, 1.0))
         object_orientation2 = rotation_z * rotation_y * rotation_x
         
         set_object_state_from_agent(self.env._sim, self.file_obj2, offset=offset2, orientation = object_orientation2)
 
 
-        self.sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
-        print(self.sphere_template_id)
-        self.obj_3 = rigid_obj_mgr.add_object_by_template_id(self.sphere_template_id)
-        self.obj_template_handle3 = './scripts/sphere.object_config.json'
-        #self.obj_template_handle2 = './banana.object_config.json'
-        self.obj_template3 = obj_template_mgr.get_template_by_handle(self.obj_template_handle3)
-        self.obj_template3.scale *= 3  
-        self.file_obj3 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle3) 
-        objs3 = [self.file_obj3]
-        offset3= np.array([3,1,-1.5])
-        rotation_x = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(1.0, 0, 0))
-        rotation_y = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 1.0, 0))
-        rotation_z = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 0, 1.0))
-        object_orientation2 = rotation_z * rotation_y * rotation_x
+        # self.sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
+        # print(self.sphere_template_id)
+        # self.obj_3 = rigid_obj_mgr.add_object_by_template_id(self.sphere_template_id)
+        # self.obj_template_handle3 = './scripts/sphere.object_config.json'
+        # #self.obj_template_handle2 = './banana.object_config.json'
+        # self.obj_template3 = obj_template_mgr.get_template_by_handle(self.obj_template_handle3)
+        # self.obj_template3.scale *= 3  
+        # self.file_obj3 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle3) 
+        # objs3 = [self.file_obj3]
+        # offset3= np.array([3,1,-1.5])
+        # rotation_x = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(1.0, 0, 0))
+        # rotation_y = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 1.0, 0))
+        # rotation_z = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 0, 1.0))
+        # object_orientation2 = rotation_z * rotation_y * rotation_x
         
-        set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation2)
+        # set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation2)
         print("created habitat_plant succsefully")
 
     def __del__(self):
