@@ -150,19 +150,19 @@ class sim_env(threading.Thread):
         global obj_template_mgr
         obj_template_mgr = self.env._sim.get_object_template_manager()
         rigid_obj_mgr.remove_all_objects()
-        self.human_template_id = obj_template_mgr.load_configs('./scripts/human')[0]
+        self.human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
         print(self.human_template_id)
         self.obj_1 = rigid_obj_mgr.add_object_by_template_id(self.human_template_id)
-        self.obj_template_handle = './scripts/human.object_config.json'
+        self.obj_template_handle = './scripts/humantwo.object_config.json'
         self.obj_template = obj_template_mgr.get_template_by_handle(self.obj_template_handle)
         self.file_obj = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle) 
         objs = [self.file_obj]
-        offset= np.array([2,1,-1.5])
+        offset= np.array([-2,1,0.0])
         
         self.obj_template.scale *= 3   
-        orientation_x = 0  # @param {type:"slider", min:-180, max:180, step:1}
-        orientation_y = 90  # @param {type:"slider", min:-180, max:180, step:1}
-        orientation_z = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = 0  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 0 # @param {type:"slider", min:-180, max:180, step:1}
         # compose the rotations
         rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
         rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0, 1.0, 0))
@@ -171,10 +171,10 @@ class sim_env(threading.Thread):
         print(object_orientation)
         set_object_state_from_agent(self.env._sim, self.file_obj, offset=offset, orientation = object_orientation)
 
-        self.banana_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
+        self.banana_template_id = obj_template_mgr.load_configs('./scripts/human')[0]
         print(self.banana_template_id)
         self.obj_2 = rigid_obj_mgr.add_object_by_template_id(self.banana_template_id)
-        self.obj_template_handle2 = './scripts/humantwo.object_config.json'
+        self.obj_template_handle2 = './scripts/human.object_config.json'
         self.obj_template2 = obj_template_mgr.get_template_by_handle(self.obj_template_handle2)
         self.obj_template2.scale *= 3  
         self.file_obj2 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle2) 
@@ -190,6 +190,26 @@ class sim_env(threading.Thread):
         object_orientation2 = rotation_z * rotation_y * rotation_x
         
         set_object_state_from_agent(self.env._sim, self.file_obj2, offset=offset2, orientation = object_orientation2)
+
+        self.obj_3 = rigid_obj_mgr.add_object_by_template_id(self.human_template_id)
+        self.obj_template_handle = './scripts/humantwo.object_config.json'
+        self.obj_template3 = obj_template_mgr.get_template_by_handle(self.obj_template_handle)
+        self.obj_template3.scale *= 3  
+        self.file_obj3 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle) 
+        objs3 = [self.file_obj3]
+        offset3= np.array([4,1,-1.5])
+        self.obj_template.scale *= 3   
+        orientation_x = 0  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0, 0, 1.0))
+        object_orientation3 = rotation_z * rotation_y * rotation_x
+        
+        set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation3)
+
+
         config=habitat.get_config(self.env_config_file)
         print(config.SIMULATOR.ROBOT_URDF)
         self.env._sim.robot = FetchRobot(config.SIMULATOR.ROBOT_URDF, self.env._sim)
