@@ -153,10 +153,13 @@ class sim_env(threading.Thread):
         self.human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
         print(self.human_template_id)
         self.obj_1 = rigid_obj_mgr.add_object_by_template_id(self.human_template_id)
+        self.env._sim.set_object_motion_type(
+        habitat_sim.physics.MotionType.STATIC, self.human_template_id
+        )
         self.obj_template_handle = './scripts/humantwo.object_config.json'
         self.obj_template = obj_template_mgr.get_template_by_handle(self.obj_template_handle)
-        self.file_obj = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle) 
-        objs = [self.file_obj]
+        # self.file_obj = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle) 
+        # objs = [self.file_obj]
         offset= np.array([-2,1,0.0])
         
         self.obj_template.scale *= 3   
@@ -169,7 +172,7 @@ class sim_env(threading.Thread):
         rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0, 0, 1.0))
         object_orientation = rotation_z * rotation_y * rotation_x
         print(object_orientation)
-        set_object_state_from_agent(self.env._sim, self.file_obj, offset=offset, orientation = object_orientation)
+        # set_object_state_from_agent(self.env._sim, self.file_obj, offset=offset, orientation = object_orientation)
 
         self.banana_template_id = obj_template_mgr.load_configs('./scripts/human')[0]
         print(self.banana_template_id)
@@ -179,7 +182,7 @@ class sim_env(threading.Thread):
         self.obj_template2.scale *= 3  
         self.file_obj2 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle2) 
         objs2 = [self.file_obj2]
-        offset2= np.array([1,1,-1.5])
+        offset2= np.array([1,1,-0.5])
         self.obj_template.scale *= 3   
         orientation_x = 0  # @param {type:"slider", min:-180, max:180, step:1}
         orientation_y = 90  # @param {type:"slider", min:-180, max:180, step:1}
@@ -189,14 +192,19 @@ class sim_env(threading.Thread):
         rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0, 0, 1.0))
         object_orientation2 = rotation_z * rotation_y * rotation_x
         
-        set_object_state_from_agent(self.env._sim, self.file_obj2, offset=offset2, orientation = object_orientation2)
-
+        set_object_state_from_agent(self.env._sim, self.file_obj2, offset=offset2, orientation = utils.quat_to_magnum(agent_state.rotation))
+        self.env._sim.set_object_motion_type(habitat_sim.physics.MotionType.KINEMATIC, self.banana_template_id)
+        print("here")
+        print(self.file_obj2.rigid_state.translation, self.file_obj2.rigid_state.rotation)
+        self.vel_control_obj_2 = self.file_obj2.velocity_control
+        self.vel_control_obj_2.linear_velocity = np.array([0.0,0.0,0.0])
+        self.vel_control_obj_2.angular_velocity = np.array([0.0,0.0,0.0])
         self.obj_3 = rigid_obj_mgr.add_object_by_template_id(self.human_template_id)
         self.obj_template_handle = './scripts/humantwo.object_config.json'
         self.obj_template3 = obj_template_mgr.get_template_by_handle(self.obj_template_handle)
         self.obj_template3.scale *= 3  
-        self.file_obj3 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle) 
-        objs3 = [self.file_obj3]
+        # self.file_obj3 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle) 
+        # objs3 = [self.file_obj3]
         offset3= np.array([4,1,-1.5])
         self.obj_template.scale *= 3   
         orientation_x = 0  # @param {type:"slider", min:-180, max:180, step:1}
@@ -207,9 +215,12 @@ class sim_env(threading.Thread):
         rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0, 0, 1.0))
         object_orientation3 = rotation_z * rotation_y * rotation_x
         
-        set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation3)
-
-
+        # set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation3)
+        ao_mgr = self.env._sim.get_articulated_object_manager()
+        motion_type = habitat_sim.physics.MotionType.KINEMATIC
+        self.ao = ao_mgr.add_articulated_object_from_urdf("./scripts/model.urdf", fixed_base=True)
+        self.ao.motion_type = motion_type
+        set_object_state_from_agent(self.env._sim, self.ao, offset=offset2, orientation = object_orientation2)
         config=habitat.get_config(self.env_config_file)
         print(config.SIMULATOR.ROBOT_URDF)
         self.env._sim.robot = FetchRobot(config.SIMULATOR.ROBOT_URDF, self.env._sim)
@@ -340,6 +351,17 @@ class sim_env(threading.Thread):
             self._update_position()
             agent_state = self.env.sim.get_agent_state(0)
             # print(agent_state)
+            self.vel_control_obj_2.linear_velocity = np.array([0.0,0.0,0.0])
+            self.vel_control_obj_2.angular_velocity = np.array([0.0,0.0,0.0])
+            # orientation_x = 0  # @param {type:"slider", min:-180, max:180, step:1}
+            # orientation_y = 90  # @param {type:"slider", min:-180, max:180, step:1}
+            # orientation_z = 90  # @param {type:"slider", min:-180, max:180, step:1}
+            # rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+            # rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0, 1.0, 0))
+            # rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0, 0, 1.0))
+            # object_orientation2 = rotation_z * rotation_y * rotation_x
+            # offset2= np.array([1,1,-0.5])
+            # set_object_state_from_agent(self.env._sim, self.file_obj2, offset=offset2, orientation = object_orientation2)
             lock.release()
             self._r.sleep()
             
