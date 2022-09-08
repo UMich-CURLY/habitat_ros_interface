@@ -30,7 +30,7 @@ def get_topdown_map(config_paths, map_name):
     env = habitat.Env(config=config, dataset=dataset)
     env.reset()
 
-    meters_per_pixel =0.05
+    meters_per_pixel = 1
     hablab_topdown_map = maps.get_topdown_map(
             env._sim.pathfinder, 0.0, meters_per_pixel=meters_per_pixel
         )
