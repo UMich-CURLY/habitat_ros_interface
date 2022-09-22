@@ -32,9 +32,11 @@ import tf
 from tour_planner_dropped import tour_planner
 import csv
 from move_base_msgs.msg import MoveBaseActionResult
+from matplotlib import pyplot as plt
+from IPython import embed
 from nav_msgs.srv import GetPlan
 from habitat_sim.robots import FetchRobot
-import get_trajectory
+from get_trajectory import *
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
 
@@ -57,7 +59,7 @@ def to_grid(pathfinder, points, grid_dimensions):
                         points[2],
                         points[0],
                         grid_dimensions,
-                        pathfinder=sim.pathfinder,
+                        pathfinder=pathfinder,
                     )
     return ([map_points[1], map_points[0]])
 
@@ -67,7 +69,7 @@ def from_grid(pathfinder, points, grid_dimensions):
                         points[1],
                         points[0],
                         grid_dimensions,
-                        pathfinder=sim.pathfinder,
+                        pathfinder=pathfinder,
                     )
     map_points_3d = np.array([map_points[1], floor_y, map_points[0]])
     # # agent_state.position = np.array(map_points_3d)  # in world space
@@ -143,7 +145,13 @@ class sim_env(threading.Thread):
             self.env._sim.pathfinder, height=floor_y, meters_per_pixel=0.025
         )
         self.grid_dimensions = (top_down_map.shape[0], top_down_map.shape[1])
-        
+        print("Grid size is ", self.grid_dimensions)
+        maps.draw_path(top_down_map, ([0,0], [300,300]))
+        plt.figure(figsize=(12, 8))
+        ax = plt.subplot(1, 1, 1)
+        ax.axis("on")
+        plt.imshow(top_down_map)
+        plt.savefig("./top_down_map.png")
         self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
@@ -177,9 +185,18 @@ class sim_env(threading.Thread):
 
         ### Add human objects and groups here! 
 
-        self.N = 1
+        self.N = 20 
+        map_points = []
+        with open('./scripts/humans_initial_points.csv', newline='') as csvfile:
+            spamreader = csv.reader(csvfile, delimiter=',')
+            for row in spamreader:
+                map_points.append([float(i) for i in row])
+        humans_initial_pos_3d = np.array(map_points)[0:self.N,0:3]
+        goal_idx = np.arange(self.N)
+        random.shuffle(goal_idx)
+        print (goal_idx)
+        humans_goal_pos_3d = humans_initial_pos_3d[goal_idx]
         # Use poissons distribution to get the number of groups.
-
         # Select random navigable points for the different groups and members. 
 
         self.groups = []
@@ -187,6 +204,11 @@ class sim_env(threading.Thread):
         self.human_template_ids = []
         self.objs = []
         self.vel_control_objs = []
+        self.initial_state = []
+        humans_initial_pos_2d = []
+        humans_goal_pos_2d = []
+        humans_initial_velocity = []
+        initial_state = []
         for i in range(self.N):
             human_template_id = obj_template_mgr.load_configs('./scripts/human')[0]
             self.human_template_ids.append(human_template_id)
@@ -200,7 +222,20 @@ class sim_env(threading.Thread):
             print(file_obj)
             file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
             self.objs.append(file_obj)
-            offset = np.array([1.5,1.0,-1.5])
+            # initial_point = ([358,350])
+            # map_point_3d = from_grid(self.env._sim.pathfinder, initial_point, self.grid_dimensions)
+            # print("the object position is ", map_point_3d)
+
+            # Set initial state for the SFM 
+            humans_initial_pos_2d.append(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[i], self.grid_dimensions))
+            humans_goal_pos_2d.append(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[i], self.grid_dimensions))
+            humans_initial_velocity.append([1.0,0.0])
+            initial_state.append(humans_initial_pos_2d[i]+humans_initial_velocity[i]+humans_goal_pos_2d[i])
+            agent_state = self.env.sim.get_agent_state(0)
+            print(" The agent position", agent_state.position)
+            offset = humans_initial_pos_3d[i]-agent_state.position
+            offset[1] = 1.0
+            print("Here is the offset", offset)
             obj_template.scale *= 3   
             orientation_x = 90   # @param {type:"slider", min:-180, max:180, step:1}
             orientation_y = -90  # @param {type:"slider", min:-180, max:180, step:1}
@@ -208,18 +243,21 @@ class sim_env(threading.Thread):
             rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
             rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
             rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
-            object_orientation = rotation_z * rotation_y * rotation_x
+            self.object_orientation = rotation_z * rotation_y * rotation_x
             
-            set_object_state_from_agent(self.env._sim, file_obj, offset=offset, orientation = object_orientation)
+            set_object_state_from_agent(self.env._sim, file_obj, offset=offset, orientation = self.object_orientation)
             vel_control_obj = file_obj.velocity_control
             vel_control_obj.controlling_lin_vel = True
             vel_control_obj.controlling_ang_vel = True
             vel_control_obj.ang_vel_is_local = True
             vel_control_obj.lin_vel_is_local = True
             self.vel_control_objs.append(vel_control_obj)
-
-        
-        
+            self.vel_control_objs[i].linear_velocity = np.array([0.0,0.0,0.0])
+            self.vel_control_objs[i].angular_velocity = np.array([0.0,0.0,0.0])
+        print(initial_state)
+        sfm = social_force()
+        computed_velocity = sfm.get_velocity(initial_state)
+        print(computed_velocity)
         # set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation3)
         # ao_mgr = self.env._sim.get_articulated_object_manager()
         # motion_type = habitat_sim.physics.MotionType.KINEMATIC
@@ -315,21 +353,12 @@ class sim_env(threading.Thread):
         agent_state.rotation = utils.quat_from_magnum(
             target_rigid_state.rotation
         )
-        self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
+        
         # run any dynamics simulation
-        for i in range(self.N):
-            human_state = self.objs[i].rigid_state
-            previous_human_rigid_state = human_state
-            target_human_rigid_state = self.vel_control_objs[i].integrate_transform(
-                self.time_step, previous_human_rigid_state
-            )
-            end_pos_human = self.env._sim.step_filter(
-                previous_human_rigid_state.translation, target_human_rigid_state.translation
-            )
-            offset = end_pos_human - end_pos
-            offset[1]+=1.0
-            set_object_state_from_agent(self.env._sim, self.objs[i], offset=offset, orientation = target_human_rigid_state.rotation)
+        
+        self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env.sim.step_physics(self.time_step)
+        
         # render observation
         self.observations.update(self.env._task._sim.get_sensor_observations())
         
@@ -387,8 +416,10 @@ class sim_env(threading.Thread):
     def update_orientation(self):
         if self.received_vel:
             self.received_vel = False
-            self.vel_control_objs[0].linear_velocity = self.linear_velocity
-            self.vel_control_objs[0].angular_velocity = self.angular_velocity
+            # self.vel_control_objs[0].linear_velocity = self.linear_velocity
+            # self.vel_control_objs[0].angular_velocity = self.angular_velocity
+            self.vel_control.linear_velocity = self.linear_velocity
+            self.vel_control.angular_velocity = self.angular_velocity
         self.update_pos_vel()
         if(self._global_plan_published):
             if(self.new_goal and self._current_episode<self._total_number_of_episodes):
@@ -487,10 +518,10 @@ class sim_env(threading.Thread):
             self.new_goal=True
 
 def callback(vel, my_env):
-    # my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (-1.0 * vel.linear.x)])
-    # my_env.angular_velocity = np.array([0, vel.angular.z, 0])
-    my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
-    my_env.angular_velocity = np.array([0, 0, vel.angular.z])
+    my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (-1.0 * vel.linear.x)])
+    my_env.angular_velocity = np.array([0, vel.angular.z, 0])
+    # my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
+    # my_env.angular_velocity = np.array([0, 0, vel.angular.z])
     my_env.received_vel = True
     # my_env.update_orientation()
 
