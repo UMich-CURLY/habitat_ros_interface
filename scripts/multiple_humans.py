@@ -208,7 +208,7 @@ class sim_env(threading.Thread):
         humans_initial_pos_2d = []
         humans_goal_pos_2d = []
         humans_initial_velocity = []
-        initial_state = []
+        self.initial_state = []
         for i in range(self.N):
             human_template_id = obj_template_mgr.load_configs('./scripts/human')[0]
             self.human_template_ids.append(human_template_id)
@@ -230,7 +230,8 @@ class sim_env(threading.Thread):
             humans_initial_pos_2d.append(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[i], self.grid_dimensions))
             humans_goal_pos_2d.append(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[i], self.grid_dimensions))
             humans_initial_velocity.append([1.0,0.0])
-            initial_state.append(humans_initial_pos_2d[i]+humans_initial_velocity[i]+humans_goal_pos_2d[i])
+            embed()
+            self.initial_state.append(humans_initial_pos_2d[i]+humans_initial_velocity[i]+humans_goal_pos_2d[i])
             agent_state = self.env.sim.get_agent_state(0)
             print(" The agent position", agent_state.position)
             offset = humans_initial_pos_3d[i]-agent_state.position
@@ -238,7 +239,7 @@ class sim_env(threading.Thread):
             print("Here is the offset", offset)
             obj_template.scale *= 3   
             orientation_x = 90   # @param {type:"slider", min:-180, max:180, step:1}
-            orientation_y = -90  # @param {type:"slider", min:-180, max:180, step:1}
+            orientation_y = (np.pi/2-0.97)*180/np.pi  # @param {type:"slider", min:-180, max:180, step:1}
             orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}
             rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
             rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
@@ -249,15 +250,29 @@ class sim_env(threading.Thread):
             vel_control_obj = file_obj.velocity_control
             vel_control_obj.controlling_lin_vel = True
             vel_control_obj.controlling_ang_vel = True
-            vel_control_obj.ang_vel_is_local = True
-            vel_control_obj.lin_vel_is_local = True
+            vel_control_obj.ang_vel_is_local = False
+            vel_control_obj.lin_vel_is_local = False
             self.vel_control_objs.append(vel_control_obj)
+            # linear_vel_in_map_frame = np.array([0.1,0.0,0.0])
+            # angular_velocity_in_map_frame = np.array([0.0,0.0,0.0])
+            
             self.vel_control_objs[i].linear_velocity = np.array([0.0,0.0,0.0])
             self.vel_control_objs[i].angular_velocity = np.array([0.0,0.0,0.0])
-        print(initial_state)
+        # orientation_x = 0   # @param {type:"slider", min:-180, max:180, step:1}
+        # orientation_y = 0  # @param {type:"slider", min:-180, max:180, step:1}
+        # orientation_z = 0  # @param {type:"slider", min:-180, max:180, step:1}
+        # rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        # rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+        # rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+        # self.object_orientation = rotation_z * rotation_y * rotation_x
+        # embed()
         sfm = social_force()
-        computed_velocity = sfm.get_velocity(initial_state)
+        computed_velocity = sfm.get_velocity(np.array(self.initial_state))
         print(computed_velocity)
+        for i in range(self.N):
+            self.vel_control_objs[i].linear_velocity = self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0],computed_velocity[i,1], 0.0)
+        # self.vel_control_objs.angular_velocity = np.array([0.0,0.0,0.0])
+        
         # set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation3)
         # ao_mgr = self.env._sim.get_articulated_object_manager()
         # motion_type = habitat_sim.physics.MotionType.KINEMATIC

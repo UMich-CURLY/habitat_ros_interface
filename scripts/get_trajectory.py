@@ -41,7 +41,8 @@ class social_force():
         # update 80 steps
         s.step(1)
         print("States" ,s.peds.get_states())
-        return s.vel()
-        # with psf.plot.SceneVisualizer(s, "images/result_2") as sv:
+        
+        with psf.plot.SceneVisualizer(s, "/Py_Social_ROS/images/result_2") as sv:
         #     sv.animate()
-            # sv.plot()
+            sv.plot()
+        return s.peds.vel()
