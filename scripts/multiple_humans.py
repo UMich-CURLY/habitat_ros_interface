@@ -119,6 +119,7 @@ class sim_env(threading.Thread):
     all_points = []
     rtab_pose = []
     goal_time = []
+    update_counter = 0
     
     def __init__(self, env_config_file):
         threading.Thread.__init__(self)
@@ -185,28 +186,38 @@ class sim_env(threading.Thread):
 
         ### Add human objects and groups here! 
 
-        self.N = 20 
-        map_points = []
-        with open('./scripts/humans_initial_points.csv', newline='') as csvfile:
-            spamreader = csv.reader(csvfile, delimiter=',')
-            for row in spamreader:
-                map_points.append([float(i) for i in row])
-        humans_initial_pos_3d = np.array(map_points)[0:self.N,0:3]
-        goal_idx = np.arange(self.N)
-        random.shuffle(goal_idx)
-        print (goal_idx)
-        humans_goal_pos_3d = humans_initial_pos_3d[goal_idx]
+        # self.N = 10
+        # map_points = []
+        # with open('./scripts/humans_initial_points.csv', newline='') as csvfile:
+        #     spamreader = csv.reader(csvfile, delimiter=',')
+        #     for row in spamreader:
+        #         map_points.append([float(i) for i in row])
+        
+        # humans_initial_pos_2d = map_points
+        # goal_idx = np.arange(self.N)
+        # random.shuffle(goal_idx)
+        # humans_goal_pos_2d = np.array(humans_initial_pos_2d)[goal_idx]
+        # humans_goal_pos_2d = list(humans_goal_pos_2d)
+        
+        #Test with 1 
+        self.N = 1
+        map_points = [[380.0,290.0]]
+        
+        humans_initial_pos_2d = map_points
+        humans_goal_pos_2d = [[370,360]]
+        
         # Use poissons distribution to get the number of groups.
         # Select random navigable points for the different groups and members. 
-
-        self.groups = []
+        
+        self.groups = [[0]]
+        # self.groups = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9]]
 
         self.human_template_ids = []
         self.objs = []
         self.vel_control_objs = []
         self.initial_state = []
-        humans_initial_pos_2d = []
-        humans_goal_pos_2d = []
+        humans_initial_pos_3d = []
+        humans_goal_pos_3d = []
         humans_initial_velocity = []
         self.initial_state = []
         for i in range(self.N):
@@ -227,10 +238,10 @@ class sim_env(threading.Thread):
             # print("the object position is ", map_point_3d)
 
             # Set initial state for the SFM 
-            humans_initial_pos_2d.append(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[i], self.grid_dimensions))
-            humans_goal_pos_2d.append(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[i], self.grid_dimensions))
+            humans_initial_pos_3d.append(from_grid(self.env._sim.pathfinder, humans_initial_pos_2d[i], self.grid_dimensions))
+            humans_goal_pos_3d.append(from_grid(self.env._sim.pathfinder, humans_goal_pos_2d[i], self.grid_dimensions))
             humans_initial_velocity.append([1.0,0.0])
-            embed()
+            humans_goal_pos_2d[i] = list(humans_goal_pos_2d[i])
             self.initial_state.append(humans_initial_pos_2d[i]+humans_initial_velocity[i]+humans_goal_pos_2d[i])
             agent_state = self.env.sim.get_agent_state(0)
             print(" The agent position", agent_state.position)
@@ -266,11 +277,13 @@ class sim_env(threading.Thread):
         # rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
         # self.object_orientation = rotation_z * rotation_y * rotation_x
         # embed()
-        sfm = social_force()
-        computed_velocity = sfm.get_velocity(np.array(self.initial_state))
+        self.sfm = social_force()
+        print(self.initial_state)
+        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
         print(computed_velocity)
         for i in range(self.N):
-            self.vel_control_objs[i].linear_velocity = self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0],computed_velocity[i,1], 0.0)
+            self.vel_control_objs[i].linear_velocity = self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0], 0.0, -computed_velocity[i,1])
+            self.initial_state[i][2:4] = computed_velocity[i]
         # self.vel_control_objs.angular_velocity = np.array([0.0,0.0,0.0])
         
         # set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation3)
@@ -372,6 +385,17 @@ class sim_env(threading.Thread):
         # run any dynamics simulation
         
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
+        for i in range(self.N):
+            object_state = self.objs[i].rigid_state.translation
+            humans_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
+            self.initial_state[i][0:2] = humans_initial_pos_2d
+        self.update_counter+=1
+        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
+        print("Computed Velocity is ", computed_velocity)
+        print("Object Position is ", self.initial_state[:][0:2])
+        for i in range(self.N):
+            self.vel_control_objs[i].linear_velocity = self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0], 0.0, -computed_velocity[i,1])
+            self.initial_state[i][2:4] = computed_velocity[i]
         self.env.sim.step_physics(self.time_step)
         
         # render observation
