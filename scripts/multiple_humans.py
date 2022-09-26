@@ -282,7 +282,7 @@ class sim_env(threading.Thread):
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
         print(computed_velocity)
         for i in range(self.N):
-            self.vel_control_objs[i].linear_velocity = self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0], 0.0, -computed_velocity[i,1])
+            self.vel_control_objs[i].linear_velocity = self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0], 0.0, computed_velocity[i,1])
             self.initial_state[i][2:4] = computed_velocity[i]
         # self.vel_control_objs.angular_velocity = np.array([0.0,0.0,0.0])
         
@@ -394,7 +394,7 @@ class sim_env(threading.Thread):
         print("Computed Velocity is ", computed_velocity)
         print("Object Position is ", self.initial_state[:][0:2])
         for i in range(self.N):
-            self.vel_control_objs[i].linear_velocity = self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0], 0.0, -computed_velocity[i,1])
+            self.vel_control_objs[i].linear_velocity = self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0], 0.0, computed_velocity[i,1])
             self.initial_state[i][2:4] = computed_velocity[i]
         self.env.sim.step_physics(self.time_step)
         
