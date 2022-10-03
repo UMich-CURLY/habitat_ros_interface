@@ -21,9 +21,9 @@ def _generate_fn(scene):
     cfg.SIMULATOR.AGENT_0.SENSORS = []
     cfg.freeze()
 
-    sim = habitat.sims.make_sim("Sim-v0", config=cfg.SIMULATOR)
+    sim = habitat.sims.make_sim("RearrangeSim-v0", config=cfg.SIMULATOR)
 
-    dset = habitat.datasets.make_dataset("PointNav-v1")
+    dset = habitat.datasets.make_dataset("RearrangeDataset-v0")
     dset.episodes = list(
         generate_pointnav_episode(
             sim, num_episodes_per_scene, is_gen_shortest_path=False

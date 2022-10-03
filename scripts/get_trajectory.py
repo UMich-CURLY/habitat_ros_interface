@@ -29,7 +29,6 @@ class social_force():
                     self.obs.append([j,i])
                 if img_np[i][j]== 128:
                     space=space+1 
-        print(i,j)
     def get_velocity(self,initial_state, current_heading = None, groups = None, filename = None):
         # initiate the simulator,
         s = psf.Simulator(
@@ -40,7 +39,6 @@ class social_force():
         )
         # update 80 steps
         s.step(1)
-        print("States" ,s.peds.get_states())
         
         # with psf.plot.SceneVisualizer(s, "/Py_Social_ROS/images/"+filename) as sv:
         # #     sv.animate()

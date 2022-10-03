@@ -50,10 +50,10 @@ SIMULATOR:
         ENABLE_PHYSICS: True
         GPU_DEVICE_ID: 0
         GPU_GPU: False
-        PHYSICS_CONFIG_FILE: /habitat-lab/data/default.physics_config.json
+        PHYSICS_CONFIG_FILE: /habitat-lab/default.physics_config.json
     LAG_OBSERVATIONS: 1
-    ROBOT_URDF: /habitat-lab/data/robots/hab_fetch/robots/hab_fetch.urdf
-    IK_ARM_URDF: /habitat-lab/data/robots/hab_fetch/robots/fetch_onlyarm.urdf
+    ROBOT_URDF: /habitat-lab/versioned_data/hab_fetch_1.0/robots/hab_fetch.urdf
+    IK_ARM_URDF: /habitat-lab/versioned_data/hab_fetch_1.0/robots/fetch_onlyarm.urdf
     SEED: 100
     SEMANTIC_SENSOR:
         HEIGHT: 480
@@ -82,5 +82,5 @@ TASK:
 DATASET:
     TYPE: PointNav-v1
     SPLIT: test
-    DATA_PATH: "data/datasets/pointnav/mp3d/v1/{split}/content/Vt2qJdWjCF20.json.gz" # "data/datasets/pointnav/mp3d/v1/{split}/{split}.json.gz" 
-    SCENES_DIR: "data/scene_datasets/"
+    DATA_PATH: "./data/datasets/pointnav/mp3d/v1/{split}/content/Vt2qJdWjCF2.json.gz" # "data/datasets/pointnav/mp3d/v1/{split}/{split}.json.gz" 
+    SCENES_DIR: "/habitat-lab/scene_datasets/"

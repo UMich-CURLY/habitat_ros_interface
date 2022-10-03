@@ -186,32 +186,32 @@ class sim_env(threading.Thread):
 
         ### Add human objects and groups here! 
 
-        # self.N = 10
-        # map_points = []
-        # with open('./scripts/humans_initial_points.csv', newline='') as csvfile:
-        #     spamreader = csv.reader(csvfile, delimiter=',')
-        #     for row in spamreader:
-        #         map_points.append([float(i) for i in row])
-        
-        # humans_initial_pos_2d = map_points
-        # goal_idx = np.arange(self.N)
-        # random.shuffle(goal_idx)
-        # humans_goal_pos_2d = np.array(humans_initial_pos_2d)[goal_idx]
-        # humans_goal_pos_2d = list(humans_goal_pos_2d)
-        
-        #Test with 1 
-        self.N = 1
-        map_points = [[380.0,290.0]]
+        self.N = 10
+        map_points = []
+        with open('./scripts/humans_initial_points.csv', newline='') as csvfile:
+            spamreader = csv.reader(csvfile, delimiter=',')
+            for row in spamreader:
+                map_points.append([float(i) for i in row])
         
         humans_initial_pos_2d = map_points
-        humans_goal_pos_2d = [[370,360]]
+        goal_idx = np.arange(self.N)
+        random.shuffle(goal_idx)
+        humans_goal_pos_2d = np.array(humans_initial_pos_2d)[goal_idx]
+        humans_goal_pos_2d = list(humans_goal_pos_2d)
+        self.groups = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9]]
+
+        #Test with 1 
+        # self.N = 1
+        # map_points = [[380.0,290.0]]
         
+        # humans_initial_pos_2d = map_points
+        # humans_goal_pos_2d = [[370,360]]
+        # self.groups = [[0]]
         # Use poissons distribution to get the number of groups.
         # Select random navigable points for the different groups and members. 
         
-        self.groups = [[0]]
-        # self.groups = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9]]
-
+        
+        
         self.human_template_ids = []
         self.objs = []
         self.vel_control_objs = []
@@ -292,16 +292,16 @@ class sim_env(threading.Thread):
         # self.ao = ao_mgr.add_articulated_object_from_urdf("./scripts/model.urdf", fixed_base=True)
         # self.ao.motion_type = motion_type
         # set_object_state_from_agent(self.env._sim, self.ao, offset=offset3, orientation = object_orientation2)
-        # config=habitat.get_config(self.env_config_file)
-        # print(config.SIMULATOR.ROBOT_URDF)
-        # self.env._sim.robot = FetchRobot(config.SIMULATOR.ROBOT_URDF, self.env._sim)
-        # self.env._sim.robot.reconfigure()
-        # self.env._sim.robot.base_pos = mn.Vector3([agent_state.position[0]+1.5, agent_state.position[1], agent_state.position[2]-1.0])
-        # magnum_quat =  mn.Quaternion(mn.Vector3([agent_state.rotation.x, agent_state.rotation.y, agent_state.rotation.z]),agent_state.rotation.w)
-        # self.env._sim.robot.sim_obj.rotation = utils.quat_to_magnum(agent_state.rotation)
-        # print("here too")
-        # print(self.env._sim.robot.sim_obj.translation,self.env._sim.robot.sim_obj.rotation)
-
+        config=habitat.get_config(self.env_config_file)
+        print(config.SIMULATOR.ROBOT_URDF)
+        self.env._sim.robot = FetchRobot(config.SIMULATOR.ROBOT_URDF, self.env._sim, fixed_base=False)
+        self.env._sim.robot.reconfigure()
+        self.env._sim.robot.base_pos = mn.Vector3([agent_state.position[0], agent_state.position[1], agent_state.position[2]])
+        magnum_quat =  mn.Quaternion(mn.Vector3([agent_state.rotation.x, agent_state.rotation.y, agent_state.rotation.z]),agent_state.rotation.w)
+        self.env._sim.robot.sim_obj.rotation = utils.quat_to_magnum(agent_state.rotation)
+        embed()
+        print("Arm initial position? ", self.env._sim.robot.fetch_params.arm_init_params)
+        # print("Robot root linear and angular velocity is", self.env._sim.robot.root_linear_velocity, self.env._sim.robot.root_angular_velocity)
         # self.sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
         # print(self.sphere_template_id)
         # self.obj_3 = rigid_obj_mgr.add_object_by_template_id(self.sphere_template_id)
@@ -381,7 +381,9 @@ class sim_env(threading.Thread):
         agent_state.rotation = utils.quat_from_magnum(
             target_rigid_state.rotation
         )
-        
+        self.env._sim.robot.base_pos = mn.Vector3([agent_state.position[0], agent_state.position[1], agent_state.position[2]])
+        magnum_quat =  mn.Quaternion(mn.Vector3([agent_state.rotation.x, agent_state.rotation.y, agent_state.rotation.z]),agent_state.rotation.w)
+        self.env._sim.robot.sim_obj.rotation = utils.quat_to_magnum(agent_state.rotation)
         # run any dynamics simulation
         
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
@@ -391,14 +393,10 @@ class sim_env(threading.Thread):
             self.initial_state[i][0:2] = humans_initial_pos_2d
         self.update_counter+=1
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
-        print("Computed Velocity is ", computed_velocity)
-        print("Object Position is ", self.initial_state[:][0:2])
         for i in range(self.N):
-            self.vel_control_objs[i].linear_velocity = self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0], 0.0, computed_velocity[i,1])
+            self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0], 0.0, computed_velocity[i,1])
             self.initial_state[i][2:4] = computed_velocity[i]
         self.env.sim.step_physics(self.time_step)
-        
-        # render observation
         self.observations.update(self.env._task._sim.get_sensor_observations())
         
 

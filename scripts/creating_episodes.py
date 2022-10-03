@@ -18,16 +18,19 @@ from habitat.datasets.pointnav.pointnav_generator import generate_pointnav_episo
 
 num_episodes_per_scene = 1
 
+def generate_rearrangement_episode():
+    pass
+
 def _generate_fn(scene):
-    cfg = habitat.get_config()
+    cfg = habitat.get_config("configs/tasks/try_rearrange.yaml")
     cfg.defrost()
     cfg.SIMULATOR.SCENE = scene
     cfg.SIMULATOR.AGENT_0.SENSORS = []
     cfg.freeze()
 
-    sim = habitat.sims.make_sim("Sim-v0", config=cfg.SIMULATOR)
+    sim = habitat.sims.make_sim("RearrangeSim-v0", config=cfg.SIMULATOR)
 
-    dset = habitat.datasets.make_dataset("PointNav-v1")
+    dset = habitat.datasets.make_dataset("RearrangeDataset-v0")
     dset.episodes = list(
         generate_pointnav_episode(
             sim, num_episodes_per_scene, is_gen_shortest_path=False
@@ -36,10 +39,10 @@ def _generate_fn(scene):
     count_episodes = 0;
     
     for ep in dset.episodes:
-        ep.scene_id = "data/scene_datasets/mp3d/17DRP5sb8fy/17DRP5sb8fy.glb"
+        ep.scene_id = "/habitat-lab/scene_datasets/mp3d/Vt2qJdWjCF20/Vt2qJdWjCF2.glb"
     print(dset.episodes)
     scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
-    out_file = f"./data/datasets/pointnav/mp3d/v1/test/content/17DRP5sb8fy" + str(count_episodes)+".json.gz"
+    out_file = f"./data/datasets/pointnav/mp3d/v1/test/content/Vt2qJdWjCF2" + str(count_episodes)+".json.gz"
     os.makedirs(osp.dirname(out_file), exist_ok=True)
     with gzip.open(out_file, "wt") as f:
         f.write(dset.to_json())
@@ -54,4 +57,4 @@ def _generate_fn(scene):
 #     json.dump(dict(episodes=[]), f)
 
 if __name__ == "__main__":
-	_generate_fn("data/scene_datasets/mp3d/17DRP5sb8fy/17DRP5sb8fy.glb")
+	_generate_fn("/habitat-lab/scene_datasets/mp3d/Vt2qJdWjCF2/Vt2qJdWjCF2.glb")
