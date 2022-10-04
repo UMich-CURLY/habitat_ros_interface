@@ -184,6 +184,20 @@ class sim_env(threading.Thread):
         obj_template_mgr = self.env._sim.get_object_template_manager()
         rigid_obj_mgr.remove_all_objects()
 
+        config=habitat.get_config(self.env_config_file)
+        print(config.SIMULATOR.ROBOT_URDF)
+        self.env._sim.robot = FetchRobot(config.SIMULATOR.ROBOT_URDF, self.env._sim, fixed_base=True, arm_init_params_given = [1.0, 1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0])
+        self.env._sim.robot.reconfigure()
+        self.env._sim.robot.base_pos = mn.Vector3([agent_state.position[0], agent_state.position[1], agent_state.position[2]])
+        self.env._sim.robot.base_rot = np.pi/2
+        print("Base Rotation is ", self.env._sim.robot.base_rot)
+        arm_intermediate_positions  = [1.32, 0, -1.4, 1.72, 0.0, 1.66, 0.0]
+        self.env._sim.robot.arm_joint_pos = arm_intermediate_positions
+        arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
+        self.env._sim.robot.arm_joint_pos = arm_joint_positions
+        print("Arm initial position? ", self.env._sim.robot.fetch_params.arm_init_params)
+        robot_pos_in_2d = to_grid(self.env._sim.pathfinder, self.env._sim.robot.base_pos, self.grid_dimensions)
+        print(robot_pos_in_2d)
         ### Add human objects and groups here! 
 
         self.N = 10
@@ -240,7 +254,7 @@ class sim_env(threading.Thread):
             # Set initial state for the SFM 
             humans_initial_pos_3d.append(from_grid(self.env._sim.pathfinder, humans_initial_pos_2d[i], self.grid_dimensions))
             humans_goal_pos_3d.append(from_grid(self.env._sim.pathfinder, humans_goal_pos_2d[i], self.grid_dimensions))
-            humans_initial_velocity.append([1.0,0.0])
+            humans_initial_velocity.append([0.0,0.0])
             humans_goal_pos_2d[i] = list(humans_goal_pos_2d[i])
             self.initial_state.append(humans_initial_pos_2d[i]+humans_initial_velocity[i]+humans_goal_pos_2d[i])
             agent_state = self.env.sim.get_agent_state(0)
@@ -279,11 +293,14 @@ class sim_env(threading.Thread):
         # embed()
         self.sfm = social_force()
         print(self.initial_state)
+        self.initial_state.append(robot_pos_in_2d+humans_initial_velocity[0]+humans_goal_pos_2d[2])
+        self.groups.append([self.N])
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
         print(computed_velocity)
         for i in range(self.N):
-            self.vel_control_objs[i].linear_velocity = self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0], 0.0, computed_velocity[i,1])
+            self.vel_control_objs[i].linear_velocity  = mn.Vector3(computed_velocity[i,0], 0.0, computed_velocity[i,1])
             self.initial_state[i][2:4] = computed_velocity[i]
+
         # self.vel_control_objs.angular_velocity = np.array([0.0,0.0,0.0])
         
         # set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation3)
@@ -292,15 +309,7 @@ class sim_env(threading.Thread):
         # self.ao = ao_mgr.add_articulated_object_from_urdf("./scripts/model.urdf", fixed_base=True)
         # self.ao.motion_type = motion_type
         # set_object_state_from_agent(self.env._sim, self.ao, offset=offset3, orientation = object_orientation2)
-        config=habitat.get_config(self.env_config_file)
-        print(config.SIMULATOR.ROBOT_URDF)
-        self.env._sim.robot = FetchRobot(config.SIMULATOR.ROBOT_URDF, self.env._sim, fixed_base=False)
-        self.env._sim.robot.reconfigure()
-        self.env._sim.robot.base_pos = mn.Vector3([agent_state.position[0], agent_state.position[1], agent_state.position[2]])
-        magnum_quat =  mn.Quaternion(mn.Vector3([agent_state.rotation.x, agent_state.rotation.y, agent_state.rotation.z]),agent_state.rotation.w)
-        self.env._sim.robot.sim_obj.rotation = utils.quat_to_magnum(agent_state.rotation)
-        embed()
-        print("Arm initial position? ", self.env._sim.robot.fetch_params.arm_init_params)
+        
         # print("Robot root linear and angular velocity is", self.env._sim.robot.root_linear_velocity, self.env._sim.robot.root_angular_velocity)
         # self.sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
         # print(self.sphere_template_id)
@@ -362,7 +371,7 @@ class sim_env(threading.Thread):
     def update_pos_vel(self):
         agent_state = self.env.sim.get_agent_state(0)
         previous_rigid_state = habitat_sim.RigidState(
-            utils.quat_to_magnum(agent_state.rotation), agent_state.position
+            self.env._sim.robot.sim_obj.rotation, self.env._sim.robot.base_pos
         )
 
         # manually integrate the rigid state
@@ -378,12 +387,16 @@ class sim_env(threading.Thread):
 
         # set the computed state
         agent_state.position = end_pos
-        agent_state.rotation = utils.quat_from_magnum(
-            target_rigid_state.rotation
-        )
-        self.env._sim.robot.base_pos = mn.Vector3([agent_state.position[0], agent_state.position[1], agent_state.position[2]])
-        magnum_quat =  mn.Quaternion(mn.Vector3([agent_state.rotation.x, agent_state.rotation.y, agent_state.rotation.z]),agent_state.rotation.w)
-        self.env._sim.robot.sim_obj.rotation = utils.quat_to_magnum(agent_state.rotation)
+        robot_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(utils.quat_from_magnum(target_rigid_state.rotation)))[1]
+        agent_angle_target = robot_angle-np.pi/2
+        agent_state.rotation = utils.quat_from_magnum(mn.Quaternion.rotation(
+            mn.Rad(agent_angle_target), mn.Vector3(0, 1, 0)
+        ))
+        agent_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(agent_state.rotation))[1]
+        self.env._sim.robot.base_pos = end_pos
+        # agent_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(agent_state.rotation))[1]
+        self.env._sim.robot.sim_obj.rotation = target_rigid_state.rotation
+        
         # run any dynamics simulation
         
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
@@ -555,7 +568,7 @@ class sim_env(threading.Thread):
             self.new_goal=True
 
 def callback(vel, my_env):
-    my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (-1.0 * vel.linear.x)])
+    my_env.linear_velocity = np.array([(1.0 * vel.linear.x), 0.0, (-1.0 * vel.linear.y)])
     my_env.angular_velocity = np.array([0, vel.angular.z, 0])
     # my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
     # my_env.angular_velocity = np.array([0, 0, vel.angular.z])

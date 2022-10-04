@@ -43,4 +43,5 @@ class social_force():
         # with psf.plot.SceneVisualizer(s, "/Py_Social_ROS/images/"+filename) as sv:
         # #     sv.animate()
         #     sv.plot()
+        # print("Agent radius is", s.peds.agent_radius)
         return s.peds.vel()
