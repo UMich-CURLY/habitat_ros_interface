@@ -18,8 +18,83 @@ from habitat.datasets.pointnav.pointnav_generator import generate_pointnav_episo
 
 num_episodes_per_scene = 1
 
+def _create_episode(
+    episode_id: Union[int, str],
+    scene_id: str,
+    start_position: List[float],
+    start_rotation: List[Union[int, float64]],
+    target_position: List[float],
+    shortest_paths: Optional[List[List[ShortestPathPoint]]] = None,
+    radius: Optional[float] = None,
+    info: Optional[Dict[str, float]] = None,
+) -> Optional[NavigationEpisode]:
+    goals = [NavigationGoal(position=target_position, radius=radius)]
+    return NavigationEpisode(
+        episode_id=str(episode_id),
+        goals=goals,
+        scene_id=scene_id,
+        start_position=start_position,
+        start_rotation=start_rotation,
+        shortest_paths=shortest_paths,
+        info=info,
+    )
+
 def generate_rearrangement_episode():
-    pass
+    episode_count = 0
+    num_episodes = 1
+    while episode_count < num_episodes or num_episodes < 0:
+        target_position = sim.sample_navigable_point()
+
+        if sim.island_radius(target_position) < ISLAND_RADIUS_LIMIT:
+            continue
+
+        for _retry in range(number_retries_per_target):
+            source_position = sim.sample_navigable_point()
+
+            is_compatible, dist = is_compatible_episode(
+                source_position,
+                target_position,
+                sim,
+                near_dist=closest_dist_limit,
+                far_dist=furthest_dist_limit,
+                geodesic_to_euclid_ratio=geodesic_to_euclid_min_ratio,
+            )
+            if is_compatible:
+                break
+        if is_compatible:
+            angle = np.random.uniform(0, 2 * np.pi)
+            source_rotation = [0, np.sin(angle / 2), 0, np.cos(angle / 2)]
+
+            shortest_paths = None
+            if is_gen_shortest_path:
+                try:
+                    shortest_paths = [
+                        get_action_shortest_path(
+                            sim,
+                            source_position=source_position,
+                            source_rotation=source_rotation,
+                            goal_position=target_position,
+                            success_distance=shortest_path_success_distance,
+                            max_episode_steps=shortest_path_max_steps,
+                        )
+                    ]
+                # Throws an error when it can't find a path
+                except GreedyFollowerError:
+                    continue
+
+            episode = _create_episode(
+                episode_id=episode_count,
+                scene_id=sim.habitat_config.SCENE,
+                start_position=source_position,
+                start_rotation=source_rotation,
+                target_position=target_position,
+                shortest_paths=shortest_paths,
+                radius=shortest_path_success_distance,
+                info={"geodesic_distance": dist},
+            )
+
+            episode_count += 1
+            yield episode
 
 def _generate_fn(scene):
     cfg = habitat.get_config("configs/tasks/try_rearrange.yaml")

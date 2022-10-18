@@ -387,12 +387,12 @@ class sim_env(threading.Thread):
 
         # set the computed state
         agent_state.position = end_pos
-        robot_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(utils.quat_from_magnum(target_rigid_state.rotation)))[1]
-        agent_angle_target = robot_angle-np.pi/2
-        agent_state.rotation = utils.quat_from_magnum(mn.Quaternion.rotation(
-            mn.Rad(agent_angle_target), mn.Vector3(0, 1, 0)
-        ))
-        agent_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(agent_state.rotation))[1]
+        # robot_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(utils.quat_from_magnum(target_rigid_state.rotation)))[1]
+        # agent_angle_target = robot_angle
+        # agent_state.rotation = utils.quat_from_magnum(mn.Quaternion.rotation(
+        #     mn.Rad(agent_angle_target), mn.Vector3(0, 1, 0)
+        # ))
+        # agent_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(agent_state.rotation))[1]
         self.env._sim.robot.base_pos = end_pos
         # agent_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(agent_state.rotation))[1]
         self.env._sim.robot.sim_obj.rotation = target_rigid_state.rotation
