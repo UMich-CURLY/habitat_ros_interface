@@ -15,21 +15,22 @@ import tqdm
 import habitat
 import habitat_sim
 from habitat.datasets.pointnav.pointnav_generator import generate_pointnav_episode
-
+from habitat.datasets.rearrange.rearrange_dataset import *
 num_episodes_per_scene = 1
 
-def _create_episode(
-    episode_id: Union[int, str],
-    scene_id: str,
-    start_position: List[float],
-    start_rotation: List[Union[int, float64]],
-    target_position: List[float],
-    shortest_paths: Optional[List[List[ShortestPathPoint]]] = None,
-    radius: Optional[float] = None,
-    info: Optional[Dict[str, float]] = None,
-) -> Optional[NavigationEpisode]:
-    goals = [NavigationGoal(position=target_position, radius=radius)]
-    return NavigationEpisode(
+def _create_episode(art_objs: List[List[Any]],
+    static_objs: List[List[Any]],
+    targets: List[List[Any]],
+    fixed_base: bool,
+    art_states: List[Any],
+    nav_mesh_path: str,
+    scene_config_path: str,
+    allowed_region: List[Any] = [],
+    markers: List[Dict[str, Any]] = [],
+    force_spawn_pos: List = None
+) -> Optional[RearrangeEpisode]:
+    
+    return RearrangeEpisode(
         episode_id=str(episode_id),
         goals=goals,
         scene_id=scene_id,
@@ -104,23 +105,26 @@ def _generate_fn(scene):
     cfg.freeze()
 
     sim = habitat.sims.make_sim("RearrangeSim-v0", config=cfg.SIMULATOR)
-
-    dset = habitat.datasets.make_dataset("RearrangeDataset-v0")
-    dset.episodes = list(
-        generate_pointnav_episode(
-            sim, num_episodes_per_scene, is_gen_shortest_path=False
-        )
-    )
-    count_episodes = 0;
+    # pointnav_data = PointNavDatasetV1("configs/tasks/try_rearrange.yaml")
+    rearrangement_dataset = RearrangeDatasetV0()
+    print(rearrangement_dataset.episodes)
+    # dset = habitat.datasets.make_dataset("RearrangeDataset-v0")
+    # dset.episodes = list(
+    #     generate_pointnav_episode(
+    #         sim, num_episodes_per_scene, is_gen_shortest_path=False
+    #     )
+    # )
+    # count_episodes = 0
     
-    for ep in dset.episodes:
-        ep.scene_id = "/habitat-lab/scene_datasets/mp3d/Vt2qJdWjCF20/Vt2qJdWjCF2.glb"
-    print(dset.episodes)
-    scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
-    out_file = f"./data/datasets/pointnav/mp3d/v1/test/content/Vt2qJdWjCF2" + str(count_episodes)+".json.gz"
-    os.makedirs(osp.dirname(out_file), exist_ok=True)
-    with gzip.open(out_file, "wt") as f:
-        f.write(dset.to_json())
+    # for ep in dset.episodes:
+    #     ep.scene_id = "/habitat-lab/scene_datasets/mp3d/Vt2qJdWjCF20/Vt2qJdWjCF2.glb"
+    # print(dset.episodes)
+    # scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
+    # out_file = f"./data/datasets/pointnav/mp3d/v1/test/content/Vt2qJdWjCF2" + str(count_episodes)+".json.gz"
+    # os.makedirs(osp.dirname(out_file), exist_ok=True)
+    # with gzip.open(out_file, "wt") as f:
+    #     f.write(dset.to_json())
+
 
 
 # scenes = glob.glob("./data/scene_datasets/mp3d/17DRP5sb8fy.glb")
