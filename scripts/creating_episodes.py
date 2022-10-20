@@ -98,16 +98,20 @@ def generate_rearrangement_episode():
             yield episode
 
 def _generate_fn(scene):
-    cfg = habitat.get_config("configs/tasks/try_rearrange.yaml")
+    cfg = habitat.get_config("/habitat-lab/configs/tasks/rearrangepick_replica_cad.yaml")
     cfg.defrost()
     cfg.SIMULATOR.SCENE = scene
     cfg.SIMULATOR.AGENT_0.SENSORS = []
     cfg.freeze()
 
     sim = habitat.sims.make_sim("RearrangeSim-v0", config=cfg.SIMULATOR)
+    sim.reconfigure(cfg)
+    print(sim.ep_info)
     # pointnav_data = PointNavDatasetV1("configs/tasks/try_rearrange.yaml")
-    rearrangement_dataset = RearrangeDatasetV0()
-    print(rearrangement_dataset.episodes)
+    # rearrangement_dataset = RearrangeDatasetV0(sim)
+    # print(rearrangement_dataset.episodes)
+    # rearrange_dataset.episodes = list(generate_rearrangement_episode(sim, num_episodes_per_scene))
+
     # dset = habitat.datasets.make_dataset("RearrangeDataset-v0")
     # dset.episodes = list(
     #     generate_pointnav_episode(
@@ -116,14 +120,14 @@ def _generate_fn(scene):
     # )
     # count_episodes = 0
     
-    # for ep in dset.episodes:
-    #     ep.scene_id = "/habitat-lab/scene_datasets/mp3d/Vt2qJdWjCF20/Vt2qJdWjCF2.glb"
-    # print(dset.episodes)
+    # for ep in rearrangement_dataset.episodes:
+    #     ep.scene_id = "/habitat-lab/scene_datasets/mp3d/Vt2qJdWjCF2/Vt2qJdWjCF2.glb"
+    # print(rearrangement_dataset.episodes)
     # scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
     # out_file = f"./data/datasets/pointnav/mp3d/v1/test/content/Vt2qJdWjCF2" + str(count_episodes)+".json.gz"
     # os.makedirs(osp.dirname(out_file), exist_ok=True)
     # with gzip.open(out_file, "wt") as f:
-    #     f.write(dset.to_json())
+    #     f.write(rearrangement_dataset.to_json())
 
 
 
