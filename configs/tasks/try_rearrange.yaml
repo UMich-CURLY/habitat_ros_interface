@@ -20,7 +20,7 @@ TASK:
     # robot
     EASY_INIT: False
     FORCE_RECACHE: True
-
+    RENDER_TARGS: False
     TARGET_START_SENSOR:
         TYPE: "TargetStartSensor"
         GOAL_FORMAT: "CARTESIAN"

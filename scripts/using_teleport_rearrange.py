@@ -137,11 +137,11 @@ class sim_env(threading.Thread):
         #     self.env.sim, goal_radius, False
         # )
         self.env._sim.enable_physics = True
-        self.vel_control = habitat_sim.physics.VelocityControl()
-        self.vel_control.controlling_lin_vel = True
-        self.vel_control.lin_vel_is_local = True
-        self.vel_control.controlling_ang_vel = True
-        self.vel_control.ang_vel_is_local = True
+        # self.vel_control = habitat_sim.physics.VelocityControl()
+        # self.vel_control.controlling_lin_vel = True
+        # self.vel_control.lin_vel_is_local = True
+        # self.vel_control.controlling_ang_vel = True
+        # self.vel_control.ang_vel_is_local = True
         self.tour_plan = tour_planner()
         print("before initialized object")
         global rigid_obj_mgr
@@ -189,7 +189,7 @@ class sim_env(threading.Thread):
         object_orientation2 = rotation_z * rotation_y * rotation_x
         
         set_object_state_from_agent(self.env._sim, self.file_obj2, offset=offset2, orientation = object_orientation2)
-
+        print(self.env._sim.robot.base_pos)
 
         # self.sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
         # print(self.sphere_template_id)
@@ -249,33 +249,37 @@ class sim_env(threading.Thread):
         
         # self._render()        
     def update_pos_vel(self):
-        agent_state = self.env.sim.get_agent_state(0)
-        previous_rigid_state = habitat_sim.RigidState(
-            utils.quat_to_magnum(agent_state.rotation), agent_state.position
-        )
+        # agent_state = self.env.sim.get_agent_state(0)
+        # previous_rigid_state = habitat_sim.RigidState(
+        #     utils.quat_to_magnum(agent_state.rotation), agent_state.position
+        # )
 
-        # manually integrate the rigid state
-        target_rigid_state = self.vel_control.integrate_transform(
-            self.time_step, previous_rigid_state
-        )
+        # # manually integrate the rigid state
+        # target_rigid_state = self.vel_control.integrate_transform(
+        #     self.time_step, previous_rigid_state
+        # )
 
-        # snap rigid state to navmesh and set state to object/agent
-        # calls pathfinder.try_step or self.pathfinder.try_step_no_sliding
-        end_pos = self.env._sim.step_filter(
-            previous_rigid_state.translation, target_rigid_state.translation
-        )
+        # # snap rigid state to navmesh and set state to object/agent
+        # # calls pathfinder.try_step or self.pathfinder.try_step_no_sliding
+        # end_pos = self.env._sim.step_filter(
+        #     previous_rigid_state.translation, target_rigid_state.translation
+        # )
 
-        # set the computed state
-        agent_state.position = end_pos
-        agent_state.rotation = utils.quat_from_magnum(
-            target_rigid_state.rotation
-        )
-        self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
-        # run any dynamics simulation
-        self.env.sim.step_physics(self.time_step)
+        # # set the computed state
+        # agent_state.position = end_pos
+        # agent_state.rotation = utils.quat_from_magnum(
+        #     target_rigid_state.rotation
+        # )
+        # self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
+        # # run any dynamics simulation
+        # self.env.sim.step_physics(self.time_step)
 
         # render observation
-        self.observations.update(self.env._task._sim.get_sensor_observations())
+        lin_vel = self.linear_velocity[2]
+        ang_vel = self.angular_velocity[1]
+        base_vel = [lin_vel, ang_vel]
+        self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
+        print("One update worked")
         
 
 
