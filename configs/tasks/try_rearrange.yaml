@@ -3,7 +3,7 @@ ENVIRONMENT:
 DATASET:
     TYPE: RearrangeDataset-v0
     SPLIT: test
-    DATA_PATH: "./data/datasets/pointnav/mp3d/v1/{split}/content/Vt2qJdWjCF210.json.gz"
+    DATA_PATH: "./data/datasets/pointnav/mp3d/v1/{split}/content/Vt2qJdWjCF20.json.gz"
     SCENES_DIR: "/habitat-lab/scene_datasets/"
 TASK:
     TYPE: RearrangePickTask-v0

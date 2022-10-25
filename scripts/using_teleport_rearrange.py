@@ -33,7 +33,7 @@ from tour_planner_dropped import tour_planner
 import csv
 from move_base_msgs.msg import MoveBaseActionResult
 from nav_msgs.srv import GetPlan
-
+from IPython import embed
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
 
@@ -100,8 +100,7 @@ class sim_env(threading.Thread):
         self.env = habitat.Env(config=habitat.get_config(self.env_config_file))
         print("Initializeed environment")
         # always assume height equals width
-        
-        self.env._sim.agents[0].move_filter_fn = self.env._sim.step_filter
+        # self.env._sim.agents[0].move_filter_fn = self.env._sim.step_filter
         agent_state = self.env.sim.get_agent_state(0)
         self.observations = self.env.reset()
         agent_state.position = [-2.293175119872487,0.0,-1.2777875958067]
@@ -169,26 +168,6 @@ class sim_env(threading.Thread):
         object_orientation = rotation_z * rotation_y * rotation_x
         print(object_orientation)
         set_object_state_from_agent(self.env._sim, self.file_obj, offset=offset, orientation = object_orientation)
-
-        self.banana_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
-        print(self.banana_template_id)
-        self.obj_2 = rigid_obj_mgr.add_object_by_template_id(self.banana_template_id)
-        self.obj_template_handle2 = './scripts/humantwo.object_config.json'
-        self.obj_template2 = obj_template_mgr.get_template_by_handle(self.obj_template_handle2)
-        self.obj_template2.scale *= 3  
-        self.file_obj2 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle2) 
-        objs2 = [self.file_obj2]
-        offset2= np.array([1,1,-1.5])
-        self.obj_template.scale *= 3   
-        orientation_x = 0  # @param {type:"slider", min:-180, max:180, step:1}
-        orientation_y = 90  # @param {type:"slider", min:-180, max:180, step:1}
-        orientation_z = 90  # @param {type:"slider", min:-180, max:180, step:1}
-        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
-        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0, 1.0, 0))
-        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0, 0, 1.0))
-        object_orientation2 = rotation_z * rotation_y * rotation_x
-        
-        set_object_state_from_agent(self.env._sim, self.file_obj2, offset=offset2, orientation = object_orientation2)
         print(self.env._sim.robot.base_pos)
 
         # self.sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
