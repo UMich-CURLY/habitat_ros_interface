@@ -408,7 +408,7 @@ def callback(vel, my_env):
 
 def main():
 
-    my_env = sim_env(env_config_file="configs/tasks/try_rearrange.yaml")
+    my_env = sim_env(env_config_file="configs/tasks/nav_to_obj_copy.yml")
     # start the thread that publishes sensor readings
     my_env.start()
 

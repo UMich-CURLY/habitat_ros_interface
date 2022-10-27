@@ -18,7 +18,7 @@ def example():
 
     with habitat.Env(
         config=habitat.get_config(
-            "configs/tasks/rearrange_example.yaml"
+            "configs/tasks/rearrange/play.yaml"
         )
     ) as env:
         print("Environment creation successful")
@@ -27,19 +27,21 @@ def example():
         print("Agent acting inside environment.")
         count_steps = 0
         print(env.episodes)
-        for i in range(len(env.episodes)):
-            for j in range(len(env.episodes[i].static_objs)):
-                strings = env.episodes[i].static_objs[j][0] 
-                new_string = "/habitat-lab/"+strings
-                print(new_string)
-            #     env.episodes[i].static_objs[j][0] = new_string
-            #     if (j>=4):
-            #         env.episodes[i].static_objs[j] = []
-            # env.episodes[i].static_objs = env.episodes[i].static_objs[0:4]
-        env.episodes[0].static_objs = []
-        env.episodes[0].art_objs = []
+        # for i in range(len(env.episodes)):
+        #     for j in range(len(env.episodes[i].static_objs)):
+        #         strings = env.episodes[i].static_objs[j][0] 
+        #         new_string = "/habitat-lab/"+strings
+        #         print(new_string)
+        #     #     env.episodes[i].static_objs[j][0] = new_string
+        #     #     if (j>=4):
+        #     #         env.episodes[i].static_objs[j] = []
+        #     # env.episodes[i].static_objs = env.episodes[i].static_objs[0:4]
+        # # env.episodes[0].static_objs = []
+        # # env.episodes[0].art_objs = []
         env.episodes[0].markers = []
+        env.episodes[0].ao_states = {}
         env.episodes[0].scene_id = '/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/Vt2qJdWjCF2/Vt2qJdWjCF2.glb'
+        env.episodes[0].scene_dataset_config = "/home/catkin_ws/src/habitat_ros_interface/data/mp3d/mp3dCAD.scene_dataset_config.json"
         env.episodes[0].start_position = [-2.293175119872487,-1.2777875958067]
         # env.episodes[0].targets = []
         rearrange_dataset = RearrangeDatasetV0()
