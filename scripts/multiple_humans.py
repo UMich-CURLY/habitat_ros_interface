@@ -135,6 +135,7 @@ class sim_env(threading.Thread):
         self.env._sim.robot.arm_joint_pos = arm_joint_positions
         agent_state.position = [-2.293175119872487,0.0,-1.2777875958067]
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
+        self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
         print(self.env.sim)
         config = self.env._sim.config
         print(self.env._sim.active_dataset)
@@ -143,7 +144,6 @@ class sim_env(threading.Thread):
             "DEPTH": 720,
         }
         print(self.env._sim.pathfinder.get_bounds())
-        embed()
         floor_y = 0.0
         top_down_map = maps.get_topdown_map(
             self.env._sim.pathfinder, height=floor_y, meters_per_pixel=0.025
@@ -188,7 +188,7 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
 
-        self.N = 10
+        self.N = 9
         map_points = []
         with open('./scripts/humans_initial_points.csv', newline='') as csvfile:
             spamreader = csv.reader(csvfile, delimiter=',')
@@ -200,7 +200,7 @@ class sim_env(threading.Thread):
         random.shuffle(goal_idx)
         humans_goal_pos_2d = np.array(humans_initial_pos_2d)[goal_idx]
         humans_goal_pos_2d = list(humans_goal_pos_2d)
-        self.groups = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9]]
+        self.groups = [[0],[1],[2],[3],[4],[5],[6],[7],[8]]
 
         #Test with 1 
         # self.N = 1
@@ -390,13 +390,13 @@ class sim_env(threading.Thread):
         self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
         # run any dynamics simulation
         
-        self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         for i in range(self.N):
             object_state = self.objs[i].rigid_state.translation
             humans_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
             self.initial_state[i][0:2] = humans_initial_pos_2d
         self.update_counter+=1
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
+        print("Intial State for humans is", self.initial_state)
         for i in range(self.N):
             self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0], 0.0, computed_velocity[i,1])
             self.initial_state[i][2:4] = computed_velocity[i]
@@ -559,7 +559,7 @@ class sim_env(threading.Thread):
             self.new_goal=True
 
 def callback(vel, my_env):
-    my_env.linear_velocity = np.array([(1.0 * vel.linear.x), 0.0, (-1.0 * vel.linear.y)])
+    my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (1.0 * vel.linear.x)])
     my_env.angular_velocity = np.array([0, vel.angular.z, 0])
     # my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
     # my_env.angular_velocity = np.array([0, 0, vel.angular.z])
