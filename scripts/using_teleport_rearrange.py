@@ -98,11 +98,15 @@ class sim_env(threading.Thread):
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
         self.env = habitat.Env(config=habitat.get_config(self.env_config_file))
+        self.env._sim.robot.params.arm_init_params = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
+        
         print("Initializeed environment")
         # always assume height equals width
         # self.env._sim.agents[0].move_filter_fn = self.env._sim.step_filter
         agent_state = self.env.sim.get_agent_state(0)
         self.observations = self.env.reset()
+        arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
+        self.env._sim.robot.arm_joint_pos = arm_joint_positions
         agent_state.position = [-2.293175119872487,0.0,-1.2777875958067]
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         print(self.env.sim)
@@ -258,7 +262,6 @@ class sim_env(threading.Thread):
         ang_vel = self.angular_velocity[1]
         base_vel = [lin_vel, ang_vel]
         self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
-        print("One update worked")
         
 
 
@@ -301,8 +304,8 @@ class sim_env(threading.Thread):
     def update_orientation(self):
         if self.received_vel:
             self.received_vel = False
-            self.vel_control.linear_velocity = self.linear_velocity
-            self.vel_control.angular_velocity = self.angular_velocity
+            # self.vel_control.linear_velocity = self.linear_velocity
+            # self.vel_control.angular_velocity = self.angular_velocity
         self.update_pos_vel()
         if(self._global_plan_published):
             if(self.new_goal and self._current_episode<self._total_number_of_episodes):
@@ -394,14 +397,14 @@ class sim_env(threading.Thread):
         print("Time to execute this tour is", self.goal_time)
         self.goal_time = rospy.get_time()
         if(self._current_episode==self._total_number_of_episodes-1):
-                print("Tour plan executed in ", rospy.get_time()-self.start_time)
+            print("Tour plan executed in ", rospy.get_time()-self.start_time)
         else:
             self.current_goal = self._nodes[self._current_episode+1]
             self._current_episode = self._current_episode+1
             self.new_goal=True
 
 def callback(vel, my_env):
-    my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (-1.0 * vel.linear.x)])
+    my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (1.0 * vel.linear.x)])
     my_env.angular_velocity = np.array([0, vel.angular.z, 0])
     my_env.received_vel = True
     # my_env.update_orientation()

@@ -35,7 +35,6 @@ from move_base_msgs.msg import MoveBaseActionResult
 from matplotlib import pyplot as plt
 from IPython import embed
 from nav_msgs.srv import GetPlan
-from habitat_sim.robots import FetchRobot
 from get_trajectory import *
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
@@ -125,12 +124,15 @@ class sim_env(threading.Thread):
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
         self.env = habitat.Env(config=habitat.get_config(self.env_config_file))
+        self.env._sim.robot.params.arm_init_params = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
+        
         print("Initializeed environment")
         # always assume height equals width
-        
-        self.env._sim.agents[0].move_filter_fn = self.env._sim.step_filter
+        # self.env._sim.agents[0].move_filter_fn = self.env._sim.step_filter
         agent_state = self.env.sim.get_agent_state(0)
         self.observations = self.env.reset()
+        arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
+        self.env._sim.robot.arm_joint_pos = arm_joint_positions
         agent_state.position = [-2.293175119872487,0.0,-1.2777875958067]
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         print(self.env.sim)
@@ -172,11 +174,6 @@ class sim_env(threading.Thread):
         #     self.env.sim, goal_radius, False
         # )
         self.env._sim.enable_physics = True
-        self.vel_control = habitat_sim.physics.VelocityControl()
-        self.vel_control.controlling_lin_vel = True
-        self.vel_control.lin_vel_is_local = True
-        self.vel_control.controlling_ang_vel = True
-        self.vel_control.ang_vel_is_local = True
         self.tour_plan = tour_planner()
         print("before initialized object")
         global rigid_obj_mgr
@@ -186,17 +183,7 @@ class sim_env(threading.Thread):
         rigid_obj_mgr.remove_all_objects()
 
         config=habitat.get_config(self.env_config_file)
-        print(config.SIMULATOR.ROBOT_URDF)
-        self.env._sim.robot = FetchRobot(config.SIMULATOR.ROBOT_URDF, self.env._sim, fixed_base=True, arm_init_params_given = [1.0, 1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0])
-        self.env._sim.robot.reconfigure()
-        self.env._sim.robot.base_pos = mn.Vector3([agent_state.position[0], agent_state.position[1], agent_state.position[2]])
-        self.env._sim.robot.base_rot = np.pi/2
-        print("Base Rotation is ", self.env._sim.robot.base_rot)
-        arm_intermediate_positions  = [1.32, 0, -1.4, 1.72, 0.0, 1.66, 0.0]
-        self.env._sim.robot.arm_joint_pos = arm_intermediate_positions
-        arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
-        self.env._sim.robot.arm_joint_pos = arm_joint_positions
-        print("Arm initial position? ", self.env._sim.robot.fetch_params.arm_init_params)
+        
         robot_pos_in_2d = to_grid(self.env._sim.pathfinder, self.env._sim.robot.base_pos, self.grid_dimensions)
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
@@ -370,34 +357,37 @@ class sim_env(threading.Thread):
         
         # self._render()        
     def update_pos_vel(self):
-        agent_state = self.env.sim.get_agent_state(0)
-        previous_rigid_state = habitat_sim.RigidState(
-            self.env._sim.robot.sim_obj.rotation, self.env._sim.robot.base_pos
-        )
+        # agent_state = self.env.sim.get_agent_state(0)
+        # previous_rigid_state = habitat_sim.RigidState(
+        #     self.env._sim.robot.sim_obj.rotation, self.env._sim.robot.base_pos
+        # )
 
-        # manually integrate the rigid state
-        target_rigid_state = self.vel_control.integrate_transform(
-            self.time_step, previous_rigid_state
-        )
+        # # manually integrate the rigid state
+        # target_rigid_state = self.vel_control.integrate_transform(
+        #     self.time_step, previous_rigid_state
+        # )
 
-        # snap rigid state to navmesh and set state to object/agent
-        # calls pathfinder.try_step or self.pathfinder.try_step_no_sliding
-        end_pos = self.env._sim.step_filter(
-            previous_rigid_state.translation, target_rigid_state.translation
-        )
+        # # snap rigid state to navmesh and set state to object/agent
+        # # calls pathfinder.try_step or self.pathfinder.try_step_no_sliding
+        # end_pos = self.env._sim.step_filter(
+        #     previous_rigid_state.translation, target_rigid_state.translation
+        # )
 
-        # set the computed state
-        agent_state.position = end_pos
-        # robot_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(utils.quat_from_magnum(target_rigid_state.rotation)))[1]
-        # agent_angle_target = robot_angle
-        # agent_state.rotation = utils.quat_from_magnum(mn.Quaternion.rotation(
-        #     mn.Rad(agent_angle_target), mn.Vector3(0, 1, 0)
-        # ))
-        # agent_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(agent_state.rotation))[1]
-        self.env._sim.robot.base_pos = end_pos
-        # agent_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(agent_state.rotation))[1]
-        self.env._sim.robot.sim_obj.rotation = target_rigid_state.rotation
-        
+        # # set the computed state
+        # agent_state.position = end_pos
+        # # robot_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(utils.quat_from_magnum(target_rigid_state.rotation)))[1]
+        # # agent_angle_target = robot_angle
+        # # agent_state.rotation = utils.quat_from_magnum(mn.Quaternion.rotation(
+        # #     mn.Rad(agent_angle_target), mn.Vector3(0, 1, 0)
+        # # ))
+        # # agent_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(agent_state.rotation))[1]
+        # self.env._sim.robot.base_pos = end_pos
+        # # agent_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(agent_state.rotation))[1]
+        # self.env._sim.robot.sim_obj.rotation = target_rigid_state.rotation
+        lin_vel = self.linear_velocity[2]
+        ang_vel = self.angular_velocity[1]
+        base_vel = [lin_vel, ang_vel]
+        self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
         # run any dynamics simulation
         
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
@@ -469,8 +459,8 @@ class sim_env(threading.Thread):
             self.received_vel = False
             # self.vel_control_objs[0].linear_velocity = self.linear_velocity
             # self.vel_control_objs[0].angular_velocity = self.angular_velocity
-            self.vel_control.linear_velocity = self.linear_velocity
-            self.vel_control.angular_velocity = self.angular_velocity
+            # self.vel_control.linear_velocity = self.linear_velocity
+            # self.vel_control.angular_velocity = self.angular_velocity
         self.update_pos_vel()
         if(self._global_plan_published):
             if(self.new_goal and self._current_episode<self._total_number_of_episodes):
@@ -578,7 +568,7 @@ def callback(vel, my_env):
 
 def main():
 
-    my_env = sim_env(env_config_file="configs/tasks/try_rearrange.yaml")
+    my_env = sim_env(env_config_file="configs/tasks/nav_to_obj_copy.yml")
     # start the thread that publishes sensor readings
     my_env.start()
 
