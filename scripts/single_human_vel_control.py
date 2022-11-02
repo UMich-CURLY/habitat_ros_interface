@@ -153,9 +153,6 @@ class sim_env(threading.Thread):
         self.human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
         print(self.human_template_id)
         self.obj_1 = rigid_obj_mgr.add_object_by_template_id(self.human_template_id)
-        self.env._sim.set_object_motion_type(
-        habitat_sim.physics.MotionType.STATIC, self.human_template_id
-        )
         self.obj_template_handle = './scripts/humantwo.object_config.json'
         self.obj_template = obj_template_mgr.get_template_by_handle(self.obj_template_handle)
         # self.file_obj = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle) 
@@ -203,8 +200,8 @@ class sim_env(threading.Thread):
         self.vel_control_obj_2 = self.file_obj2.velocity_control
         self.vel_control_obj_2.controlling_lin_vel = True
         self.vel_control_obj_2.controlling_ang_vel = True
-        self.vel_control_obj_2.ang_vel_is_local = True
-        self.vel_control_obj_2.lin_vel_is_local = True
+        self.vel_control_obj_2.ang_vel_is_local = False
+        self.vel_control_obj_2.lin_vel_is_local = False
         # self.vel_control_obj_2.linear_velocity = np.array([0.0,0.0,0.0])
         # self.vel_control_obj_2.angular_velocity = np.array([0.0,0.0,0.0])
         self.obj_3 = rigid_obj_mgr.add_object_by_template_id(self.human_template_id)
@@ -347,24 +344,24 @@ class sim_env(threading.Thread):
             lock.acquire()
             rgb_with_res = np.concatenate(
                 (
-                    np.float32(self.observations["robot_third_rgb"][:,:,0:3].ravel()),
+                    np.float32(self.observations["rgb"][:,:,0:3].ravel()),
                     np.array(
-                        [512,512]
+                        [self._sensor_resolution["RGB"], self._sensor_resolution["RGB"]]
                     ),
                 )
             )
             # multiply by 10 to get distance in meters
             depth_with_res = np.concatenate(
                 (
-                    np.float32(self.observations["robot_head_depth"].ravel() ),
+                    np.float32(self.observations["depth"].ravel() ),
                     np.array(
                         [
-                            128,
-                            128
+                            self._sensor_resolution["DEPTH"],
+                            self._sensor_resolution["DEPTH"],
                         ]
                     ),
                 )
-            )       
+            )      
 
             self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_depth.publish(np.float32(depth_with_res))
@@ -490,16 +487,16 @@ class sim_env(threading.Thread):
             self.new_goal=True
 
 def callback(vel, my_env):
-    # my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (-1.0 * vel.linear.x)])
-    # my_env.angular_velocity = np.array([0, vel.angular.z, 0])
-    my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
-    my_env.angular_velocity = np.array([0, 0, vel.angular.z])
+    my_env.linear_velocity = np.array([(1.0 * vel.linear.x), 0.0, (1.0 * vel.linear.y)])
+    my_env.angular_velocity = np.array([0, vel.angular.z, 0])
+    # my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
+    # my_env.angular_velocity = np.array([0, 0, vel.angular.z])
     my_env.received_vel = True
     # my_env.update_orientation()
 
 def main():
 
-    my_env = sim_env(env_config_file="configs/tasks/pointnav_fetch.yaml")
+    my_env = sim_env(env_config_file="configs/tasks/pointnav_rgbd.yaml")
     # start the thread that publishes sensor readings
     my_env.start()
 

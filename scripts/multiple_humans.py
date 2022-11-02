@@ -399,6 +399,10 @@ class sim_env(threading.Thread):
         print("Intial State for humans is", self.initial_state)
         for i in range(self.N):
             self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0], 0.0, computed_velocity[i,1])
+            prev_vel_control = mn.Vector3(self.initial_state[i][2], 0.0, self.initial_state[i][3])
+            next_vel_control = mn.Vector3(computed_velocity[i,0], 0.0, computed_velocity[i,1])
+            quat_rot = utils.quat_from_two_vectors(prev_vel_control, next_vel_control)
+            
             self.initial_state[i][2:4] = computed_velocity[i]
         self.env.sim.step_physics(self.time_step)
         self.observations.update(self.env._task._sim.get_sensor_observations())

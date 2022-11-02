@@ -32,5 +32,5 @@ TASK:
 DATASET:
   TYPE: PointNav-v1
   SPLIT: test
-  DATA_PATH: "data/datasets/pointnav/mp3d/v1/{split}/content/Vt2qJdWjCF20.json.gz" # "data/datasets/pointnav/mp3d/v1/{split}/{split}.json.gz" 
+  DATA_PATH: "data/datasets/pointnav/mp3d/v1/{split}/content/Vt2qJdWjCF250.json.gz" # "data/datasets/pointnav/mp3d/v1/{split}/{split}.json.gz" 
   SCENES_DIR: "data/scene_datasets/"
