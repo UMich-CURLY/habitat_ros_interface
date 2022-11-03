@@ -34,7 +34,7 @@ import csv
 from move_base_msgs.msg import MoveBaseActionResult
 from nav_msgs.srv import GetPlan
 from habitat_sim.robots import FetchRobot
-
+from IPython import embed
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
 
@@ -210,14 +210,13 @@ class sim_env(threading.Thread):
         self.obj_template3.scale *= 3  
         # self.file_obj3 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle) 
         # objs3 = [self.file_obj3]
-        offset3= np.array([1,1,-0.5])
         self.obj_template.scale *= 3   
         orientation_x = 0  # @param {type:"slider", min:-180, max:180, step:1}
         orientation_y = 90  # @param {type:"slider", min:-180, max:180, step:1}
         orientation_z = 90  # @param {type:"slider", min:-180, max:180, step:1}
         rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0.0, 0))
-        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(1.0, 0.0, 0))
-        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(1.0, 0.0, 0.0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0.0, 1.0))
         object_orientation3 = rotation_z * rotation_y * rotation_x
         
         # set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation3)
@@ -236,22 +235,23 @@ class sim_env(threading.Thread):
         # print("here too")
         # print(self.env._sim.robot.sim_obj.translation,self.env._sim.robot.sim_obj.rotation)
 
-        # self.sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
-        # print(self.sphere_template_id)
-        # self.obj_3 = rigid_obj_mgr.add_object_by_template_id(self.sphere_template_id)
-        # self.obj_template_handle3 = './scripts/sphere.object_config.json'
+        self.sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
+        print(self.sphere_template_id)
+        self.obj_3 = rigid_obj_mgr.add_object_by_template_id(self.sphere_template_id)
+        self.obj_template_handle3 = './scripts/sphere.object_config.json'
         # #self.obj_template_handle2 = './banana.object_config.json'
-        # self.obj_template3 = obj_template_mgr.get_template_by_handle(self.obj_template_handle3)
-        # self.obj_template3.scale *= 3  
-        # self.file_obj3 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle3) 
-        # objs3 = [self.file_obj3]
-        # offset3= np.array([3,1,-1.5])
-        # rotation_x = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(1.0, 0, 0))
-        # rotation_y = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 1.0, 0))
-        # rotation_z = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 0, 1.0))
-        # object_orientation2 = rotation_z * rotation_y * rotation_x
-        
-        # set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation2)
+        self.obj_template3 = obj_template_mgr.get_template_by_handle(self.obj_template_handle3)
+        self.obj_template3.scale *= 3  
+        self.file_obj3 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle3) 
+        objs3 = [self.file_obj3]
+        human_state = self.file_obj2.rigid_state
+        extra_offset = human_state.rotation.transform_vector(mn.Vector3(1.0,0.0,0.0))
+        offset3= offset2 + np.array([extra_offset[0], extra_offset[1], extra_offset[2]])
+        rotation_x = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 0, 1.0))
+        object_orientation2 = rotation_z * rotation_y * rotation_x
+        set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation2)
         print("created habitat_plant succsefully")
 
     def __del__(self):
@@ -319,6 +319,7 @@ class sim_env(threading.Thread):
         # run any dynamics simulation
         
         human_state = self.file_obj2.rigid_state
+        print(human_state.rotation)
         previous_human_rigid_state = human_state
         target_human_rigid_state = self.vel_control_obj_2.integrate_transform(
             self.time_step, previous_human_rigid_state
@@ -487,6 +488,11 @@ class sim_env(threading.Thread):
             self.new_goal=True
 
 def callback(vel, my_env):
+    human_state = my_env.file_obj2.rigid_state
+    prev_vel_control = mn.Vector3(1.0, 0.0, 0.0)
+    next_vel_control = mn.Vector3((1.0 * vel.linear.x), 0.0, (1.0 * vel.linear.y))
+    quat_rot = utils.quat_from_two_vectors(prev_vel_control, next_vel_control)
+    difference_quat = quat_rot - human_state.rotation
     my_env.linear_velocity = np.array([(1.0 * vel.linear.x), 0.0, (1.0 * vel.linear.y)])
     my_env.angular_velocity = np.array([0, vel.angular.z, 0])
     # my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
