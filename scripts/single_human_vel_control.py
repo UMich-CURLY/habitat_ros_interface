@@ -13,6 +13,7 @@ from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 import habitat
 import habitat_sim.bindings as hsim
 import magnum as mn
+import quaternion as qt
 from habitat.utils.visualizations import maps
 import habitat_sim
 import numpy as np
@@ -51,6 +52,38 @@ def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.5):
 def quat_to_coeff(quat):
         quaternion = [quat.x, quat.y, quat.z, quat.w]
         return quaternion
+
+def quat_from_two_vectors(v0: np.ndarray, v1: np.ndarray) -> qt.quaternion:
+    r"""Creates a quaternion that rotates the first vector onto the second vector
+
+    :param v0: The starting vector, does not need to be a unit vector
+    :param v1: The end vector, does not need to be a unit vector
+    :return: The quaternion
+
+    Calculates the quaternion q such that
+
+    .. code:: py
+
+        v1 = quat_rotate_vector(q, v0)
+    """
+
+    v0 = v0 / np.linalg.norm(v0)
+    v1 = v1 / np.linalg.norm(v1)
+    c = v0[0]*v1[0]+v0[1]*v1[1]+v0[2]*v1[2]
+    if c < (-1 + 1e-8):
+        c = max(c, -1)
+        m = np.stack([v0, v1], 0)
+        _, _, vh = np.linalg.svd(m, full_matrices=True)
+        axis = vh[2]
+        w2 = (1 + c) * 0.5
+        w = np.sqrt(w2)
+        axis = axis * np.sqrt(1 - w2)
+        return qt.quaternion(w, *axis)
+
+    axis = np.cross(v0, v1)
+    s = np.sqrt((1 + c) * 2)
+    return qt.quaternion(s * 0.5, *(axis / s))
+
 
 # Set an object transform relative to the agent state
 def set_object_state_from_agent(
@@ -182,8 +215,8 @@ class sim_env(threading.Thread):
         offset2= np.array([1.5,1.0,-1.5])
         self.obj_template.scale *= 3   
         orientation_x = 90   # @param {type:"slider", min:-180, max:180, step:1}
-        orientation_y = -90  # @param {type:"slider", min:-180, max:180, step:1}
-        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = (np.pi/2-0.97)*180/np.pi  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
         rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
         rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
         rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
@@ -245,8 +278,11 @@ class sim_env(threading.Thread):
         self.file_obj3 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle3) 
         objs3 = [self.file_obj3]
         human_state = self.file_obj2.rigid_state
-        extra_offset = human_state.rotation.transform_vector(mn.Vector3(1.0,0.0,0.0))
+        inverted_quat = object_orientation2.inverted()
+        self.inverted_vector = inverted_quat.transform_vector(mn.Vector3(1.0,0.0,0.0))
+        extra_offset = human_state.rotation.transform_vector(self.inverted_vector)
         offset3= offset2 + np.array([extra_offset[0], extra_offset[1], extra_offset[2]])
+        print(offset3)
         rotation_x = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(1.0, 0, 0))
         rotation_y = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 1.0, 0))
         rotation_z = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 0, 1.0))
@@ -319,7 +355,6 @@ class sim_env(threading.Thread):
         # run any dynamics simulation
         
         human_state = self.file_obj2.rigid_state
-        print(human_state.rotation)
         previous_human_rigid_state = human_state
         target_human_rigid_state = self.vel_control_obj_2.integrate_transform(
             self.time_step, previous_human_rigid_state
@@ -330,6 +365,13 @@ class sim_env(threading.Thread):
         offset = end_pos_human - end_pos
         offset[1]+=1.0
         set_object_state_from_agent(self.env._sim, self.file_obj2, offset=offset, orientation = target_human_rigid_state.rotation)
+        extra_offset = human_state.rotation.transform_vector(self.inverted_vector)
+        offset3= offset + np.array([extra_offset[0], extra_offset[1], extra_offset[2]])
+        rotation_x = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 0, 1.0))
+        object_orientation2 = rotation_z * rotation_y * rotation_x
+        set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation2)
         self.env.sim.step_physics(self.time_step)
         # render observation
         self.observations.update(self.env._task._sim.get_sensor_observations())
@@ -387,9 +429,26 @@ class sim_env(threading.Thread):
 
     def update_orientation(self):
         if self.received_vel:
-            self.received_vel = False
-            self.vel_control_obj_2.linear_velocity = self.linear_velocity
-            self.vel_control_obj_2.angular_velocity = self.angular_velocity
+            human_state = self.file_obj2.rigid_state
+            extra_offset = human_state.rotation.transform_vector(self.inverted_vector)
+            offset3= human_state.translation + np.array([extra_offset[0], extra_offset[1], extra_offset[2]])
+            vel = self.linear_velocity
+            next_vel_control = mn.Vector3(float(vel[0]), 0.0, float(vel[2]))
+            prev_heading = mn.Vector3(offset3[0], offset3[1], offset3[2])
+            quat_rot = quat_from_two_vectors(prev_heading, next_vel_control)
+            quat_list = [quat_rot.x, quat_rot.y, quat_rot.z, quat_rot.w]
+            angle = tf.transformations.euler_from_quaternion(quat_list)
+            print(angle)
+            if(np.abs(angle[2]-1.75)<0.1):
+                self.received_vel = False
+            self.vel_control_obj_2.angular_velocity = [0.0,angle[2],0.0]
+            self.vel_control_obj_2.linear_velocity = [vel[0]*np.sin(angle[2]),0.0,vel[0]*np.cos(angle[2])]
+            # if(angle[2]!=0):
+            #     self.vel_control_obj_2.angular_velocity = [0.0,angle[2],0.0]
+            #     self.vel_control_obj_2.linear_velocity = [0.0,0.0,0.0]
+            # else:
+            #     self.vel_control_obj_2.linear_velocity = [vel[0]*np.sin(angle[2]),0.0,vel[0]*np.cos(angle[2])]
+            #     self.vel_control_obj_2.angular_velocity = [0.0,0.0,0.0]
         self.update_pos_vel()
         if(self._global_plan_published):
             if(self.new_goal and self._current_episode<self._total_number_of_episodes):
@@ -488,11 +547,11 @@ class sim_env(threading.Thread):
             self.new_goal=True
 
 def callback(vel, my_env):
-    human_state = my_env.file_obj2.rigid_state
-    prev_vel_control = mn.Vector3(1.0, 0.0, 0.0)
-    next_vel_control = mn.Vector3((1.0 * vel.linear.x), 0.0, (1.0 * vel.linear.y))
-    quat_rot = utils.quat_from_two_vectors(prev_vel_control, next_vel_control)
-    difference_quat = quat_rot - human_state.rotation
+    # human_state = my_env.file_obj2.rigid_state
+    # prev_vel_control = mn.Vector3(1.0, 0.0, 0.0)
+    # next_vel_control = mn.Vector3((1.0 * vel.linear.x), 0.0, (1.0 * vel.linear.y))
+    # quat_rot = utils.quat_from_two_vectors(prev_vel_control, next_vel_control)
+    # difference_quat = quat_rot - human_state.rotation
     my_env.linear_velocity = np.array([(1.0 * vel.linear.x), 0.0, (1.0 * vel.linear.y)])
     my_env.angular_velocity = np.array([0, vel.angular.z, 0])
     # my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
