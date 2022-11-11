@@ -432,19 +432,18 @@ class sim_env(threading.Thread):
         if self.received_vel:
             human_state = self.file_obj2.rigid_state
             agent_state = self.env.sim.get_agent_state(0)
-            extra_offset = human_state.rotation.transform_vector(self.inverted_vector)
-            offset3= human_state.translation + np.array([extra_offset[0], extra_offset[1], extra_offset[2]])
+            # extra_offset = human_state.rotation.transform_vector(self.inverted_vector)
+            # offset3= human_state.translation + np.array([extra_offset[0], extra_offset[1], extra_offset[2]])
             vel = self.linear_velocity
             next_vel_control = mn.Vector3(float(vel[0]), float(vel[2]), 0.0)
-            speed = np.linalg.norm(vel)                
-            inverted_quat = self.initial_orientation.inverted()
-            body_vector = inverted_quat.transform_vector(next_vel_control)
-            body_velocity = human_state.rotation.transform_vector(body_vector)
-            heading_unit_vec = mn.Vector3(extra_offset[0], extra_offset[2], extra_offset[1])
+            # speed = np.linalg.norm(vel)                
+            # inverted_quat = self.initial_orientation.inverted()
+            # body_vector = inverted_quat.transform_vector(next_vel_control)
+            # body_velocity = human_state.rotation.transform_vector(body_vector)
+            # heading_unit_vec = mn.Vector3(extra_offset[0], extra_offset[2], extra_offset[1])
             diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
             diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
             angle_diff = tf.transformations.euler_from_quaternion(diff_list)
-            print(heading_unit_vec, next_vel_control, angle_diff)
             # prev_heading = mn.Vector3(offset3[0], offset3[1], offset3[2])
             # quat_rot = quat_from_two_vectors(prev_heading, next_vel_control)
             # quat_rot = quat_from_two_vectors(extra_offset, body_velocity)

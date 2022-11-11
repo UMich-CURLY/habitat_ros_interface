@@ -13,6 +13,7 @@ from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 import habitat
 import habitat_sim.bindings as hsim
 import magnum as mn
+import quaternion as qt
 from habitat.utils.visualizations import maps
 import habitat_sim
 import numpy as np
@@ -76,6 +77,38 @@ def from_grid(pathfinder, points, grid_dimensions):
     map_points_3d = pathfinder.snap_point(map_points_3d)
     return map_points_3d
 
+def quat_from_two_vectors(v0: np.ndarray, v1: np.ndarray) -> qt.quaternion:
+    r"""Creates a quaternion that rotates the first vector onto the second vector
+
+    :param v0: The starting vector, does not need to be a unit vector
+    :param v1: The end vector, does not need to be a unit vector
+    :return: The quaternion
+
+    Calculates the quaternion q such that
+
+    .. code:: py
+
+        v1 = quat_rotate_vector(q, v0)
+    """
+
+    v0 = v0 / np.linalg.norm(v0)
+    v1 = v1 / np.linalg.norm(v1)
+    c = v0[0]*v1[0]+v0[1]*v1[1]+v0[2]*v1[2]
+    if c < (-1 + 1e-8):
+        c = max(c, -1)
+        m = np.stack([v0, v1], 0)
+        _, _, vh = np.linalg.svd(m, full_matrices=True)
+        axis = vh[2]
+        w2 = (1 + c) * 0.5
+        w = np.sqrt(w2)
+        axis = axis * np.sqrt(1 - w2)
+        return qt.quaternion(w, *axis)
+
+    axis = np.cross(v0, v1)
+    s = np.sqrt((1 + c) * 2)
+    return qt.quaternion(s * 0.5, *(axis / s))
+
+
 # Set an object transform relative to the agent state
 def set_object_state_from_agent(
     sim,
@@ -119,7 +152,8 @@ class sim_env(threading.Thread):
     rtab_pose = []
     goal_time = []
     update_counter = 0
-    
+    human_update_counter = 0 
+    update_multiple = 10
     def __init__(self, env_config_file):
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
@@ -283,11 +317,33 @@ class sim_env(threading.Thread):
         print(self.initial_state)
         self.initial_state.append(robot_pos_in_2d+humans_initial_velocity[0]+humans_goal_pos_2d[2])
         self.groups.append([self.N])
-        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
-        print(computed_velocity)
-        for i in range(self.N):
-            self.vel_control_objs[i].linear_velocity  = mn.Vector3(computed_velocity[i,0], 0.0, computed_velocity[i,1])
-            self.initial_state[i][2:4] = computed_velocity[i]
+        agent_state = self.env.sim.get_agent_state(0)
+        if(np.mod(self.human_update_counter, self.update_multiple) ==0):
+            computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
+            print("changing velocity", self.human_update_counter)
+            for i in range(self.N):
+                human_state = self.objs[i].rigid_state
+                next_vel_control = mn.Vector3(computed_velocity[i,0], computed_velocity[i,1], 0.0)
+                diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
+                diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
+                angle= tf.transformations.euler_from_quaternion(diff_list)
+                orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
+                orientation_y = (np.pi/2-0.97)*180/np.pi+angle[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
+                orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
+                rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+                rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+                rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+                object_orientation2 = rotation_z * rotation_y * rotation_x
+                if(not np.isnan(angle).any()):
+                    set_object_state_from_agent(self.env._sim, self.objs[i], offset= human_state.translation - agent_state.position, orientation = object_orientation2)
+                    self.vel_control_objs[i].linear_velocity = [computed_velocity[i,0], 0.0,  computed_velocity[i,1]]
+                else:
+                    self.vel_control_objs[i].linear_velocity = [0.0,0.0,0.0]
+                    self.vel_control_objs[i].angular_velocity = [0.0,0.0,0.0]
+                self.initial_state[i][2:4] = computed_velocity[i]
+        else:
+            print("NOT changing velocity", self.human_update_counter)
+            self.human_update_counter +=0.01
 
         # self.vel_control_objs.angular_velocity = np.array([0.0,0.0,0.0])
         
@@ -395,15 +451,30 @@ class sim_env(threading.Thread):
             humans_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
             self.initial_state[i][0:2] = humans_initial_pos_2d
         self.update_counter+=1
-        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
-        print("Intial State for humans is", self.initial_state)
-        for i in range(self.N):
-            self.vel_control_objs[i].linear_velocity = mn.Vector3(computed_velocity[i,0], 0.0, computed_velocity[i,1])
-            prev_vel_control = mn.Vector3(self.initial_state[i][2], 0.0, self.initial_state[i][3])
-            next_vel_control = mn.Vector3(computed_velocity[i,0], 0.0, computed_velocity[i,1])
-            quat_rot = utils.quat_from_two_vectors(prev_vel_control, next_vel_control)
-            
-            self.initial_state[i][2:4] = computed_velocity[i]
+        agent_state = self.env.sim.get_agent_state(0)
+        if(np.mod(self.human_update_counter, self.update_multiple) ==0):
+            computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
+            for i in range(self.N):
+                human_state = self.objs[i].rigid_state
+                next_vel_control = mn.Vector3(computed_velocity[i,0], computed_velocity[i,1], 0.0)
+                diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
+                diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
+                angle= tf.transformations.euler_from_quaternion(diff_list)
+                orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
+                orientation_y = (np.pi/2-0.97)*180/np.pi+angle[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
+                orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
+                rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+                rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+                rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+                object_orientation2 = rotation_z * rotation_y * rotation_x
+                if(not np.isnan(angle).any()):
+                    set_object_state_from_agent(self.env._sim, self.objs[i], offset= human_state.translation - agent_state.position, orientation = object_orientation2)
+                    self.vel_control_objs[i].linear_velocity = [computed_velocity[i,0], 0.0,  computed_velocity[i,1]]
+                else:
+                    self.vel_control_objs[i].linear_velocity = [0.0,0.0,0.0]
+                    self.vel_control_objs[i].angular_velocity = [0.0,0.0,0.0]
+                self.initial_state[i][2:4] = computed_velocity[i]
+        self.human_update_counter +=1
         self.env.sim.step_physics(self.time_step)
         self.observations.update(self.env._task._sim.get_sensor_observations())
         
