@@ -233,8 +233,8 @@ class sim_env(threading.Thread):
         self.vel_control_obj_2 = self.file_obj2.velocity_control
         self.vel_control_obj_2.controlling_lin_vel = True
         self.vel_control_obj_2.controlling_ang_vel = True
-        self.vel_control_obj_2.ang_vel_is_local = True
-        self.vel_control_obj_2.lin_vel_is_local = True
+        self.vel_control_obj_2.ang_vel_is_local = False
+        self.vel_control_obj_2.lin_vel_is_local = False
         # self.vel_control_obj_2.linear_velocity = np.array([0.0,0.0,0.0])
         # self.vel_control_obj_2.angular_velocity = np.array([0.0,0.0,0.0])
         self.obj_3 = rigid_obj_mgr.add_object_by_template_id(self.human_template_id)
@@ -356,6 +356,7 @@ class sim_env(threading.Thread):
         
         human_state = self.file_obj2.rigid_state
         previous_human_rigid_state = human_state
+        print("Velocity is ", self.vel_control_obj_2.linear_velocity)
         target_human_rigid_state = self.vel_control_obj_2.integrate_transform(
             self.time_step, previous_human_rigid_state
         )
@@ -430,38 +431,59 @@ class sim_env(threading.Thread):
     def update_orientation(self):
         if self.received_vel:
             human_state = self.file_obj2.rigid_state
+            agent_state = self.env.sim.get_agent_state(0)
             extra_offset = human_state.rotation.transform_vector(self.inverted_vector)
             offset3= human_state.translation + np.array([extra_offset[0], extra_offset[1], extra_offset[2]])
             vel = self.linear_velocity
-            next_vel_control = mn.Vector3(float(vel[0]), 0.0, float(vel[2]))
+            next_vel_control = mn.Vector3(float(vel[0]), float(vel[2]), 0.0)
             speed = np.linalg.norm(vel)                
             inverted_quat = self.initial_orientation.inverted()
             body_vector = inverted_quat.transform_vector(next_vel_control)
             body_velocity = human_state.rotation.transform_vector(body_vector)
-            diff_angle = quat_from_two_vectors(extra_offset, body_velocity)
+            heading_unit_vec = mn.Vector3(extra_offset[0], extra_offset[2], extra_offset[1])
+            diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
             diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
             angle_diff = tf.transformations.euler_from_quaternion(diff_list)
-            print(extra_offset, body_velocity, angle_diff)
-            prev_heading = mn.Vector3(offset3[0], offset3[1], offset3[2])
-            quat_rot = quat_from_two_vectors(prev_heading, next_vel_control)
-            quat_list = [quat_rot.x, quat_rot.y, quat_rot.z, quat_rot.w]
-            # angle = tf.transformations.euler_from_quaternion(quat_list)
+            print(heading_unit_vec, next_vel_control, angle_diff)
+            # prev_heading = mn.Vector3(offset3[0], offset3[1], offset3[2])
+            # quat_rot = quat_from_two_vectors(prev_heading, next_vel_control)
+            # quat_rot = quat_from_two_vectors(extra_offset, body_velocity)
+            # vec = utils.quat_rotate_vector(quat_rot, extra_offset)
+            # quat_list = [quat_rot.x, quat_rot.y, quat_rot.z, quat_rot.w]
+            # print(quat_list)
+            initial_offset= np.array([1.5,1.0,-1.5])
+
+            # # angle = tf.transformations.euler_from_quaternion(quat_list)
             angle = angle_diff
-            # if(np.abs(angle_diff[1]-np.pi)<0.1 or angle_diff[1]<0.01 or np.abs(angle_diff[1]+np.pi)<0.1):
-            #     self.received_vel = False
+            orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
+            orientation_y = (np.pi/2-0.97)*180/np.pi+angle_diff[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
+            orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
+            rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+            rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+            rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+            object_orientation2 = rotation_z * rotation_y * rotation_x #* mn.Quaternion(heading_unit_vec)
+            # # if(np.abs(angle_diff[1]-np.pi)<0.1 or angle_diff[1]<0.01 or np.abs(angle_diff[1]+np.pi)<0.1):
+            # #     self.received_vel = False
             if(not np.isnan(angle).any()):
-                if(np.abs(angle[2])>0.01):
-                    self.vel_control_obj_2.angular_velocity = [0.0,0.0,angle[2]]
-                    self.vel_control_obj_2.linear_velocity = [0.0,0.0,0.0]
-                else:
-                    print(angle)
-                    self.vel_control_obj_2.linear_velocity = [-speed*np.cos(angle[2]+0.97),-speed*np.sin(angle[2]+0.97), 0.0]
-                    self.vel_control_obj_2.angular_velocity = [0.0,0.0,0.0]
-                    self.received_vel = False
+                set_object_state_from_agent(self.env._sim, self.file_obj2, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
+                self.vel_control_obj_2.linear_velocity = vel
+                self.received_vel = False
+            # #     self.vel_control_obj_2.linear_velocity = [0.0,0.0,0.0]
+            # #     self.vel_control_obj_2.angular_velocity = [0.0,0.0,0.0]
+            # #     self.received_vel = False
+            #     if(np.abs(angle[2])>0.01):
+            #         pass
+            #         # self.vel_control_obj_2.angular_velocity = [0.0,0.0,angle[2]]
+            #         # self.vel_control_obj_2.linear_velocity = [0.0,0.0,0.0]
+            #     else:
+            #         print(angle)
+            #         # self.vel_control_obj_2.linear_velocity = [-speed*np.cos(angle[2]+0.97),-speed*np.sin(angle[2]+0.97), 0.0]
+            #         # self.vel_control_obj_2.angular_velocity = [0.0,0.0,0.0]
+            #         self.received_vel = False
             else:
                 self.vel_control_obj_2.linear_velocity = [0.0,0.0,0.0]
                 self.vel_control_obj_2.angular_velocity = [0.0,0.0,0.0]
-            print("velocities", self.vel_control_obj_2.angular_velocity, self.vel_control_obj_2.linear_velocity)
+            # print("velocities", self.vel_control_obj_2.angular_velocity, self.vel_control_obj_2.linear_velocity)
         self.update_pos_vel()
         if(self._global_plan_published):
             if(self.new_goal and self._current_episode<self._total_number_of_episodes):
