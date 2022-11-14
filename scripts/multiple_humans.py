@@ -10,6 +10,7 @@ from habitat.utils.geometry_utils import quaternion_rotate_vector
 from habitat.tasks.utils import cartesian_to_polar
 from habitat_sim.utils import common as utils
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
+import habitat_sim.nav as habitat_path
 import habitat
 import habitat_sim.bindings as hsim
 import magnum as mn
@@ -153,7 +154,7 @@ class sim_env(threading.Thread):
     goal_time = []
     update_counter = 0
     human_update_counter = 0 
-    update_multiple = 10
+    update_multiple = 2
     def __init__(self, env_config_file):
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
@@ -222,19 +223,19 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
 
-        self.N = 9
+        self.N = 8
         map_points = []
         with open('./scripts/humans_initial_points.csv', newline='') as csvfile:
             spamreader = csv.reader(csvfile, delimiter=',')
             for row in spamreader:
                 map_points.append([float(i) for i in row])
         
-        humans_initial_pos_2d = map_points
+        humans_initial_pos_2d = map_points[:-1]
         goal_idx = np.arange(self.N)
         random.shuffle(goal_idx)
         humans_goal_pos_2d = np.array(humans_initial_pos_2d)[goal_idx]
         humans_goal_pos_2d = list(humans_goal_pos_2d)
-        self.groups = [[0],[1],[2],[3],[4],[5],[6],[7],[8]]
+        self.groups = [[0],[1],[2],[3],[4],[5],[6],[7]]
 
         #Test with 1 
         # self.N = 1
@@ -255,14 +256,16 @@ class sim_env(threading.Thread):
         humans_initial_pos_3d = []
         humans_goal_pos_3d = []
         humans_initial_velocity = []
+        self.final_goals_3d = np.zeros([self.N, 3])
         self.initial_state = []
+        self.goal_dist = np.zeros(self.N)
         for i in range(self.N):
-            human_template_id = obj_template_mgr.load_configs('./scripts/human')[0]
+            human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
             self.human_template_ids.append(human_template_id)
             obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
             # self.objs.append(obj)
             
-            obj_template_handle = './scripts/human.object_config.json'
+            obj_template_handle = './scripts/humantwo.object_config.json'
             obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
             print(obj_template)
             file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
@@ -272,19 +275,28 @@ class sim_env(threading.Thread):
             # initial_point = ([358,350])
             # map_point_3d = from_grid(self.env._sim.pathfinder, initial_point, self.grid_dimensions)
             # print("the object position is ", map_point_3d)
-
             # Set initial state for the SFM 
-            humans_initial_pos_3d.append(from_grid(self.env._sim.pathfinder, humans_initial_pos_2d[i], self.grid_dimensions))
-            humans_goal_pos_3d.append(from_grid(self.env._sim.pathfinder, humans_goal_pos_2d[i], self.grid_dimensions))
+            
+            start_pos = from_grid(self.env._sim.pathfinder, humans_initial_pos_2d[i], self.grid_dimensions)
+            self.final_goals_3d[i,:] = np.array(from_grid(self.env._sim.pathfinder, humans_goal_pos_2d[i], self.grid_dimensions))
+            path = habitat_path.ShortestPath()
+            path.requested_start = np.array(start_pos)
+            path.requested_end = self.final_goals_3d[i,:]
+            if(not self.env._sim.pathfinder.find_path(path)):
+                print("Watch this one Tribhi!!!!",i)
+                continue
+            humans_initial_pos_3d.append(path.points[0])
+            humans_goal_pos_3d.append(path.points[1])
             humans_initial_velocity.append([0.0,0.0])
-            humans_goal_pos_2d[i] = list(humans_goal_pos_2d[i])
-            self.initial_state.append(humans_initial_pos_2d[i]+humans_initial_velocity[i]+humans_goal_pos_2d[i])
+            initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
+            goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[-1], self.grid_dimensions))
+            self.initial_state.append(initial_pos+humans_initial_velocity[i]+goal_pos)
             agent_state = self.env.sim.get_agent_state(0)
             print(" The agent position", agent_state.position)
             offset = humans_initial_pos_3d[i]-agent_state.position
             offset[1] = 1.0
             print("Here is the offset", offset)
-            obj_template.scale *= 3   
+            obj_template.scale *= 0.1
             orientation_x = 90   # @param {type:"slider", min:-180, max:180, step:1}
             orientation_y = (np.pi/2-0.97)*180/np.pi  # @param {type:"slider", min:-180, max:180, step:1}
             orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}
@@ -315,11 +327,11 @@ class sim_env(threading.Thread):
         # embed()
         self.sfm = social_force()
         print(self.initial_state)
-        self.initial_state.append(robot_pos_in_2d+humans_initial_velocity[0]+humans_goal_pos_2d[2])
-        self.groups.append([self.N])
+        # self.initial_state.append(robot_pos_in_2d+humans_initial_velocity[0]+humans_goal_pos_2d[2])
+        # self.groups.append([self.N])
         agent_state = self.env.sim.get_agent_state(0)
         if(np.mod(self.human_update_counter, self.update_multiple) ==0):
-            computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
+            computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter__"+str(self.update_counter), save_anim = True)
             print("changing velocity", self.human_update_counter)
             for i in range(self.N):
                 human_state = self.objs[i].rigid_state
@@ -341,6 +353,8 @@ class sim_env(threading.Thread):
                     self.vel_control_objs[i].linear_velocity = [0.0,0.0,0.0]
                     self.vel_control_objs[i].angular_velocity = [0.0,0.0,0.0]
                 self.initial_state[i][2:4] = computed_velocity[i]
+                self.goal_dist[i] = np.linalg.norm((np.array(self.initial_state[i][0:2])-np.array(self.initial_state[i][4:6])))
+            print(self.goal_dist)
         else:
             print("NOT changing velocity", self.human_update_counter)
             self.human_update_counter +=0.01
@@ -474,6 +488,8 @@ class sim_env(threading.Thread):
                     self.vel_control_objs[i].linear_velocity = [0.0,0.0,0.0]
                     self.vel_control_objs[i].angular_velocity = [0.0,0.0,0.0]
                 self.initial_state[i][2:4] = computed_velocity[i]
+                self.goal_dist[i] = np.linalg.norm((np.array(self.initial_state[i][0:2])-np.array(self.initial_state[i][4:6])))
+            print(self.goal_dist)
         self.human_update_counter +=1
         self.env.sim.step_physics(self.time_step)
         self.observations.update(self.env._task._sim.get_sensor_observations())

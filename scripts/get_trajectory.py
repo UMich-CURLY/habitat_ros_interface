@@ -29,8 +29,9 @@ class social_force():
                     self.obs.append([j,i])
                 if img_np[i][j]== 128:
                     space=space+1 
-    def get_velocity(self,initial_state, current_heading = None, groups = None, filename = None):
+    def get_velocity(self,initial_state, current_heading = None, groups = None, filename = None, save_anim = False):
         # initiate the simulator,
+        
         s = psf.Simulator(
             initial_state,
             groups=groups,
@@ -38,10 +39,12 @@ class social_force():
             config_file=Path(__file__).resolve().parent.joinpath("/Py_Social_ROS/examples/example.toml"),
         )
         # update 80 steps
-        s.step(1)
         
-        # with psf.plot.SceneVisualizer(s, "/Py_Social_ROS/images/"+filename) as sv:
-        # #     sv.animate()
-        #     sv.plot()
+        if(save_anim):
+            s.step(2000)
+            with psf.plot.SceneVisualizer(s, "/Py_Social_ROS/images/"+filename) as sv:
+            #     sv.animate()
+                sv.plot()
+        s.step(1)
         # print("Agent radius is", s.peds.agent_radius)
         return s.peds.vel()
