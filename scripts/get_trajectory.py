@@ -41,10 +41,10 @@ class social_force():
         # update 80 steps
         
         if(save_anim):
-            s.step(2000)
+            s.step(50)
             with psf.plot.SceneVisualizer(s, "/Py_Social_ROS/images/"+filename) as sv:
-            #     sv.animate()
-                sv.plot()
+                sv.animate()
+                # sv.plot()
         s.step(1)
         # print("Agent radius is", s.peds.agent_radius)
         return s.peds.vel()
