@@ -20,6 +20,7 @@ import time
 import random
 # import cv2
 import sys
+sys.path.append("/root/miniconda3/envs/robostackenv/lib/python3.9/site-packages")
 sys.path.append("/opt/conda/envs/robostackenv/lib/python3.9/site-packages")
 import rospy
 from rospy.numpy_msg import numpy_msg
