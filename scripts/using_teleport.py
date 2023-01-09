@@ -9,6 +9,7 @@
 from habitat.utils.geometry_utils import quaternion_rotate_vector
 from habitat.tasks.utils import cartesian_to_polar
 from habitat_sim.utils import common as utils
+from habitat_sim.utils.common import d3_40_colors_rgb
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 import habitat
 import habitat_sim.bindings as hsim
@@ -33,6 +34,8 @@ from tour_planner_dropped import tour_planner
 import csv
 from move_base_msgs.msg import MoveBaseActionResult
 from nav_msgs.srv import GetPlan
+
+from PIL import Image
 
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
@@ -98,7 +101,8 @@ class sim_env(threading.Thread):
         config = self.env._sim.config
         print(self.env._sim.active_dataset)
         self._sensor_resolution = {
-            "RGB": 720,  
+            "RGB": 720, 
+            "SEMANTIC": 720, 
             "DEPTH": 720,
         }
         print(self.env._sim.pathfinder.get_bounds())
@@ -108,6 +112,7 @@ class sim_env(threading.Thread):
         )
         self.grid_dimensions = (top_down_map.shape[0], top_down_map.shape[1])
         self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
+        self._pub_semantic = rospy.Publisher("~semantic", numpy_msg(Floats), queue_size=1)
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
         rospy.Subscriber("~plan_3d", numpy_msg(Floats),self.plan_callback, queue_size=1)
@@ -220,6 +225,28 @@ class sim_env(threading.Thread):
                     ),
                 )
             )
+            # print(self.observations["semantic"]) # debug
+            semantic_img = Image.new("P", (self._sensor_resolution["SEMANTIC"], self._sensor_resolution["SEMANTIC"]))
+            semantic_img.putpalette(d3_40_colors_rgb.flatten())
+            semantic_img.putdata((self.observations['semantic'].flatten()%40).astype(np.uint8))
+            semantic_img = semantic_img.convert("RGBA")
+            semantic_img = np.asarray(semantic_img)
+            semantic_with_res = np.concatenate(
+                (
+                    np.float32(semantic_img[:, :, 0:3].ravel()),
+                    np.array(
+                        [self._sensor_resolution["SEMANTIC"], self._sensor_resolution["SEMANTIC"]]
+                    ),
+                )
+            )
+            # semantic_with_res = np.concatenate(
+            #     (
+            #         np.float32(self.observations["semantic"].ravel()),
+            #         np.array(
+            #             [self._sensor_resolution["SEMANTIC"], self._sensor_resolution["SEMANTIC"]]
+            #         ),
+            #     )
+            # )
             # multiply by 10 to get distance in meters
             depth_with_res = np.concatenate(
                 (
@@ -234,6 +261,7 @@ class sim_env(threading.Thread):
             )       
 
             self._pub_rgb.publish(np.float32(rgb_with_res))
+            self._pub_semantic.publish(np.float32(semantic_with_res))
             self._pub_depth.publish(np.float32(depth_with_res))
             self._update_position()
             agent_state = self.env.sim.get_agent_state(0)
