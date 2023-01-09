@@ -19,6 +19,10 @@
 		<remap from="rgb_1" to="robot_1/rgb"/>
 	</node>
 
+	<node pkg="habitat_interface" type="semantic_ros.py" name="semantic_ros" >
+		<remap from="semantic_1" to="robot_1/semantic"/>
+	</node>
+
 <!-- 	<node pkg="habitat_interface" type="bc_sensor_ros.py" name="bc_sensor_ros">
 		<remap from="rgb" to="habitat/bc_sensor"/>
 	</node> -->
