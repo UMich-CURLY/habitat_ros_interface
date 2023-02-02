@@ -224,7 +224,7 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
 
-        self.N = 8
+        self.N = 1
         map_points = []
         with open('./scripts/humans_initial_points.csv', newline='') as csvfile:
             spamreader = csv.reader(csvfile, delimiter=',')
@@ -236,7 +236,7 @@ class sim_env(threading.Thread):
         random.shuffle(goal_idx)
         humans_goal_pos_2d = np.array(self.humans_initial_pos_2d)[goal_idx]
         humans_goal_pos_2d = list(humans_goal_pos_2d)
-        self.groups = [[0],[1],[2],[3],[4],[5],[6],[7]]
+        self.groups = [[0, 1]]
 
         #Test with 1 
         # self.N = 1
@@ -258,7 +258,6 @@ class sim_env(threading.Thread):
         humans_goal_pos_3d = []
         humans_initial_velocity = []
         self.final_goals_3d = np.zeros([self.N, 3])
-        self.initial_state = []
         self.goal_dist = np.zeros(self.N)
         for i in range(self.N):
             human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
