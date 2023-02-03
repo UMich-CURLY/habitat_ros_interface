@@ -123,6 +123,8 @@ def set_object_state_from_agent(
     obj.translation = ob_translation
     obj.rotation = orientation
 
+
+
 class sim_env(threading.Thread):
     _x_axis = 0
     _y_axis = 1
@@ -153,6 +155,7 @@ class sim_env(threading.Thread):
     all_points = []
     rtab_pose = []
     goal_time = []
+    obs = []
     update_counter = 0
     human_update_counter = 0 
     update_multiple = 2
@@ -212,6 +215,9 @@ class sim_env(threading.Thread):
         self.env._sim.enable_physics = True
         # self.tour_plan = tour_planner()
         print("before initialized object")
+        self.sfm = social_force()
+        self.sfm.load_obstacles(self.env)
+        
         global rigid_obj_mgr
         rigid_obj_mgr = self.env._sim.get_rigid_object_manager()
         global obj_template_mgr
@@ -224,7 +230,7 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
 
-        self.N = 1
+        self.N = 2
         map_points = []
         with open('./scripts/humans_initial_points.csv', newline='') as csvfile:
             spamreader = csv.reader(csvfile, delimiter=',')
@@ -236,7 +242,7 @@ class sim_env(threading.Thread):
         random.shuffle(goal_idx)
         humans_goal_pos_2d = np.array(self.humans_initial_pos_2d)[goal_idx]
         humans_goal_pos_2d = list(humans_goal_pos_2d)
-        self.groups = [[0, 1]]
+        self.groups = [[0],[1]]
 
         #Test with 1 
         # self.N = 1
@@ -291,6 +297,9 @@ class sim_env(threading.Thread):
             initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
             goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[-1], self.grid_dimensions))
             self.initial_state.append(initial_pos+humans_initial_velocity[i]+goal_pos)
+            initial_state = [humans_initial_pos_3d[-1][0],humans_initial_pos_3d[-1][2],1.0,1.0,humans_goal_pos_3d[-1][0],humans_goal_pos_3d[-1][2]]
+            self.sfm.get_velocity(np.array([initial_state]), groups = [[0]], filename = "single_result", save_anim = True)
+            embed()
             agent_state = self.env.sim.get_agent_state(0)
             print(" The agent position", agent_state.position)
             offset = humans_initial_pos_3d[i]-agent_state.position
@@ -324,13 +333,13 @@ class sim_env(threading.Thread):
         # rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
         # rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
         # self.object_orientation = rotation_z * rotation_y * rotation_x
-        # embed()
-        self.sfm = social_force()
+        
         print(self.initial_state)
         # self.initial_state.append(robot_pos_in_2d+humans_initial_velocity[0]+humans_goal_pos_2d[2])
         # self.groups.append([self.N])
         agent_state = self.env.sim.get_agent_state(0)
-        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter__"+str(self.update_counter), save_anim = False)
+        
+        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter__"+str(self.update_counter), save_anim = True)
         print("changing velocity", self.human_update_counter)
         for i in range(self.N):
             human_state = self.objs[i].rigid_state
@@ -396,7 +405,7 @@ class sim_env(threading.Thread):
     def _render(self):
         self.observations.update(self.env._task._sim.get_observations_at())
     
-
+    
     def _update_position(self):
         state = self.env.sim.get_agent_state(0)
         heading_vector = quaternion_rotate_vector(
