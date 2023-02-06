@@ -54,23 +54,14 @@ class social_force():
                     (-x_len, -z_len),
                 ]
             ]
-
-            # map_corners = [
-            #     maps.to_grid(
-            #         p[2],
-            #         p[0],
-            #         (
-            #             self.grid_dimensions[0],
-            #             self.grid_dimensions[1],
-            #         ),
-            #         sim=self.env._sim,
-            #     )
-            #     for p in corners
-            # ]
-            self.obs.append([corners[0][0], corners[0][2], corners[1][0], corners[1][2]])
-            self.obs.append([corners[1][0], corners[1][2], corners[2][0], corners[2][2]])
-            self.obs.append([corners[2][0], corners[2][2], corners[3][0], corners[3][2]])
-            self.obs.append([corners[3][0], corners[3][2], corners[4][0], corners[4][2]])
+            map_corners = [
+                np.dot(obj.obb.local_to_world,np.array([p[0],p[1],p[2],1.0]))
+                for p in corners
+            ]
+            self.obs.append([map_corners[0][0], map_corners[1][0], map_corners[0][2], map_corners[1][2]])
+            self.obs.append([map_corners[1][0], map_corners[2][0], map_corners[1][2], map_corners[2][2]])
+            self.obs.append([map_corners[2][0], map_corners[3][0], map_corners[2][2], map_corners[3][2]])
+            self.obs.append([map_corners[3][0], map_corners[4][0], map_corners[3][2], map_corners[4][2]])
     def get_velocity(self,initial_state, current_heading = None, groups = None, filename = None, save_anim = False):
         # initiate the simulator,
         

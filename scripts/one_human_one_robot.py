@@ -297,8 +297,11 @@ class sim_env(threading.Thread):
             initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
             goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[-1], self.grid_dimensions))
             self.initial_state.append(initial_pos+humans_initial_velocity[i]+goal_pos)
-            initial_state = [humans_initial_pos_3d[-1][0],humans_initial_pos_3d[-1][2],1.0,1.0,humans_goal_pos_3d[-1][0],humans_goal_pos_3d[-1][2]]
-            self.sfm.get_velocity(np.array([initial_state]), groups = [[0]], filename = "single_result", save_anim = True)
+            initial_state = []
+            initial_state.append([humans_initial_pos_3d[-1][0],humans_initial_pos_3d[-1][2],1.0,1.0,humans_goal_pos_3d[-1][0],humans_goal_pos_3d[-1][2]])
+            initial_state.append([-100,-100,1.0,1.0,humans_goal_pos_3d[-1][0],humans_goal_pos_3d[-1][2]])
+            initial_state.append([100,100,1.0,1.0,humans_goal_pos_3d[-1][0],humans_goal_pos_3d[-1][2]])
+            self.sfm.get_velocity(np.array(initial_state), groups = [[0],[1],[2]], filename = "single_result", save_anim = True)
             embed()
             agent_state = self.env.sim.get_agent_state(0)
             print(" The agent position", agent_state.position)
