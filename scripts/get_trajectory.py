@@ -97,7 +97,7 @@ class social_force():
                     # obs.append([j,i])
                 if img_np[i][j]== 0:    # sample-map 128 -> space, 0 -> wall, 255-> nonspace
                     wall=wall+1
-                    self.obs.append([j,j,i,i])
+                    self.obs.append([j/10,j/10,i/10,i/10])
                 if img_np[i][j]== 128:
                     space=space+1 
 

@@ -365,34 +365,28 @@ class sim_env(threading.Thread):
             self.goal_dist[i] = np.linalg.norm((np.array(self.initial_state[i][0:2])-np.array(self.initial_state[i][4:6])))
         print(self.goal_dist)
 
-        # self.vel_control_objs.angular_velocity = np.array([0.0,0.0,0.0])
+        ##### Follower Human being initiated #####
+        human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
+        self.follower_id = human_template_id
+        obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
+        # self.objs.append(obj)
         
-        # set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation3)
-        # ao_mgr = self.env._sim.get_articulated_object_manager()
-        # motion_type = habitat_sim.physics.MotionType.KINEMATIC
-        # self.ao = ao_mgr.add_articulated_object_from_urdf("./scripts/model.urdf", fixed_base=True)
-        # self.ao.motion_type = motion_type
-        # set_object_state_from_agent(self.env._sim, self.ao, offset=offset3, orientation = object_orientation2)
-        
-        # print("Robot root linear and angular velocity is", self.env._sim.robot.root_linear_velocity, self.env._sim.robot.root_angular_velocity)
-        # self.sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
-        # print(self.sphere_template_id)
-        # self.obj_3 = rigid_obj_mgr.add_object_by_template_id(self.sphere_template_id)
-        # self.obj_template_handle3 = './scripts/sphere.object_config.json'
-        # #self.obj_template_handle2 = './banana.object_config.json'
-        # self.obj_template3 = obj_template_mgr.get_template_by_handle(self.obj_template_handle3)
-        # self.obj_template3.scale *= 3  
-        # self.file_obj3 = rigid_obj_mgr.add_object_by_template_handle(self.obj_template_handle3) 
-        # objs3 = [self.file_obj3]
-        # offset3= np.array([3,1,-1.5])
-        # rotation_x = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(1.0, 0, 0))
-        # rotation_y = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 1.0, 0))
-        # rotation_z = mn.Quaternion.rotation(mn.Deg(0), mn.Vector3(0, 0, 1.0))
-        # object_orientation2 = rotation_z * rotation_y * rotation_x
-        
-        # set_object_state_from_agent(self.env._sim, self.file_obj3, offset=offset3, orientation = object_orientation2)
+        obj_template_handle = './scripts/humantwo.object_config.json'
+        obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
+        print(obj_template)
+        file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
+        print(file_obj)
+        file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
+        self.follower = file_obj
+        set_object_state_from_agent(self.env._sim, self.follower, np.array([3,1,-1.5]), orientation = object_orientation2)
+        self.follower_velocity_control = self.follower.velocity_control
+        self.follower_velocity_control.controlling_lin_vel = True
+        self.follower_velocity_control.controlling_ang_vel = True
+        self.follower_velocity_control.ang_vel_is_local = True
+        self.follower_velocity_control.lin_vel_is_local = True
+        self.follower_velocity_control.linear_velocity = np.array([0.0,0.0,0.0])
+        self.follower_velocity_control.angular_velocity = np.array([0.0,0.0,0.0])
         print("created habitat_plant succsefully")
-        embed()
 
     def __del__(self):
         if (len(self.all_points)>1):
@@ -434,35 +428,10 @@ class sim_env(threading.Thread):
         
         # self._render()        
     def update_pos_vel(self):
-        # agent_state = self.env.sim.get_agent_state(0)
-        # previous_rigid_state = habitat_sim.RigidState(
-        #     self.env._sim.robot.sim_obj.rotation, self.env._sim.robot.base_pos
-        # )
-
-        # # manually integrate the rigid state
-        # target_rigid_state = self.vel_control.integrate_transform(
-        #     self.time_step, previous_rigid_state
-        # )
-
-        # # snap rigid state to navmesh and set state to object/agent
-        # # calls pathfinder.try_step or self.pathfinder.try_step_no_sliding
-        # end_pos = self.env._sim.step_filter(
-        #     previous_rigid_state.translation, target_rigid_state.translation
-        # )
-
-        # # set the computed state
-        # agent_state.position = end_pos
-        # # robot_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(utils.quat_from_magnum(target_rigid_state.rotation)))[1]
-        # # agent_angle_target = robot_angle
-        # # agent_state.rotation = utils.quat_from_magnum(mn.Quaternion.rotation(
-        # #     mn.Rad(agent_angle_target), mn.Vector3(0, 1, 0)
-        # # ))
-        # # agent_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(agent_state.rotation))[1]
-        # self.env._sim.robot.base_pos = end_pos
-        # # agent_angle = tf.transformations.euler_from_quaternion(quat_to_coeff(agent_state.rotation))[1]
-        # self.env._sim.robot.sim_obj.rotation = target_rigid_state.rotation
         lin_vel = self.linear_velocity[2]
         ang_vel = self.angular_velocity[1]
+        lin_vel = 0.0
+        ang_vel = 0.0
         base_vel = [lin_vel, ang_vel]
         self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
         # run any dynamics simulation
@@ -536,6 +505,8 @@ class sim_env(threading.Thread):
                 self.goal_dist[i] = np.linalg.norm((np.array(self.initial_state[i][0:2])-np.array(self.initial_state[i][4:6])))
             print(self.initial_state)
         self.human_update_counter +=1
+        self.follower_velocity_control.linear_velocity = self.linear_velocity
+        self.follower_velocity_control.angular_velocity = self.angular_velocity
         self.env.sim.step_physics(self.time_step)
         self.observations.update(self.env._task._sim.get_sensor_observations())
         
@@ -695,10 +666,10 @@ class sim_env(threading.Thread):
             self.new_goal=True
 
 def callback(vel, my_env):
-    my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (1.0 * vel.linear.x)])
-    my_env.angular_velocity = np.array([0, vel.angular.z, 0])
-    # my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
-    # my_env.angular_velocity = np.array([0, 0, vel.angular.z])
+    # my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (1.0 * vel.linear.x)])
+    # my_env.angular_velocity = np.array([0, vel.angular.z, 0])
+    my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
+    my_env.angular_velocity = np.array([0, 0, vel.angular.z])
     my_env.received_vel = True
     # my_env.update_orientation()
 
