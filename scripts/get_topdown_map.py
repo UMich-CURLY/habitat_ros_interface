@@ -30,7 +30,7 @@ def get_topdown_map(config_paths, map_name):
     env = habitat.Env(config=config, dataset=dataset)
     env.reset()
 
-    meters_per_pixel = 1
+    meters_per_pixel = 0.05
     hablab_topdown_map = maps.get_topdown_map(
             env._sim.pathfinder, 0.0, meters_per_pixel=meters_per_pixel
         )
@@ -61,7 +61,7 @@ def get_topdown_map(config_paths, map_name):
 
 def main():
     #first parameter is config path, second parameter is map name
-    get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "default")
+    get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_House_0.05")
 
 
 if __name__ == "__main__":

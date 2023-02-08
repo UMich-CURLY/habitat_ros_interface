@@ -1,7 +1,7 @@
 ENVIRONMENT:
   MAX_EPISODE_STEPS: 500
 SIMULATOR:
-  SCENE: data/scene_datasets/mp3d/Vt2qJdWjCF2/Vt2qJdWjCF2.glb
+  SCENE: data/scene_datasets/mp3d/17DRP5sb8fy/17DRP5sb8fy.glb
   AGENT_0:
     SENSORS: ['RGB_SENSOR', 'DEPTH_SENSOR']
   HABITAT_SIM_V0:
@@ -32,5 +32,5 @@ TASK:
 DATASET:
   TYPE: PointNav-v1
   SPLIT: test
-  DATA_PATH: "data/datasets/pointnav/mp3d/v1/{split}/content/Vt2qJdWjCF250.json.gz" # "data/datasets/pointnav/mp3d/v1/{split}/{split}.json.gz" 
+  DATA_PATH: "data/datasets/pointnav/mp3d/v1/{split}/content/17DRP5sb8fy0.json.gz" # "data/datasets/pointnav/mp3d/v1/{split}/{split}.json.gz" 
   SCENES_DIR: "data/scene_datasets/"

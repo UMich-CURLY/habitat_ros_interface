@@ -185,7 +185,7 @@ class sim_env(threading.Thread):
         print(self.env._sim.pathfinder.get_bounds())
         floor_y = 0.0
         top_down_map = maps.get_topdown_map(
-            self.env._sim.pathfinder, height=floor_y, meters_per_pixel=0.025
+            self.env._sim.pathfinder, height=floor_y, meters_per_pixel=0.1
         )
         self.grid_dimensions = (top_down_map.shape[0], top_down_map.shape[1])
         print("Grid size is ", self.grid_dimensions)
@@ -216,7 +216,7 @@ class sim_env(threading.Thread):
         # self.tour_plan = tour_planner()
         print("before initialized object")
         self.sfm = social_force()
-        self.sfm.load_obstacles(self.env)
+        self.sfm.load_obs_from_map()
         
         global rigid_obj_mgr
         rigid_obj_mgr = self.env._sim.get_rigid_object_manager()
