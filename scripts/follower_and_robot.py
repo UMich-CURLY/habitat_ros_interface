@@ -254,14 +254,13 @@ class sim_env(threading.Thread):
         humans_initial_pos_3d = []
         humans_goal_pos_3d = []
         humans_initial_velocity = []
-        self.final_goals_3d = np.zeros([self.N, 3])
-        self.goal_dist = np.zeros(self.N)
+        self.final_goals_3d = np.zeros([self.N+2, 3])
+        self.goal_dist = np.zeros(self.N+2)
 
 
         #### Initiating robot in the esfm state ####
-        agent_state = self.env.sim.get_agent_state(0)
-        print(" The agent position", agent_state.position)
-        start_pos = agent_state.position
+        agent_pos = self.env.sim.robot.base_pos
+        start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
 
         ## Asume the agent goal is always the goal of the 0th agent
         self.final_goals_3d[0,:] = np.array(from_grid(self.env._sim.pathfinder, humans_goal_pos_2d[0], self.grid_dimensions))
@@ -271,17 +270,14 @@ class sim_env(threading.Thread):
         if(not self.env._sim.pathfinder.find_path(path)):
             print("Watch this one Tribhi!!!!")
             embed()
-            continue
-
         agents_initial_pos_3d =[]
         agents_goal_pos_3d = []
-        agents_initial_velocity =[]
         agents_initial_pos_3d.append(path.points[0])
         agents_goal_pos_3d.append(path.points[1])
-        agents_initial_velocity.append([0.5,0.0])
-        initial_pos = list(to_grid(self.env._sim.pathfinder, agents_initial_pos_3d, self.grid_dimensions))
+        agents_initial_velocity = [0.5,0.0]
+        initial_pos = list(to_grid(self.env._sim.pathfinder, agents_initial_pos_3d[0], self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
-        goal_pos = list(to_grid(self.env._sim.pathfinder, agents_goal_pos_3d, self.grid_dimensions))
+        goal_pos = list(to_grid(self.env._sim.pathfinder, agents_goal_pos_3d[0], self.grid_dimensions))
         goal_pos = [pos*0.025 for pos in goal_pos]
         self.initial_state.append(initial_pos+agents_initial_velocity+goal_pos)
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
@@ -298,6 +294,13 @@ class sim_env(threading.Thread):
         print(file_obj)
         file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
         self.follower = file_obj
+        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = (np.pi/2-0.97)*180/np.pi #+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
+        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+        object_orientation2 = rotation_z * rotation_y * rotation_x
         set_object_state_from_agent(self.env._sim, self.follower, np.array([3,1,-1.5]), orientation = object_orientation2)
         self.follower_velocity_control = self.follower.velocity_control
         self.follower_velocity_control.controlling_lin_vel = True
@@ -312,7 +315,7 @@ class sim_env(threading.Thread):
         self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+goal_pos)
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "leader_follower_initial", save_anim = True)
         human_state = self.follower.rigid_state
-        next_vel_control = mn.Vector3(computed_velocity[i,0], computed_velocity[i,1], 0.0)
+        next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
         diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
         diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
         angle= tf.transformations.euler_from_quaternion(diff_list)
@@ -324,12 +327,12 @@ class sim_env(threading.Thread):
         rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
         object_orientation2 = rotation_z * rotation_y * rotation_x
         if(not np.isnan(angle).any()):
-            set_object_state_from_agent(self.env._sim, self.objs[i], offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-            self.vel_control_objs[i].linear_velocity = [computed_velocity[i,0], 0.0,  computed_velocity[i,1]]
+            set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
+            self.follower_velocity_control.linear_velocity = [computed_velocity[i,0], 0.0,  computed_velocity[i,1]]
         else:
-            self.vel_control_objs[i].linear_velocity = [0.0,0.0,0.0]
-            self.vel_control_objs[i].angular_velocity = [0.0,0.0,0.0]
-        self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
+            self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
+            self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
+        self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
         #### This is for other agents in the system 
         for i in range(self.N-1):
             human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
@@ -449,17 +452,48 @@ class sim_env(threading.Thread):
     def update_pos_vel(self):
         lin_vel = self.linear_velocity[2]
         ang_vel = self.angular_velocity[1]
-        lin_vel = 0.0
-        ang_vel = 0.0
         base_vel = [lin_vel, ang_vel]
         self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
-        # run any dynamics simulation
-        
-        for i in range(self.N):
-            object_state = self.objs[i].rigid_state.translation
-            current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
-            current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-            self.initial_state[i][0:2] = current_initial_pos_2d
+        ##### For teleop human/follower 
+
+        # self.follower_velocity_control.linear_velocity = self.linear_velocity
+        # self.follower_velocity_control.angular_velocity = self.angular_velocity
+
+        #### Update agent state 
+        agent_pos = self.env.sim.robot.base_pos
+        start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
+        initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
+        initial_pos = [pos*0.025 for pos in initial_pos]
+        self.initial_state[0][0:2] = initial_pos
+
+        #### Update Follower state in ESFM
+        object_state = self.follower.rigid_state.translation
+        current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
+        current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
+        self.initial_state[1][0:2] = current_initial_pos_2d
+
+        #### Calculate new velocity
+        human_state = self.follower.rigid_state
+        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
+        print("Computed Velocity is ", computed_velocity)
+        next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
+        diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
+        diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
+        angle= tf.transformations.euler_from_quaternion(diff_list)
+        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = (np.pi/2-0.97)*180/np.pi+angle[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
+        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+        object_orientation2 = rotation_z * rotation_y * rotation_x
+        agent_state = self.env._sim.get_agent_state(0)
+        if(not np.isnan(angle).any()):
+            set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
+            self.follower_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
+        else:
+            self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
+            self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
         self.update_counter+=1
         agent_state = self.env.sim.get_agent_state(0)
         if(np.mod(self.human_update_counter, self.update_multiple) ==0):
@@ -524,8 +558,6 @@ class sim_env(threading.Thread):
                 self.goal_dist[i] = np.linalg.norm((np.array(self.initial_state[i][0:2])-np.array(self.initial_state[i][4:6])))
             print(self.initial_state)
         self.human_update_counter +=1
-        self.follower_velocity_control.linear_velocity = self.linear_velocity
-        self.follower_velocity_control.angular_velocity = self.angular_velocity
         self.env.sim.step_physics(self.time_step)
         self.observations.update(self.env._task._sim.get_sensor_observations())
         
@@ -562,8 +594,6 @@ class sim_env(threading.Thread):
             self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_depth.publish(np.float32(depth_with_res))
             self._update_position()
-            agent_state = self.env.sim.get_agent_state(0)
-            
             # print(agent_state)
             # self.vel_control_obj_2.linear_velocity = np.array([0.0,0.0,0.0])
             # self.vel_control_obj_2.angular_velocity = np.array([0.0,0.0,0.0])
@@ -685,10 +715,10 @@ class sim_env(threading.Thread):
             self.new_goal=True
 
 def callback(vel, my_env):
-    # my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (1.0 * vel.linear.x)])
-    # my_env.angular_velocity = np.array([0, vel.angular.z, 0])
-    my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
-    my_env.angular_velocity = np.array([0, 0, vel.angular.z])
+    my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (1.0 * vel.linear.x)])
+    my_env.angular_velocity = np.array([0, vel.angular.z, 0])
+    # my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
+    # my_env.angular_velocity = np.array([0, 0, vel.angular.z])
     my_env.received_vel = True
     # my_env.update_orientation()
 
