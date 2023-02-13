@@ -242,7 +242,7 @@ class sim_env(threading.Thread):
         random.shuffle(goal_idx)
         humans_goal_pos_2d = np.array(self.humans_initial_pos_2d)[goal_idx]
         humans_goal_pos_2d = list(humans_goal_pos_2d)
-        self.groups = [[0],[1]]
+        self.groups = [[0,1]]
 
 
         ##### Initiating objects for other humans #####
@@ -263,7 +263,7 @@ class sim_env(threading.Thread):
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
 
         ## Asume the agent goal is always the goal of the 0th agent
-        self.final_goals_3d[0,:] = np.array(from_grid(self.env._sim.pathfinder, humans_goal_pos_2d[0], self.grid_dimensions))
+        self.final_goals_3d[0,:] = np.array(from_grid(self.env._sim.pathfinder, humans_goal_pos_2d[2], self.grid_dimensions))
         path = habitat_path.ShortestPath()
         path.requested_start = np.array(start_pos)
         path.requested_end = self.final_goals_3d[0,:]
@@ -328,7 +328,7 @@ class sim_env(threading.Thread):
         object_orientation2 = rotation_z * rotation_y * rotation_x
         if(not np.isnan(angle).any()):
             set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-            self.follower_velocity_control.linear_velocity = [computed_velocity[i,0], 0.0,  computed_velocity[i,1]]
+            self.follower_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
         else:
             self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
             self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
