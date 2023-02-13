@@ -32,7 +32,7 @@ from geometry_msgs.msg import Twist
 from geometry_msgs.msg import PointStamped, PoseStamped, PoseWithCovarianceStamped
 import threading
 import tf
-# from tour_planner_dropped import tour_planner
+from tour_planner_dropped import tour_planner
 import csv
 from move_base_msgs.msg import MoveBaseActionResult
 from matplotlib import pyplot as plt
@@ -230,7 +230,7 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
 
-        self.N = 2
+        self.N = 0
         map_points = []
         with open('./scripts/humans_initial_points.csv', newline='') as csvfile:
             spamreader = csv.reader(csvfile, delimiter=',')
@@ -238,24 +238,15 @@ class sim_env(threading.Thread):
                 map_points.append([float(i) for i in row])
         
         self.humans_initial_pos_2d = map_points[:-1]
-        goal_idx = np.arange(self.N)
+        goal_idx = np.arange(len(self.humans_initial_pos_2d))
         random.shuffle(goal_idx)
         humans_goal_pos_2d = np.array(self.humans_initial_pos_2d)[goal_idx]
         humans_goal_pos_2d = list(humans_goal_pos_2d)
         self.groups = [[0],[1]]
 
-        #Test with 1 
-        # self.N = 1
-        # map_points = [[380.0,290.0]]
-        
-        # humans_initial_pos_2d = map_points
-        # humans_goal_pos_2d = [[370,360]]
-        # self.groups = [[0]]
-        # Use poissons distribution to get the number of groups.
-        # Select random navigable points for the different groups and members. 
-        
-        
-        
+
+        ##### Initiating objects for other humans #####
+
         self.human_template_ids = []
         self.objs = []
         self.vel_control_objs = []
@@ -265,7 +256,82 @@ class sim_env(threading.Thread):
         humans_initial_velocity = []
         self.final_goals_3d = np.zeros([self.N, 3])
         self.goal_dist = np.zeros(self.N)
-        for i in range(self.N):
+
+
+        #### Initiating robot in the esfm state ####
+        agent_state = self.env.sim.get_agent_state(0)
+        print(" The agent position", agent_state.position)
+        start_pos = agent_state.position
+
+        ## Asume the agent goal is always the goal of the 0th agent
+        self.final_goals_3d[0,:] = np.array(from_grid(self.env._sim.pathfinder, humans_goal_pos_2d[0], self.grid_dimensions))
+        path = habitat_path.ShortestPath()
+        path.requested_start = np.array(start_pos)
+        path.requested_end = self.final_goals_3d[0,:]
+        if(not self.env._sim.pathfinder.find_path(path)):
+            print("Watch this one Tribhi!!!!")
+            embed()
+            continue
+
+        agents_initial_pos_3d =[]
+        agents_goal_pos_3d = []
+        agents_initial_velocity =[]
+        agents_initial_pos_3d.append(path.points[0])
+        agents_goal_pos_3d.append(path.points[1])
+        agents_initial_velocity.append([0.5,0.0])
+        initial_pos = list(to_grid(self.env._sim.pathfinder, agents_initial_pos_3d, self.grid_dimensions))
+        initial_pos = [pos*0.025 for pos in initial_pos]
+        goal_pos = list(to_grid(self.env._sim.pathfinder, agents_goal_pos_3d, self.grid_dimensions))
+        goal_pos = [pos*0.025 for pos in goal_pos]
+        self.initial_state.append(initial_pos+agents_initial_velocity+goal_pos)
+        self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
+        ##### Follower Human being initiated #####
+        human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
+        self.follower_id = human_template_id
+        obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
+        # self.objs.append(obj)
+        
+        obj_template_handle = './scripts/humantwo.object_config.json'
+        obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
+        print(obj_template)
+        file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
+        print(file_obj)
+        file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
+        self.follower = file_obj
+        set_object_state_from_agent(self.env._sim, self.follower, np.array([3,1,-1.5]), orientation = object_orientation2)
+        self.follower_velocity_control = self.follower.velocity_control
+        self.follower_velocity_control.controlling_lin_vel = True
+        self.follower_velocity_control.controlling_ang_vel = True
+        self.follower_velocity_control.ang_vel_is_local = False
+        self.follower_velocity_control.lin_vel_is_local = False
+        self.follower_velocity_control.linear_velocity = np.array([0.0,0.0,0.0])
+        self.follower_velocity_control.angular_velocity = np.array([0.0,0.0,0.0])
+        object_state = self.follower.rigid_state.translation
+        current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
+        current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
+        self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+goal_pos)
+        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "leader_follower_initial", save_anim = True)
+        human_state = self.follower.rigid_state
+        next_vel_control = mn.Vector3(computed_velocity[i,0], computed_velocity[i,1], 0.0)
+        diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
+        diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
+        angle= tf.transformations.euler_from_quaternion(diff_list)
+        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = (np.pi/2-0.97)*180/np.pi+angle[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
+        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+        object_orientation2 = rotation_z * rotation_y * rotation_x
+        if(not np.isnan(angle).any()):
+            set_object_state_from_agent(self.env._sim, self.objs[i], offset= human_state.translation - agent_state.position, orientation = object_orientation2)
+            self.vel_control_objs[i].linear_velocity = [computed_velocity[i,0], 0.0,  computed_velocity[i,1]]
+        else:
+            self.vel_control_objs[i].linear_velocity = [0.0,0.0,0.0]
+            self.vel_control_objs[i].angular_velocity = [0.0,0.0,0.0]
+        self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
+        #### This is for other agents in the system 
+        for i in range(self.N-1):
             human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
             self.human_template_ids.append(human_template_id)
             obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
@@ -339,53 +405,6 @@ class sim_env(threading.Thread):
         # self.groups.append([self.N])
         agent_state = self.env.sim.get_agent_state(0)
         
-        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter__"+str(self.update_counter), save_anim = True)
-        print("changing velocity", self.human_update_counter)
-        for i in range(self.N):
-            human_state = self.objs[i].rigid_state
-            next_vel_control = mn.Vector3(computed_velocity[i,0], computed_velocity[i,1], 0.0)
-            diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
-            diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
-            angle= tf.transformations.euler_from_quaternion(diff_list)
-            orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
-            orientation_y = (np.pi/2-0.97)*180/np.pi+angle[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
-            orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
-            rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
-            rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
-            rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
-            object_orientation2 = rotation_z * rotation_y * rotation_x
-            if(not np.isnan(angle).any()):
-                set_object_state_from_agent(self.env._sim, self.objs[i], offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-                self.vel_control_objs[i].linear_velocity = [computed_velocity[i,0], 0.0,  computed_velocity[i,1]]
-            else:
-                self.vel_control_objs[i].linear_velocity = [0.0,0.0,0.0]
-                self.vel_control_objs[i].angular_velocity = [0.0,0.0,0.0]
-
-            self.initial_state[i][2:4] = computed_velocity[i]
-            self.goal_dist[i] = np.linalg.norm((np.array(self.initial_state[i][0:2])-np.array(self.initial_state[i][4:6])))
-        print(self.goal_dist)
-
-        ##### Follower Human being initiated #####
-        human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
-        self.follower_id = human_template_id
-        obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
-        # self.objs.append(obj)
-        
-        obj_template_handle = './scripts/humantwo.object_config.json'
-        obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
-        print(obj_template)
-        file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
-        print(file_obj)
-        file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
-        self.follower = file_obj
-        set_object_state_from_agent(self.env._sim, self.follower, np.array([3,1,-1.5]), orientation = object_orientation2)
-        self.follower_velocity_control = self.follower.velocity_control
-        self.follower_velocity_control.controlling_lin_vel = True
-        self.follower_velocity_control.controlling_ang_vel = True
-        self.follower_velocity_control.ang_vel_is_local = True
-        self.follower_velocity_control.lin_vel_is_local = True
-        self.follower_velocity_control.linear_velocity = np.array([0.0,0.0,0.0])
-        self.follower_velocity_control.angular_velocity = np.array([0.0,0.0,0.0])
         print("created habitat_plant succsefully")
 
     def __del__(self):
