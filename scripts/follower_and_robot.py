@@ -42,6 +42,9 @@ from get_trajectory import *
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
 
+AGENT_START_POS_2d = [800,800]
+AGENT_GOAL_POS_2d = [800,100]
+FOLLOWER_OFFSET = [1.0,1.0,0.0]
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
     bounds = pathfinder.get_bounds()
@@ -172,6 +175,7 @@ class sim_env(threading.Thread):
         self.observations = self.env.reset()
         arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         self.env._sim.robot.arm_joint_pos = arm_joint_positions
+
         agent_state.position = [-2.093175119872487,0.0,-1.2777875958067]
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
@@ -195,6 +199,9 @@ class sim_env(threading.Thread):
         ax.axis("on")
         plt.imshow(top_down_map)
         plt.savefig("./top_down_map.png")
+        agent_init_pos = np.array(from_grid(self.env._sim.pathfinder, AGENT_START_POS_2d, self.grid_dimensions))
+        agent_state.position = agent_init_pos
+        self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
@@ -263,7 +270,7 @@ class sim_env(threading.Thread):
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
 
         ## Asume the agent goal is always the goal of the 0th agent
-        self.final_goals_3d[0,:] = np.array(from_grid(self.env._sim.pathfinder, [2500,880], self.grid_dimensions))
+        self.final_goals_3d[0,:] = np.array(from_grid(self.env._sim.pathfinder, AGENT_GOAL_POS_2d, self.grid_dimensions))
         path = habitat_path.ShortestPath()
         path.requested_start = np.array(start_pos)
         path.requested_end = self.final_goals_3d[0,:]
@@ -301,7 +308,7 @@ class sim_env(threading.Thread):
         rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
         rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
         object_orientation2 = rotation_z * rotation_y * rotation_x
-        set_object_state_from_agent(self.env._sim, self.follower, np.array([-1.0,1,0.0]), orientation = object_orientation2)
+        set_object_state_from_agent(self.env._sim, self.follower, np.array(FOLLOWER_OFFSET), orientation = object_orientation2)
         self.follower_velocity_control = self.follower.velocity_control
         self.follower_velocity_control.controlling_lin_vel = True
         self.follower_velocity_control.controlling_ang_vel = True
