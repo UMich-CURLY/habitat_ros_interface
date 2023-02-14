@@ -172,7 +172,7 @@ class sim_env(threading.Thread):
         self.observations = self.env.reset()
         arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         self.env._sim.robot.arm_joint_pos = arm_joint_positions
-        agent_state.position = [-2.293175119872487,0.0,-1.2777875958067]
+        agent_state.position = [-2.093175119872487,0.0,-1.2777875958067]
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
         print(self.env.sim)
@@ -263,7 +263,7 @@ class sim_env(threading.Thread):
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
 
         ## Asume the agent goal is always the goal of the 0th agent
-        self.final_goals_3d[0,:] = np.array(from_grid(self.env._sim.pathfinder, humans_goal_pos_2d[2], self.grid_dimensions))
+        self.final_goals_3d[0,:] = np.array(from_grid(self.env._sim.pathfinder, [2500,880], self.grid_dimensions))
         path = habitat_path.ShortestPath()
         path.requested_start = np.array(start_pos)
         path.requested_end = self.final_goals_3d[0,:]
@@ -273,7 +273,7 @@ class sim_env(threading.Thread):
         agents_initial_pos_3d =[]
         agents_goal_pos_3d = []
         agents_initial_pos_3d.append(path.points[0])
-        agents_goal_pos_3d.append(path.points[1])
+        agents_goal_pos_3d.append(path.points[-1])
         agents_initial_velocity = [0.5,0.0]
         initial_pos = list(to_grid(self.env._sim.pathfinder, agents_initial_pos_3d[0], self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
@@ -301,7 +301,7 @@ class sim_env(threading.Thread):
         rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
         rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
         object_orientation2 = rotation_z * rotation_y * rotation_x
-        set_object_state_from_agent(self.env._sim, self.follower, np.array([3,1,-1.5]), orientation = object_orientation2)
+        set_object_state_from_agent(self.env._sim, self.follower, np.array([-1.0,1,0.0]), orientation = object_orientation2)
         self.follower_velocity_control = self.follower.velocity_control
         self.follower_velocity_control.controlling_lin_vel = True
         self.follower_velocity_control.controlling_ang_vel = True
@@ -689,9 +689,11 @@ class sim_env(threading.Thread):
     #     self._current_episode = self._current_episode+1
     #     # self.new_goal = True   
     def point_callback(self,point):
-        depot = self.rtab_pose
-        self.start_time = rospy.get_time()
-        self.tour_plan.plan(depot)
+        # depot = self.rtab_pose
+        # self.start_time = rospy.get_time()
+        # self.tour_plan.plan(depot)
+        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "requested save", save_anim = True)
+
 
     def rtabpose_callback(self,point):
         pose = point.pose
