@@ -44,7 +44,7 @@ rospy.init_node("robot_1", anonymous=False)
 
 AGENT_START_POS_2d = [800,800]
 AGENT_GOAL_POS_2d = [800,100]
-FOLLOWER_OFFSET = [1.0,1.0,0.0]
+FOLLOWER_OFFSET = [1.0,-1.0,0.0]
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
     bounds = pathfinder.get_bounds()
@@ -308,7 +308,8 @@ class sim_env(threading.Thread):
         rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
         rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
         object_orientation2 = rotation_z * rotation_y * rotation_x
-        set_object_state_from_agent(self.env._sim, self.follower, np.array(FOLLOWER_OFFSET), orientation = object_orientation2)
+        robot_offset = self.env._sim.robot.base_pos - agent_state.position
+        set_object_state_from_agent(self.env._sim, self.follower, np.array(robot_offset - FOLLOWER_OFFSET), orientation = object_orientation2)
         self.follower_velocity_control = self.follower.velocity_control
         self.follower_velocity_control.controlling_lin_vel = True
         self.follower_velocity_control.controlling_ang_vel = True
@@ -321,6 +322,7 @@ class sim_env(threading.Thread):
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
         self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+goal_pos)
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "leader_follower_initial", save_anim = True)
+        embed()
         human_state = self.follower.rigid_state
         next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
         diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
