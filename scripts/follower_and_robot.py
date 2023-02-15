@@ -45,6 +45,7 @@ rospy.init_node("robot_1", anonymous=False)
 AGENT_START_POS_2d = [800,800]
 AGENT_GOAL_POS_2d = [800,100]
 FOLLOWER_OFFSET = [1.0,-1.0,0.0]
+AGENTS_SPEED = 1.0
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
     bounds = pathfinder.get_bounds()
@@ -161,7 +162,7 @@ class sim_env(threading.Thread):
     obs = []
     update_counter = 0
     human_update_counter = 0 
-    update_multiple = 2
+    update_multiple = 1
     def __init__(self, env_config_file):
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
@@ -202,6 +203,7 @@ class sim_env(threading.Thread):
         agent_init_pos = np.array(from_grid(self.env._sim.pathfinder, AGENT_START_POS_2d, self.grid_dimensions))
         agent_state.position = agent_init_pos
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
+        self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
         self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
@@ -322,7 +324,6 @@ class sim_env(threading.Thread):
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
         self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+goal_pos)
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "leader_follower_initial", save_anim = True)
-        embed()
         human_state = self.follower.rigid_state
         next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
         diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
@@ -342,6 +343,16 @@ class sim_env(threading.Thread):
             self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
             self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
         self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
+        a = self.env._sim.robot.base_transformation
+        b = a.transform_point([0.5,0.0,0.0])
+        d = a.transform_point([0.0,0.0,0.0])
+        c = list(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
+        e = list(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
+        norm = np.sqrt((c[0]-e[0])**2+(c[1]-e[1])**2)
+        norm_fol = np.sqrt(computed_velocity[1,0]**2 + computed_velocity[1,1]**2)
+        vel = [pos*AGENTS_SPEED/norm - robpos*AGENTS_SPEED/norm for pos, robpos in [c,e]]
+        self.initial_state[0][2:4] = vel
+        self.initial_state[1][2:4] = [computed_velocity[1,0]*AGENTS_SPEED/norm_fol, computed_velocity[1,1]*AGENTS_SPEED/norm_fol]
         #### This is for other agents in the system 
         for i in range(self.N-1):
             human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
@@ -462,7 +473,8 @@ class sim_env(threading.Thread):
         lin_vel = self.linear_velocity[2]
         ang_vel = self.angular_velocity[1]
         base_vel = [lin_vel, ang_vel]
-        self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
+        # self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
+        self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}})
         ##### For teleop human/follower 
 
         # self.follower_velocity_control.linear_velocity = self.linear_velocity
@@ -504,6 +516,16 @@ class sim_env(threading.Thread):
             self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
             self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
         self.update_counter+=1
+        a = self.env._sim.robot.base_transformation
+        b = a.transform_point([0.5,0.0,0.0])
+        d = a.transform_point([0.0,0.0,0.0])
+        c = list(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
+        e = list(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
+        norm = np.sqrt((c[0]-e[0])**2+(c[1]-e[1])**2)
+        norm_fol = np.sqrt(computed_velocity[1,0]**2 + computed_velocity[1,1]**2)
+        vel = [pos*AGENTS_SPEED/norm - robpos*AGENTS_SPEED/norm for pos, robpos in [c,e]]
+        self.initial_state[0][2:4] = vel
+        self.initial_state[1][2:4] = [computed_velocity[1,0]/norm_fol*AGENTS_SPEED, computed_velocity[1,1]/norm_fol*AGENTS_SPEED]
         agent_state = self.env.sim.get_agent_state(0)
         if(np.mod(self.human_update_counter, self.update_multiple) ==0):
             computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
@@ -726,7 +748,7 @@ class sim_env(threading.Thread):
             self.new_goal=True
 
 def callback(vel, my_env):
-    my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (1.0 * vel.linear.x)])
+    my_env.linear_velocity = np.array([(2.0 * vel.linear.y), 0.0, (2.0 * vel.linear.x)])
     my_env.angular_velocity = np.array([0, vel.angular.z, 0])
     # my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
     # my_env.angular_velocity = np.array([0, 0, vel.angular.z])

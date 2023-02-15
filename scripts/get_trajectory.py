@@ -113,7 +113,7 @@ class social_force():
         # update 80 steps
         
         if(save_anim):
-            s.step(50)
+            s.step(150)
             with psf.plot.SceneVisualizer(s, "/PySocialForce/images/"+filename) as sv:
                 # sv.animate()
                 sv.plot()
