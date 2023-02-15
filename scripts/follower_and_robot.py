@@ -43,7 +43,7 @@ lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
 
 AGENT_START_POS_2d = [800,800]
-AGENT_GOAL_POS_2d = [800,100]
+AGENT_GOAL_POS_2d = [800,500]
 FOLLOWER_OFFSET = [1.0,-1.0,0.0]
 AGENTS_SPEED = 1.0
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
@@ -324,6 +324,7 @@ class sim_env(threading.Thread):
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
         self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+goal_pos)
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "leader_follower_initial", save_anim = True)
+        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "leader_follower_initial")
         human_state = self.follower.rigid_state
         next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
         diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
@@ -486,13 +487,13 @@ class sim_env(threading.Thread):
         initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
         self.initial_state[0][0:2] = initial_pos
-
+        self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         #### Update Follower state in ESFM
         object_state = self.follower.rigid_state.translation
         current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
         self.initial_state[1][0:2] = current_initial_pos_2d
-
+        self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
         #### Calculate new velocity
         human_state = self.follower.rigid_state
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
@@ -511,7 +512,10 @@ class sim_env(threading.Thread):
         agent_state = self.env._sim.get_agent_state(0)
         if(not np.isnan(angle).any()):
             set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-            self.follower_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
+            if(self.goal_dist[1]>self.goal_dist[0]):
+                self.follower_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
+            else:
+                self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
         else:
             self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
             self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
