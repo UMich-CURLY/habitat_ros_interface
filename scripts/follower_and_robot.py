@@ -28,7 +28,7 @@ import rospy
 from rospy.numpy_msg import numpy_msg
 from rospy_tutorials.msg import Floats
 from std_msgs.msg import Bool
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, TransformStamped
 from geometry_msgs.msg import PointStamped, PoseStamped, PoseWithCovarianceStamped
 import threading
 import tf
@@ -39,6 +39,7 @@ from matplotlib import pyplot as plt
 from IPython import embed
 from nav_msgs.srv import GetPlan
 from get_trajectory import *
+import tf2_ros
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
 
@@ -127,6 +128,27 @@ def set_object_state_from_agent(
     obj.translation = ob_translation
     obj.rotation = orientation
 
+def map_to_base_link(msg, my_env):
+    grid_x,grid_y = my_env.grid_dimensions
+    
+    my_env.br.sendTransform((msg['x']-1, msg['y']-1,0.0),
+                    tf.transformations.quaternion_from_euler(0, 0, msg['theta']),
+                    rospy.Time.now(),
+                    "base_link",
+                    "decision_frame"
+    )
+    poseMsg = PoseStamped()
+    poseMsg.header.stamp = rospy.Time.now()
+    poseMsg.header.frame_id = "base_link"
+    poseMsg.pose.orientation.x = 0.0
+    poseMsg.pose.orientation.y = 0.0
+    poseMsg.pose.orientation.z = 0.0
+    poseMsg.pose.orientation.w = 1.0
+    poseMsg.header.stamp = rospy.Time.now()
+    poseMsg.pose.position.x = 0.0
+    poseMsg.pose.position.y = 0.0
+    poseMsg.pose.position.z = 0.0
+    my_env._robot_pose.publish(poseMsg)
 
 
 class sim_env(threading.Thread):
@@ -177,7 +199,7 @@ class sim_env(threading.Thread):
         arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         self.env._sim.robot.arm_joint_pos = arm_joint_positions
 
-        agent_state.position = [-2.093175119872487,0.0,-1.2777875958067]
+        agent_state.position = self.env._sim.pathfinder.get_random_navigable_point()
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
         print(self.env.sim)
@@ -200,12 +222,14 @@ class sim_env(threading.Thread):
         ax.axis("on")
         plt.imshow(top_down_map)
         plt.savefig("./top_down_map.png")
-        agent_init_pos = np.array(from_grid(self.env._sim.pathfinder, AGENT_START_POS_2d, self.grid_dimensions))
-        agent_state.position = agent_init_pos
+        # agent_init_pos = np.array(from_grid(self.env._sim.pathfinder, AGENT_START_POS_2d, self.grid_dimensions))
+        # agent_state.position = agent_init_pos
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
         self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
+        self._robot_pose = rospy.Publisher("~robot_pose", PoseStamped, queue_size = 1)
+        self.br = tf.TransformBroadcaster()
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
         rospy.Subscriber("~plan_3d", numpy_msg(Floats),self.plan_callback, queue_size=1)
         rospy.Subscriber("/rtabmap/goal_reached", Bool,self.update_goal_status, queue_size=1)
@@ -240,17 +264,6 @@ class sim_env(threading.Thread):
         ### Add human objects and groups here! 
 
         self.N = 0
-        map_points = []
-        with open('./scripts/humans_initial_points.csv', newline='') as csvfile:
-            spamreader = csv.reader(csvfile, delimiter=',')
-            for row in spamreader:
-                map_points.append([float(i) for i in row])
-        
-        self.humans_initial_pos_2d = map_points[:-1]
-        goal_idx = np.arange(len(self.humans_initial_pos_2d))
-        random.shuffle(goal_idx)
-        humans_goal_pos_2d = np.array(self.humans_initial_pos_2d)[goal_idx]
-        humans_goal_pos_2d = list(humans_goal_pos_2d)
         self.groups = [[0,1]]
 
 
@@ -273,6 +286,7 @@ class sim_env(threading.Thread):
 
         ## Asume the agent goal is always the goal of the 0th agent
         self.final_goals_3d[0,:] = np.array(from_grid(self.env._sim.pathfinder, AGENT_GOAL_POS_2d, self.grid_dimensions))
+        self.final_goals_3d[0,:] = self.env._sim.pathfinder.get_random_navigable_point()
         path = habitat_path.ShortestPath()
         path.requested_start = np.array(start_pos)
         path.requested_end = self.final_goals_3d[0,:]
@@ -282,10 +296,11 @@ class sim_env(threading.Thread):
         agents_initial_pos_3d =[]
         agents_goal_pos_3d = []
         agents_initial_pos_3d.append(path.points[0])
-        agents_goal_pos_3d.append(path.points[-1])
+        agents_goal_pos_3d.append(path.points[1])
         agents_initial_velocity = [0.5,0.0]
         initial_pos = list(to_grid(self.env._sim.pathfinder, agents_initial_pos_3d[0], self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
+        map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot}, self)
         goal_pos = list(to_grid(self.env._sim.pathfinder, agents_goal_pos_3d[0], self.grid_dimensions))
         goal_pos = [pos*0.025 for pos in goal_pos]
         self.initial_state.append(initial_pos+agents_initial_velocity+goal_pos)
@@ -486,6 +501,7 @@ class sim_env(threading.Thread):
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
         initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
+        map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot},self)
         self.initial_state[0][0:2] = initial_pos
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         #### Update Follower state in ESFM
@@ -594,6 +610,7 @@ class sim_env(threading.Thread):
             print(self.initial_state)
         self.human_update_counter +=1
         self.env.sim.step_physics(self.time_step)
+        
         self.observations.update(self.env._task._sim.get_sensor_observations())
         
 
@@ -766,10 +783,6 @@ def main():
     my_env.start()
 
     rospy.Subscriber("/cmd_vel", Twist, callback, (my_env), queue_size=1)
-    # define a list capturing how long it took
-    # to update agent orientation for past 3 instances
-    # TODO modify dt_list to depend on r1
-    dt_list = [0.009, 0.009, 0.009]
 
     # # Old code
     while not rospy.is_shutdown():
@@ -777,17 +790,6 @@ def main():
         my_env.update_orientation()
         # rospy.spin()
         my_env._r.sleep()
-
-    # while not rospy.is_shutdown():
-    #     start_time = time.time()
-    #     # cv2.imshow("bc_sensor", my_env.observations['bc_sensor'])
-    #     # cv2.waitKey(100)
-    #     # time.sleep(0.1)
-    #     my_env.update_orientation()
-
-    #     dt_list.insert(0, time.time() - start_time)
-    #     dt_list.pop()
-    #     my_env.set_dt(sum(dt_list) / len(dt_list))
 
 if __name__ == "__main__":
     main()

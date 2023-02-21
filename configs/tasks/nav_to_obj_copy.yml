@@ -4,7 +4,7 @@ ENVIRONMENT:
 DATASET:
     TYPE: RearrangeDataset-v0
     SPLIT: test
-    DATA_PATH: "./data/datasets/pointnav/mp3d/v1/{split}/content/E9uDoFAP3SH0.json.gz"
+    DATA_PATH: "./data/datasets/pointnav/mp3d/v1/{split}/content/17DRP5sb8fy0.json.gz"
     SCENES_DIR: "./data/mp3d/"
 TASK:
     TYPE: RearrangeEmptyTask-v0

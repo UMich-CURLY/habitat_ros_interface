@@ -84,7 +84,7 @@ class social_force():
             self.obs.append([map_corners[3][0], map_corners[4][0], map_corners[3][1], map_corners[4][1]])
     
     def load_obs_from_map(self):
-        img = Image.open("./maps/resolution_E9uDoFAP3SH_0.1.pgm").convert('L')
+        img = Image.open("./maps/resolution_House_0.1.pgm").convert('L')
         # img.show()
         img_np = np.array(img)  # ndarray
         white=0

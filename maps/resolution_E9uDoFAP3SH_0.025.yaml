@@ -1,0 +1,6 @@
+image: resolution_E9uDoFAP3SH_0.025.pgm
+resolution: 0.025
+origin: [-1,-30.325000000000003, 0.000000]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196

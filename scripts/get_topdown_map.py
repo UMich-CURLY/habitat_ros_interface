@@ -30,7 +30,7 @@ def get_topdown_map(config_paths, map_name):
     env = habitat.Env(config=config, dataset=dataset)
     env.reset()
 
-    meters_per_pixel = 0.1
+    meters_per_pixel = 0.025
     hablab_topdown_map = maps.get_topdown_map(
             env._sim.pathfinder, 0.0, meters_per_pixel=meters_per_pixel
         )
@@ -40,6 +40,9 @@ def get_topdown_map(config_paths, map_name):
     hablab_topdown_map = recolor_map[hablab_topdown_map]
     square_map_resolution = 5000
     map_resolution = [5000,5000]
+    top_down_map = hablab_topdown_map
+    grid_dimensions = (top_down_map.shape[0]*meters_per_pixel, top_down_map.shape[1]*meters_per_pixel)
+    
     # top_down_map = maps.get_topdown_map(pathfinder = env._sim.pathfinder, map_resolution=(square_map_resolution,square_map_resolution), height = 0.0)
 
     # # Image containing 0 if occupied, 1 if unoccupied, and 2 if border (if
@@ -54,14 +57,14 @@ def get_topdown_map(config_paths, map_name):
 
     f.write("image: " + map_name + ".pgm\n")
     f.write("resolution: " + str(meters_per_pixel) + "\n")
-    f.write("origin: [" + str(-1) + "," + str(-1) + ", 0.000000]\n")
+    f.write("origin: [" + str(-1) + "," + str(-grid_dimensions[0]+1) + ", 0.000000]\n")
     f.write("negate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.196")
     f.close()
 
 
 def main():
     #first parameter is config path, second parameter is map name
-    get_topdown_map("configs/tasks/nav_to_obj_copy.yml", "resolution_E9uDoFAP3SH_0.1")
+    get_topdown_map("configs/tasks/nav_to_obj_copy.yml", "resolution_17DRP5sb8fy_0.025")
 
 
 if __name__ == "__main__":

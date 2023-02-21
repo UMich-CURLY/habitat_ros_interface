@@ -40,13 +40,13 @@ def example():
         # # env.episodes[0].art_objs = []
         env.episodes[0].markers = []
         env.episodes[0].ao_states = {}
-        env.episodes[0].scene_id = '/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/E9uDoFAP3SH/E9uDoFAP3SH.glb'
+        env.episodes[0].scene_id = '/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/17DRP5sb8fy/17DRP5sb8fy.glb'
         env.episodes[0].scene_dataset_config = "/home/catkin_ws/src/habitat_ros_interface/data/mp3d/mp3dCAD.scene_dataset_config.json"
         env.episodes[0].start_position = [-2.093175119872487,-1.2777875958067]
         # env.episodes[0].targets = []
         rearrange_dataset = RearrangeDatasetV0()
         rearrange_dataset.episodes = [env.episodes[0]]
-        out_file = f"/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content/E9uDoFAP3SH0.json.gz"
+        out_file = f"/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content/17DRP5sb8fy0.json.gz"
         os.makedirs(osp.dirname(out_file), exist_ok=True)
         with gzip.open(out_file, "wt") as f:
             f.write(rearrange_dataset.to_json())
