@@ -134,12 +134,7 @@ def set_object_state_from_agent(
 
 def map_to_base_link(msg, my_env):
     grid_x,grid_y = my_env.grid_dimensions
-    theta = msg['theta']-mn.Rad(np.pi)
-    # theta.clamp(theta, 0.0, 2*pi)
-    if float(theta) < -np.pi:
-        embed()
-        theta +=mn.Rad(2*np.pi)
-    print("ANGLE IS ", theta)
+    theta = msg['theta']
     my_env.br.sendTransform((msg['x']-1, msg['y']-1,0.0),
                     tf.transformations.quaternion_from_euler(0, 0, theta),
                     rospy.Time.now(),
@@ -305,7 +300,8 @@ class sim_env(threading.Thread):
         agents_goal_pos_3d = []
         agents_initial_pos_3d.append(path.points[0])
         agents_goal_pos_3d.append(path.points[-1])
-        
+        sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
+        obj = rigid_obj_mgr.add_object_by_template_id(sphere_template_id)
         # self.objs.append(obj)
         
         obj_template_handle = './scripts/sphere.object_config.json'
@@ -327,6 +323,9 @@ class sim_env(threading.Thread):
         self.initial_state.append(initial_pos+agents_initial_velocity+goal_pos)
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         ##### Follower Human being initiated #####
+        human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
+        self.follower_id = human_template_id
+        obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
         # self.objs.append(obj)
         
         obj_template_handle = './scripts/humantwo.object_config.json'
@@ -387,6 +386,8 @@ class sim_env(threading.Thread):
         vel = [pos*AGENTS_SPEED/norm - robpos*AGENTS_SPEED/norm for pos, robpos in [c,e]]
         self.initial_state[0][2:4] = vel
         self.initial_state[1][2:4] = [computed_velocity[1,0]*AGENTS_SPEED/norm_fol, computed_velocity[1,1]*AGENTS_SPEED/norm_fol]
+        
+        
         #### This is for other agents in the system 
         for i in range(self.N-1):
             human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
@@ -519,7 +520,6 @@ class sim_env(threading.Thread):
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
         initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
-        map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot},self)
         self.initial_state[0][0:2] = initial_pos
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         #### Update Follower state in ESFM
@@ -531,7 +531,7 @@ class sim_env(threading.Thread):
         #### Calculate new velocity
         human_state = self.follower.rigid_state
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
-        print("Computed Velocity is ", computed_velocity)
+        # print("Computed Velocity is ", computed_velocity)
         next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
         diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
         diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
@@ -557,13 +557,15 @@ class sim_env(threading.Thread):
         a = self.env._sim.robot.base_transformation
         b = a.transform_point([0.5,0.0,0.0])
         d = a.transform_point([0.0,0.0,0.0])
-        c = list(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
-        e = list(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
-        norm = np.sqrt((c[0]-e[0])**2+(c[1]-e[1])**2)
+        c = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
+        e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
         norm_fol = np.sqrt(computed_velocity[1,0]**2 + computed_velocity[1,1]**2)
-        vel = [pos*AGENTS_SPEED/norm - robpos*AGENTS_SPEED/norm for pos, robpos in [c,e]]
-        self.initial_state[0][2:4] = vel
+        vel = (c-e)*(AGENTS_SPEED/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+        self.initial_state[0][2:4] = list(vel)
         self.initial_state[1][2:4] = [computed_velocity[1,0]/norm_fol*AGENTS_SPEED, computed_velocity[1,1]/norm_fol*AGENTS_SPEED]
+        map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
+
+        
         agent_state = self.env.sim.get_agent_state(0)
         if(np.mod(self.human_update_counter, self.update_multiple) ==0):
             computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
