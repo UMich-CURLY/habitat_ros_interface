@@ -83,8 +83,8 @@ class social_force():
             self.obs.append([map_corners[2][0], map_corners[3][0], map_corners[2][1], map_corners[3][1]])
             self.obs.append([map_corners[3][0], map_corners[4][0], map_corners[3][1], map_corners[4][1]])
     
-    def load_obs_from_map(self):
-        img = Image.open("./maps/resolution_House_0.1.pgm").convert('L')
+    def load_obs_from_map(self, map_path):
+        img = Image.open(map_path).convert('L')
         # img.show()
         img_np = np.array(img)  # ndarray
         white=0
@@ -97,7 +97,7 @@ class social_force():
                     # obs.append([j,i])
                 if img_np[i][j]== 0:    # sample-map 128 -> space, 0 -> wall, 255-> nonspace
                     wall=wall+1
-                    self.obs.append([j/10,j/10,i/10,i/10])
+                    self.obs.append([j/40,j/40,i/40,i/40])
                 if img_np[i][j]== 128:
                     space=space+1 
 
@@ -113,7 +113,7 @@ class social_force():
         # update 80 steps
         
         if(save_anim):
-            s.step(150)
+            s.step(10)
             with psf.plot.SceneVisualizer(s, "/PySocialForce/images/"+filename) as sv:
                 # sv.animate()
                 sv.plot()

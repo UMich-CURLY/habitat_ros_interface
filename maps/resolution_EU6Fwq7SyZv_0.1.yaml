@@ -1,0 +1,6 @@
+image: resolution_EU6Fwq7SyZv_0.1.pgm
+resolution: 0.1
+origin: [-1,-1, 0.000000]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196

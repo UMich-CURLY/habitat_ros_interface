@@ -10,12 +10,20 @@ import os
 
 import imageio
 import numpy as np
-
+import yaml
 import habitat
 from habitat.tasks.nav.nav import NavigationEpisode, NavigationGoal
 from habitat.utils.visualizations import maps
+from IPython import embed
 # from habitat.utils.visualizations.maps import COORDINATE_MIN, COORDINATE_MAX
+import argparse
+PARSER = argparse.ArgumentParser(description=None)
+PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
+PARSER.add_argument('-mps', '--mps', default=0.025, type=float, help='mps')
 
+ARGS = PARSER.parse_args()
+scene = ARGS.scene
+meters_per_pixel = ARGS.mps
 MAP_DIR = "/home/catkin_ws/src/habitat_ros_interface/maps"
 if not os.path.exists(MAP_DIR):
     print("Didi not find maps directory")
@@ -30,7 +38,7 @@ def get_topdown_map(config_paths, map_name):
     env = habitat.Env(config=config, dataset=dataset)
     env.reset()
 
-    meters_per_pixel = 0.025
+    
     hablab_topdown_map = maps.get_topdown_map(
             env._sim.pathfinder, 0.0, meters_per_pixel=meters_per_pixel
         )
@@ -63,9 +71,16 @@ def get_topdown_map(config_paths, map_name):
 
 
 def main():
+    config = {}
+    with open("configs/tasks/nav_to_obj_copy.yml",'r') as file:
+        # The FullLoader parameter handles the conversion from YAML
+        # scalar values to Python the dictionary format
+        config = yaml.load(file, Loader=yaml.FullLoader)
+        config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz"
+    with open("configs/tasks/custom_rearrange.yml",'w') as file:
+        documents = yaml.dump(config, file)
     #first parameter is config path, second parameter is map name
-    get_topdown_map("configs/tasks/nav_to_obj_copy.yml", "resolution_17DRP5sb8fy_0.025")
-
+    get_topdown_map("configs/tasks/custom_rearrange.yml", "resolution_"+scene+"_"+str(meters_per_pixel))
 
 if __name__ == "__main__":
     main()

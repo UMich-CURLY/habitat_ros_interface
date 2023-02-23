@@ -18,7 +18,8 @@
 	<node pkg="habitat_interface" type="rgb_ros.py" name="rgb_ros">
 		<remap from="rgb_1" to="robot_1/rgb"/>
 	</node>
-    <arg name="map_file" default="$(find habitat_interface)/maps/resolution_17DRP5sb8fy_0.025.yaml"/>
+	<arg name="scene" default="17DRP5sb8fy"/>
+    <arg name="map_file" default="$(find habitat_interface)/maps/resolution_$(arg scene)_0.025.yaml"/>
 
   <!-- Run the map server -->
     <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />

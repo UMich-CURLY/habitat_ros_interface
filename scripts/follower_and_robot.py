@@ -42,10 +42,14 @@ from get_trajectory import *
 import tf2_ros
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
-
-AGENT_START_POS_2d = [800,800]
+import argparse
+PARSER = argparse.ArgumentParser(description=None)
+PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
+ARGS = PARSER.parse_args()
+scene = ARGS.scene
 AGENT_GOAL_POS_2d = [800,500]
-FOLLOWER_OFFSET = [1.0,-1.0,0.0]
+AGENT_START_POS_2d = [800,100]
+FOLLOWER_OFFSET = [1.5,-1.0,0.0]
 AGENTS_SPEED = 1.0
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
@@ -130,9 +134,14 @@ def set_object_state_from_agent(
 
 def map_to_base_link(msg, my_env):
     grid_x,grid_y = my_env.grid_dimensions
-    
+    theta = msg['theta']-mn.Rad(np.pi)
+    # theta.clamp(theta, 0.0, 2*pi)
+    if float(theta) < -np.pi:
+        embed()
+        theta +=mn.Rad(2*np.pi)
+    print("ANGLE IS ", theta)
     my_env.br.sendTransform((msg['x']-1, msg['y']-1,0.0),
-                    tf.transformations.quaternion_from_euler(0, 0, msg['theta']),
+                    tf.transformations.quaternion_from_euler(0, 0, theta),
                     rospy.Time.now(),
                     "base_link",
                     "decision_frame"
@@ -198,8 +207,9 @@ class sim_env(threading.Thread):
         self.observations = self.env.reset()
         arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         self.env._sim.robot.arm_joint_pos = arm_joint_positions
-
-        agent_state.position = self.env._sim.pathfinder.get_random_navigable_point()
+        temp_position = self.env._sim.pathfinder.get_random_navigable_point()
+        temp_position[1] = 0.0
+        agent_state.position = self.env._sim.pathfinder.get_random_navigable_point_near(temp_position, 50)
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
         print(self.env.sim)
@@ -249,8 +259,7 @@ class sim_env(threading.Thread):
         # self.tour_plan = tour_planner()
         print("before initialized object")
         self.sfm = social_force()
-        self.sfm.load_obs_from_map()
-        
+        self.sfm.load_obs_from_map("./maps/resolution_"+scene+"_0.025.pgm")
         global rigid_obj_mgr
         rigid_obj_mgr = self.env._sim.get_rigid_object_manager()
         global obj_template_mgr
@@ -283,10 +292,9 @@ class sim_env(threading.Thread):
         #### Initiating robot in the esfm state ####
         agent_pos = self.env.sim.robot.base_pos
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
-
         ## Asume the agent goal is always the goal of the 0th agent
         self.final_goals_3d[0,:] = np.array(from_grid(self.env._sim.pathfinder, AGENT_GOAL_POS_2d, self.grid_dimensions))
-        self.final_goals_3d[0,:] = self.env._sim.pathfinder.get_random_navigable_point()
+        self.final_goals_3d[0,:] = self.env._sim.pathfinder.get_random_navigable_point_near(agent_pos,20)
         path = habitat_path.ShortestPath()
         path.requested_start = np.array(start_pos)
         path.requested_end = self.final_goals_3d[0,:]
@@ -296,7 +304,20 @@ class sim_env(threading.Thread):
         agents_initial_pos_3d =[]
         agents_goal_pos_3d = []
         agents_initial_pos_3d.append(path.points[0])
-        agents_goal_pos_3d.append(path.points[1])
+        agents_goal_pos_3d.append(path.points[-1])
+        
+        # self.objs.append(obj)
+        
+        obj_template_handle = './scripts/sphere.object_config.json'
+        obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
+        print(obj_template)
+        file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
+        print(file_obj)
+        file_obj.motion_type = habitat_sim.physics.MotionType.STATIC
+        sphere_pos = agents_goal_pos_3d[-1]
+        file_obj.translation = mn.Vector3(sphere_pos[0],sphere_pos[1], sphere_pos[2])
+        # sphere_offset = file_obj.translation - agent_state.position
+        # set_object_state_from_agent(self.env._sim, file_obj, np.array(sphere_offset - sphere), orientation = object_orientation2)
         agents_initial_velocity = [0.5,0.0]
         initial_pos = list(to_grid(self.env._sim.pathfinder, agents_initial_pos_3d[0], self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
@@ -306,9 +327,6 @@ class sim_env(threading.Thread):
         self.initial_state.append(initial_pos+agents_initial_velocity+goal_pos)
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         ##### Follower Human being initiated #####
-        human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
-        self.follower_id = human_template_id
-        obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
         # self.objs.append(obj)
         
         obj_template_handle = './scripts/humantwo.object_config.json'
@@ -778,7 +796,7 @@ def callback(vel, my_env):
 
 def main():
 
-    my_env = sim_env(env_config_file="configs/tasks/nav_to_obj_copy.yml")
+    my_env = sim_env(env_config_file="configs/tasks/custom_rearrange.yml")
     # start the thread that publishes sensor readings
     my_env.start()
 
