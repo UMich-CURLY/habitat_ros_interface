@@ -12,6 +12,11 @@ from IPython import embed
 import tf
 from habitat.utils.visualizations import maps
 
+def my_ceil(a, precision=1):
+    return np.true_divide(np.ceil(a * 10**precision), 10**precision)
+
+def my_floor(a, precision=1):
+    return np.true_divide(np.floor(a * 10**precision), 10**precision)
 
 class social_force():
     
@@ -97,7 +102,7 @@ class social_force():
                     # obs.append([j,i])
                 if img_np[i][j]== 0:    # sample-map 128 -> space, 0 -> wall, 255-> nonspace
                     wall=wall+1
-                    self.obs.append([j/40,j/40,i/40,i/40])
+                    self.obs.append([my_floor(j/40), my_ceil(j/40),my_floor(i/40),my_ceil(i/40)])
                 if img_np[i][j]== 128:
                     space=space+1 
 
@@ -113,7 +118,7 @@ class social_force():
         # update 80 steps
         
         if(save_anim):
-            s.step(1)
+            s.step(100)
             with psf.plot.SceneVisualizer(s, "/PySocialForce/images/"+filename) as sv:
                 # sv.animate()
                 sv.plot()

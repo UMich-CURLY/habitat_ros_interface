@@ -377,8 +377,9 @@ class sim_env(threading.Thread):
         rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
         rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
         object_orientation2 = rotation_z * rotation_y * rotation_x
-        follower_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos, 1)
+        follower_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos, 2)
         follower_offset = follower_pos_3d - agent_state.position
+        follower_offset[1] += 1.0
         set_object_state_from_agent(self.env._sim, self.follower, np.array(follower_offset), orientation = object_orientation2)
         self.follower_velocity_control = self.follower.velocity_control
         self.follower_velocity_control.controlling_lin_vel = True
