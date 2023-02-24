@@ -1,8 +1,8 @@
 from pathlib import Path
 import numpy as np
 import sys
-# sys.path.append("/Py_Social_ROS")
-sys.path.append("/PySocialForce")
+sys.path.append("/Py_Social_ROS")
+# sys.path.append("/PySocialForce")
 import pysocialforce as psf
 from PIL import Image
 import numpy as np
@@ -113,13 +113,13 @@ class social_force():
             initial_state,
             groups=groups,
             obstacles=self.obs,
-            config_file=Path(__file__).resolve().parent.joinpath("/PySocialForce/examples/example.toml"),
+            config_file=Path(__file__).resolve().parent.joinpath("/Py_Social_ROS/examples/example.toml"),
         )
         # update 80 steps
         
         if(save_anim):
             s.step(100)
-            with psf.plot.SceneVisualizer(s, "/PySocialForce/images/"+filename) as sv:
+            with psf.plot.SceneVisualizer(s, "/Py_Social_ROS/images/"+filename) as sv:
                 # sv.animate()
                 sv.plot()
         s.step(1)

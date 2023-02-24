@@ -235,8 +235,14 @@ class sim_env(threading.Thread):
         arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         self.env._sim.robot.arm_joint_pos = arm_joint_positions
         temp_position = self.env._sim.pathfinder.get_random_navigable_point()
+        island_radius = self.env._sim.pathfinder.island_radius(temp_position)
+        while island_radius <10.0:
+            temp_position = self.env._sim.pathfinder.get_random_navigable_point()
+            island_radius = self.env._sim.pathfinder.island_radius(temp_position)
+        print("Island radius is ", island_radius)
         temp_position[1] = 0.0
-        agent_state.position = self.env._sim.pathfinder.get_random_navigable_point_near(temp_position, 50)
+        agent_state.position = self.env._sim.pathfinder.get_random_navigable_point_near(temp_position, island_radius)
+        
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
         print(self.env.sim)
