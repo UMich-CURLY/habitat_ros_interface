@@ -30,6 +30,7 @@ from rospy_tutorials.msg import Floats
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist, TransformStamped
 from geometry_msgs.msg import PointStamped, PoseStamped, PoseWithCovarianceStamped
+from visualization_msgs.msg import Marker, MarkerArray
 import threading
 import tf
 from tour_planner_dropped import tour_planner
@@ -153,6 +154,38 @@ def map_to_base_link(msg, my_env):
     poseMsg.pose.position.y = 0.0
     poseMsg.pose.position.z = 0.0
     my_env._robot_pose.publish(poseMsg)
+    follower_pos = my_env.follower.rigid_state.translation
+    follower_pose_2d = to_grid(my_env.env._sim.pathfinder, follower_pos, my_env.grid_dimensions)
+    follower_pose_2d = follower_pose_2d*(0.025*np.ones([1,2]))[0]
+    poseMsg.header.frame_id = "decision_frame"
+    poseMsg.pose.orientation.x = 0.0
+    poseMsg.pose.orientation.y = 0.0
+    poseMsg.pose.orientation.z = 0.0
+    poseMsg.pose.orientation.w = 1.0
+    poseMsg.header.stamp = rospy.Time.now()
+    poseMsg.pose.position.x = follower_pose_2d[0]
+    poseMsg.pose.position.y = follower_pose_2d[1]
+    poseMsg.pose.position.z = 0.0
+    my_env._pub_follower.publish(poseMsg)
+    goal_marker = Marker()
+    goal_marker.header.frame_id = "decision_frame"
+    goal_marker.type = 2
+    embed()
+    goal_marker.pose.position.x = my_env.initial_state[0][4]
+    goal_marker.pose.position.y = my_env.initial_state[0][5]
+    goal_marker.pose.position.z = 0.0
+    goal_marker.pose.orientation.x = 0.0
+    goal_marker.pose.orientation.y = 0.0
+    goal_marker.pose.orientation.z = 0.0
+    goal_marker.pose.orientation.w = 1.0
+    goal_marker.scale.x = 0.5
+    goal_marker.scale.y = 0.5
+    goal_marker.scale.z = 0.5
+    goal_marker.color.a = 1.0 
+    goal_marker.color.r = 0.0
+    goal_marker.color.g = 1.0
+    goal_marker.color.b = 0.0
+    my_env._pub_goal_marker.publish(goal_marker)
 
 
 class sim_env(threading.Thread):
@@ -234,6 +267,9 @@ class sim_env(threading.Thread):
         self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
         self._robot_pose = rospy.Publisher("~robot_pose", PoseStamped, queue_size = 1)
+        self._pub_follower = rospy.Publisher("~follower_pose", PoseStamped, queue_size = 1)
+        self._pub_goal_marker = rospy.Publisher("~goal", Marker, queue_size = 1)
+        
         self.br = tf.TransformBroadcaster()
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
         rospy.Subscriber("~plan_3d", numpy_msg(Floats),self.plan_callback, queue_size=1)
@@ -317,7 +353,7 @@ class sim_env(threading.Thread):
         agents_initial_velocity = [0.5,0.0]
         initial_pos = list(to_grid(self.env._sim.pathfinder, agents_initial_pos_3d[0], self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
-        map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot}, self)
+        
         goal_pos = list(to_grid(self.env._sim.pathfinder, agents_goal_pos_3d[0], self.grid_dimensions))
         goal_pos = [pos*0.025 for pos in goal_pos]
         self.initial_state.append(initial_pos+agents_initial_velocity+goal_pos)
@@ -386,7 +422,7 @@ class sim_env(threading.Thread):
         vel = [pos*AGENTS_SPEED/norm - robpos*AGENTS_SPEED/norm for pos, robpos in [c,e]]
         self.initial_state[0][2:4] = vel
         self.initial_state[1][2:4] = [computed_velocity[1,0]*AGENTS_SPEED/norm_fol, computed_velocity[1,1]*AGENTS_SPEED/norm_fol]
-        
+        map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot}, self)
         
         #### This is for other agents in the system 
         for i in range(self.N-1):
@@ -548,11 +584,13 @@ class sim_env(threading.Thread):
             set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
             if(self.goal_dist[1]>self.goal_dist[0]):
                 self.follower_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
+                embed()
             else:
                 self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
         else:
             self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
             self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
+        print(computed_velocity, self.follower_velocity_control.linear_velocity)
         self.update_counter+=1
         a = self.env._sim.robot.base_transformation
         b = a.transform_point([0.5,0.0,0.0])
@@ -627,7 +665,6 @@ class sim_env(threading.Thread):
                         self.initial_state[i][4:6] = goal_pos
                 self.initial_state[i][2:4] = computed_velocity[i]
                 self.goal_dist[i] = np.linalg.norm((np.array(self.initial_state[i][0:2])-np.array(self.initial_state[i][4:6])))
-            print(self.initial_state)
         self.human_update_counter +=1
         self.env.sim.step_physics(self.time_step)
         
