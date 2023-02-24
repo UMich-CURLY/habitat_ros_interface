@@ -78,9 +78,11 @@ def main():
         config = yaml.load(file, Loader=yaml.FullLoader)
         config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz"
     with open("configs/tasks/custom_rearrange.yml",'w') as file:
+        print("Replacing the data config to the new scene ", scene)
         documents = yaml.dump(config, file)
     #first parameter is config path, second parameter is map name
-    get_topdown_map("configs/tasks/custom_rearrange.yml", "resolution_"+scene+"_"+str(meters_per_pixel))
+    if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
+        get_topdown_map("configs/tasks/custom_rearrange.yml", "resolution_"+scene+"_"+str(meters_per_pixel))
 
 if __name__ == "__main__":
     main()

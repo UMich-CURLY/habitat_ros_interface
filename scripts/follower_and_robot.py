@@ -163,16 +163,15 @@ def map_to_base_link(msg, my_env):
     poseMsg.pose.orientation.z = 0.0
     poseMsg.pose.orientation.w = 1.0
     poseMsg.header.stamp = rospy.Time.now()
-    poseMsg.pose.position.x = follower_pose_2d[0]
-    poseMsg.pose.position.y = follower_pose_2d[1]
+    poseMsg.pose.position.x = my_env.initial_state[1][0]-1
+    poseMsg.pose.position.y = my_env.initial_state[1][1]-1
     poseMsg.pose.position.z = 0.0
     my_env._pub_follower.publish(poseMsg)
     goal_marker = Marker()
     goal_marker.header.frame_id = "decision_frame"
     goal_marker.type = 2
-    embed()
-    goal_marker.pose.position.x = my_env.initial_state[0][4]
-    goal_marker.pose.position.y = my_env.initial_state[0][5]
+    goal_marker.pose.position.x = my_env.initial_state[0][4]-1
+    goal_marker.pose.position.y = my_env.initial_state[0][5]-1
     goal_marker.pose.position.z = 0.0
     goal_marker.pose.orientation.x = 0.0
     goal_marker.pose.orientation.y = 0.0
@@ -337,14 +336,14 @@ class sim_env(threading.Thread):
         agents_initial_pos_3d.append(path.points[0])
         agents_goal_pos_3d.append(path.points[-1])
         sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
-        obj = rigid_obj_mgr.add_object_by_template_id(sphere_template_id)
+        file_obj = rigid_obj_mgr.add_object_by_template_id(sphere_template_id)
         # self.objs.append(obj)
         
-        obj_template_handle = './scripts/sphere.object_config.json'
-        obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
-        print(obj_template)
-        file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
-        print(file_obj)
+        # obj_template_handle = './scripts/sphere.object_config.json'
+        # obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
+        # print(obj_template)
+        # file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
+        # print(file_obj)
         file_obj.motion_type = habitat_sim.physics.MotionType.STATIC
         sphere_pos = agents_goal_pos_3d[-1]
         file_obj.translation = mn.Vector3(sphere_pos[0],sphere_pos[1], sphere_pos[2])
@@ -361,14 +360,14 @@ class sim_env(threading.Thread):
         ##### Follower Human being initiated #####
         human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
         self.follower_id = human_template_id
-        obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
+        file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
         # self.objs.append(obj)
         
-        obj_template_handle = './scripts/humantwo.object_config.json'
-        obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
-        print(obj_template)
-        file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
-        print(file_obj)
+        # obj_template_handle = './scripts/humantwo.object_config.json'
+        # obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
+        # print(obj_template)
+        # file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
+        # print(file_obj)
         file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
         self.follower = file_obj
         orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
@@ -378,8 +377,9 @@ class sim_env(threading.Thread):
         rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
         rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
         object_orientation2 = rotation_z * rotation_y * rotation_x
-        robot_offset = self.env._sim.robot.base_pos - agent_state.position
-        set_object_state_from_agent(self.env._sim, self.follower, np.array(robot_offset - FOLLOWER_OFFSET), orientation = object_orientation2)
+        follower_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos, 1)
+        follower_offset = follower_pos_3d - agent_state.position
+        set_object_state_from_agent(self.env._sim, self.follower, np.array(follower_offset), orientation = object_orientation2)
         self.follower_velocity_control = self.follower.velocity_control
         self.follower_velocity_control.controlling_lin_vel = True
         self.follower_velocity_control.controlling_ang_vel = True
@@ -584,7 +584,6 @@ class sim_env(threading.Thread):
             set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
             if(self.goal_dist[1]>self.goal_dist[0]):
                 self.follower_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
-                embed()
             else:
                 self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
         else:
