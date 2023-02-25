@@ -236,9 +236,13 @@ class sim_env(threading.Thread):
         self.env._sim.robot.arm_joint_pos = arm_joint_positions
         temp_position = self.env._sim.pathfinder.get_random_navigable_point()
         island_radius = self.env._sim.pathfinder.island_radius(temp_position)
-        while island_radius <10.0:
-            temp_position = self.env._sim.pathfinder.get_random_navigable_point()
-            island_radius = self.env._sim.pathfinder.island_radius(temp_position)
+        temp_island_radius = 2.0
+        for i in range(10):
+            new_temp_position = self.env._sim.pathfinder.get_random_navigable_point()
+            temp_island_radius = self.env._sim.pathfinder.island_radius(new_temp_position)
+            if island_radius < temp_island_radius:
+                temp_position = new_temp_position
+                island_radius = temp_island_radius
         print("Island radius is ", island_radius)
         temp_position[1] = 0.0
         agent_state.position = self.env._sim.pathfinder.get_random_navigable_point_near(temp_position, island_radius)
@@ -340,7 +344,7 @@ class sim_env(threading.Thread):
         agents_initial_pos_3d =[]
         agents_goal_pos_3d = []
         agents_initial_pos_3d.append(path.points[0])
-        agents_goal_pos_3d.append(path.points[-1])
+        agents_goal_pos_3d.append(path.points[1])
         sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
         file_obj = rigid_obj_mgr.add_object_by_template_id(sphere_template_id)
         # self.objs.append(obj)
