@@ -142,7 +142,6 @@ def map_to_base_link(msg, my_env):
                     "base_link",
                     "decision_frame"
     )
-    print(msg, theta)
     poseMsg = PoseStamped()
     poseMsg.header.stamp = rospy.Time.now()
     poseMsg.header.frame_id = "base_link"
@@ -186,7 +185,7 @@ def map_to_base_link(msg, my_env):
     goal_marker.color.g = 1.0
     goal_marker.color.b = 0.0
     my_env._pub_goal_marker.publish(goal_marker)
-    print(my_env.initial_state)
+
 
 class sim_env(threading.Thread):
     _x_axis = 0
@@ -601,7 +600,7 @@ class sim_env(threading.Thread):
         else:
             self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
             self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
-        # print(computed_velocity, self.follower_velocity_control.linear_velocity)
+        print(computed_velocity, self.follower_velocity_control.linear_velocity)
         self.update_counter+=1
         a = self.env._sim.robot.base_transformation
         b = a.transform_point([0.5,0.0,0.0])
