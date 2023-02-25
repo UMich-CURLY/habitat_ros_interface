@@ -1,6 +1,7 @@
 from pathlib import Path
 import numpy as np
 import sys
+import rvo2
 sys.path.append("/Py_Social_ROS")
 # sys.path.append("/PySocialForce")
 import pysocialforce as psf
