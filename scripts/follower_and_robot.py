@@ -136,20 +136,21 @@ def set_object_state_from_agent(
 def map_to_base_link(msg, my_env):
     grid_x,grid_y = my_env.grid_dimensions
     theta = msg['theta']
-    my_env.br.sendTransform((msg['x']-1, msg['y']-1,0.0),
-                    tf.transformations.quaternion_from_euler(0, 0, theta),
+    my_env.br.sendTransform((-my_env.initial_state[0][0]+1, -my_env.initial_state[0][1]+1,0.0),
+                    tf.transformations.quaternion_from_euler(0, 0, 0.0),
                     rospy.Time.now(),
-                    "base_link",
-                    "decision_frame"
+                    "decision_frame",
+                    "base_link"
     )
     print(msg, theta)
     poseMsg = PoseStamped()
     poseMsg.header.stamp = rospy.Time.now()
     poseMsg.header.frame_id = "base_link"
-    poseMsg.pose.orientation.x = 0.0
-    poseMsg.pose.orientation.y = 0.0
-    poseMsg.pose.orientation.z = 0.0
-    poseMsg.pose.orientation.w = 1.0
+    quat = tf.transformations.quaternion_from_euler(0, 0, theta)
+    poseMsg.pose.orientation.x = quat[0]
+    poseMsg.pose.orientation.y = quat[1]
+    poseMsg.pose.orientation.z = quat[2]
+    poseMsg.pose.orientation.w = quat[3]
     poseMsg.header.stamp = rospy.Time.now()
     poseMsg.pose.position.x = 0.0
     poseMsg.pose.position.y = 0.0
@@ -221,7 +222,7 @@ class sim_env(threading.Thread):
     obs = []
     update_counter = 0
     human_update_counter = 0 
-    update_multiple = 1
+    update_multiple = 50
     def __init__(self, env_config_file):
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file

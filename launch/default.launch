@@ -23,6 +23,9 @@
 
   <!-- Run the map server -->
     <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+
+	<node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" name="teleop" output="screen">
+	</node>
 <!-- 	<node pkg="habitat_interface" type="bc_sensor_ros.py" name="bc_sensor_ros">
 		<remap from="rgb" to="habitat/bc_sensor"/>
 	</node> -->
