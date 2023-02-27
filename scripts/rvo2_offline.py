@@ -214,12 +214,14 @@ class social_force():
         self.orca_sim.doStep()
         if save_anim:
             self.plot_obstacles()
-            num_steps = 500
+            num_steps = 100
             for i in range(num_steps):
                 self.orca_sim.doStep()
                 colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))
                 for j in range(len(initial_state)):
                     [x,y] = self.orca_sim.getAgentPosition(self.orca_ped[j])
+                    if (i>80):
+                        print([x,y])
                     self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j])
             self.fig.savefig(filename+".png", dpi=300)
             plt.close(self.fig)

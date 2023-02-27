@@ -40,6 +40,8 @@ from matplotlib import pyplot as plt
 from IPython import embed
 from nav_msgs.srv import GetPlan
 from get_trajectory import *
+from get_trajectory_rvo import *
+
 import tf2_ros
 lock = threading.Lock()
 rospy.init_node("robot_1", anonymous=False)
@@ -52,6 +54,7 @@ AGENT_GOAL_POS_2d = [800,500]
 AGENT_START_POS_2d = [800,100]
 FOLLOWER_OFFSET = [1.5,-1.0,0.0]
 AGENTS_SPEED = 1.0
+USE_RVO = True
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
     bounds = pathfinder.get_bounds()
@@ -245,9 +248,13 @@ class sim_env(threading.Thread):
             if island_radius < temp_island_radius:
                 temp_position = new_temp_position
                 island_radius = temp_island_radius
-        print("Island radius is ", island_radius)
+        
+        if island_radius<2.0:
+            print("Island radius is ", island_radius)
+            embed()
+        
         temp_position[1] = 0.0
-        agent_state.position = self.env._sim.pathfinder.get_random_navigable_point_near(temp_position, island_radius)
+        agent_state.position = self.env._sim.pathfinder.get_random_navigable_point_near(temp_position, 2)
         
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
@@ -300,8 +307,12 @@ class sim_env(threading.Thread):
         self.env._sim.enable_physics = True
         # self.tour_plan = tour_planner()
         print("before initialized object")
-        self.sfm = social_force()
-        self.sfm.load_obs_from_map("./maps/resolution_"+scene+"_0.025.pgm")
+        if USE_RVO:
+            self.sfm = ped_rvo(self, "./maps/resolution_"+scene+"_0.025.pgm")
+            print("Initialized rvo2 sim")
+        else:
+            self.sfm = social_force()
+            
         global rigid_obj_mgr
         rigid_obj_mgr = self.env._sim.get_rigid_object_manager()
         global obj_template_mgr
@@ -336,10 +347,24 @@ class sim_env(threading.Thread):
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
         ## Asume the agent goal is always the goal of the 0th agent
         self.final_goals_3d[0,:] = np.array(from_grid(self.env._sim.pathfinder, AGENT_GOAL_POS_2d, self.grid_dimensions))
-        self.final_goals_3d[0,:] = self.env._sim.pathfinder.get_random_navigable_point_near(agent_pos,20)
+        self.final_goals_3d[0,:] = np.array(from_grid(self.env._sim.pathfinder, AGENT_GOAL_POS_2d, self.grid_dimensions))
+        goal_distance = 0.5
         path = habitat_path.ShortestPath()
         path.requested_start = np.array(start_pos)
+        for i in range(50):
+            goal = self.env._sim.pathfinder.get_random_navigable_point()
+            temp_goal_dist = np.sqrt((goal[0]-start_pos[0])**2 + (goal[2]-start_pos[2])**2)
+            path.requested_end = goal
+            if(not self.env._sim.pathfinder.find_path(path)):
+                continue
+            if temp_goal_dist > goal_distance:
+                self.final_goals_3d[0,:] = goal
+                goal_distance = temp_goal_dist
+        if (goal_distance<10):
+            print("chose another scene maybe!", goal_distance)
+            embed()
         path.requested_end = self.final_goals_3d[0,:]
+        
         if(not self.env._sim.pathfinder.find_path(path)):
             print("Watch this one Tribhi!!!!")
             embed()
