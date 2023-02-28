@@ -242,8 +242,10 @@ class sim_env(threading.Thread):
         temp_position = self.env._sim.pathfinder.get_random_navigable_point()
         island_radius = self.env._sim.pathfinder.island_radius(temp_position)
         temp_island_radius = 2.0
-        for i in range(10):
+        for i in range(50):
             new_temp_position = self.env._sim.pathfinder.get_random_navigable_point()
+            if new_temp_position[1] < 0.0:
+                continue
             temp_island_radius = self.env._sim.pathfinder.island_radius(new_temp_position)
             if island_radius < temp_island_radius:
                 temp_position = new_temp_position
@@ -253,8 +255,7 @@ class sim_env(threading.Thread):
             print("Island radius is ", island_radius)
             embed()
         
-        temp_position[1] = 0.0
-        agent_state.position = self.env._sim.pathfinder.get_random_navigable_point_near(temp_position, 2)
+        agent_state.position = temp_position
         
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
