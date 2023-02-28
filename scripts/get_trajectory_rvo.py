@@ -215,8 +215,8 @@ class ped_rvo():
         computed_velocity=[]
         for j in range(len(initial_state)):
             [x,y] = self.orca_sim.getAgentPosition(self.orca_ped[j])
-            velx = (x - initial_state[j][0])*(1/20)
-            vely = (y - initial_state[j][1])*(1/20)
+            velx = (x - initial_state[j][0])
+            vely = (y - initial_state[j][1])
             computed_velocity.append([velx,vely])
         print(computed_velocity)
         if save_anim:
@@ -227,8 +227,8 @@ class ped_rvo():
                 colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))
                 for j in range(len(initial_state)):
                     [x,y] = self.orca_sim.getAgentPosition(self.orca_ped[j])
-                    velx = (x - initial_state[j][0])*(1/20)
-                    vely = (y - initial_state[j][1])*(1/20)
+                    velx = (x - initial_state[j][0])
+                    vely = (y - initial_state[j][1])
                     print(velx,vely)
                     self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j])
             self.fig.savefig(filename+".png", dpi=300)

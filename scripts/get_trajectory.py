@@ -21,7 +21,9 @@ def my_floor(a, precision=1):
 class social_force():
     
     obs = []
-    # def __init__(self):
+    
+    def __init__(self, map_path):
+        self.load_obs_from_map(map_path)
         # img = Image.open("/Py_Social_ROS/default.pgm").convert('L')
         # img.show()
         # img_np = np.array(img)  # ndarray

@@ -353,6 +353,7 @@ class sim_env(threading.Thread):
         path.requested_start = np.array(start_pos)
         for i in range(50):
             goal = self.env._sim.pathfinder.get_random_navigable_point()
+
             temp_goal_dist = np.sqrt((goal[0]-start_pos[0])**2 + (goal[2]-start_pos[2])**2)
             path.requested_end = goal
             if(not self.env._sim.pathfinder.find_path(path)):
@@ -360,7 +361,7 @@ class sim_env(threading.Thread):
             if temp_goal_dist > goal_distance:
                 self.final_goals_3d[0,:] = goal
                 goal_distance = temp_goal_dist
-        if (goal_distance<10):
+        if (goal_distance<15):
             print("chose another scene maybe!", goal_distance)
             embed()
         path.requested_end = self.final_goals_3d[0,:]
@@ -371,7 +372,7 @@ class sim_env(threading.Thread):
         agents_initial_pos_3d =[]
         agents_goal_pos_3d = []
         agents_initial_pos_3d.append(path.points[0])
-        agents_goal_pos_3d.append(path.points[1])
+        agents_goal_pos_3d.append(path.points[-1])
         sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
         file_obj = rigid_obj_mgr.add_object_by_template_id(sphere_template_id)
         # self.objs.append(obj)
@@ -605,6 +606,8 @@ class sim_env(threading.Thread):
         #### Calculate new velocity
         human_state = self.follower.rigid_state
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
+        norm_fol = np.sqrt(computed_velocity[1,0]**2 + computed_velocity[1,1]**2)
+        computed_velocity[1,:] = [computed_velocity[1,0]/norm_fol*AGENTS_SPEED, computed_velocity[1,1]/norm_fol*AGENTS_SPEED]
         # print("Computed Velocity is ", computed_velocity)
         next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
         diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
