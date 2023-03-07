@@ -53,7 +53,7 @@ scene = ARGS.scene
 AGENT_GOAL_POS_2d = [800,500]
 AGENT_START_POS_2d = [800,100]
 FOLLOWER_OFFSET = [1.5,-1.0,0.0]
-AGENTS_SPEED = 1.0
+AGENTS_SPEED = 0.5
 USE_RVO = True
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
@@ -198,7 +198,7 @@ class sim_env(threading.Thread):
     _z_axis = 2
     _dt = 0.00478
     _sensor_rate = 50  # hz
-    _r = rospy.Rate(_sensor_rate)
+    _r_sensor = rospy.Rate(_sensor_rate)
     _current_episode = 0
     _total_number_of_episodes = 0
     _nodes = []
@@ -213,6 +213,7 @@ class sim_env(threading.Thread):
     new_goal = False
     control_frequency = 20
     time_step = 1.0 / (control_frequency)
+    _r_control = rospy.Rate(control_frequency)
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
     received_vel = False
@@ -225,7 +226,7 @@ class sim_env(threading.Thread):
     obs = []
     update_counter = 0
     human_update_counter = 0 
-    update_multiple = 50
+    update_multiple = 1
     def __init__(self, env_config_file):
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
@@ -251,15 +252,12 @@ class sim_env(threading.Thread):
             new_temp_position = self.env._sim.pathfinder.get_random_navigable_point()
             [y,x] = np.array(to_grid(self.env._sim.pathfinder, new_temp_position, self.grid_dimensions))
             if top_down_map[x][y] == 0:
-                if (i==49):
-                    embed()
                 continue
             temp_island_radius = self.env._sim.pathfinder.island_radius(new_temp_position)
             if island_radius < temp_island_radius:
                 temp_position = new_temp_position
                 island_radius = temp_island_radius
                 print("Found better one")
-        embed()
         if island_radius<5.0:
             print("Island radius is ", island_radius)
             embed()
@@ -606,7 +604,7 @@ class sim_env(threading.Thread):
         human_state = self.follower.rigid_state
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
         norm_fol = np.sqrt(computed_velocity[1,0]**2 + computed_velocity[1,1]**2)
-        computed_velocity[1,:] = [computed_velocity[1,0]/norm_fol*AGENTS_SPEED, computed_velocity[1,1]/norm_fol*AGENTS_SPEED]
+        computed_velocity[1,:] = [computed_velocity[1,0], computed_velocity[1,1]]
         # print("Computed Velocity is ", computed_velocity)
         next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
         diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
@@ -637,14 +635,17 @@ class sim_env(threading.Thread):
         c = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
         e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
         norm_fol = np.sqrt(computed_velocity[1,0]**2 + computed_velocity[1,1]**2)
-        vel = (c-e)*(AGENTS_SPEED/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+        if(ang_vel!=0.0):
+            vel = (c-e)*(AGENTS_SPEED/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+        else:
+            vel = (c-e)*(lin_vel/np.linalg.norm(c-e)*np.ones([1,2]))[0]
         self.initial_state[0][2:4] = list(vel)
-        self.initial_state[1][2:4] = [computed_velocity[1,0]/norm_fol*AGENTS_SPEED, computed_velocity[1,1]/norm_fol*AGENTS_SPEED]
+        self.initial_state[1][2:4] = [computed_velocity[1,0], computed_velocity[1,1]]
         map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
 
         
         agent_state = self.env.sim.get_agent_state(0)
-        if(np.mod(self.human_update_counter, self.update_multiple) ==0):
+        if(np.mod(self.human_update_counter, self.update_multiple) ==0 and self.N >1):
             computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
             for i in range(self.N):
                 human_state = self.objs[i].rigid_state
@@ -755,7 +756,7 @@ class sim_env(threading.Thread):
             # offset2= np.array([1,1,-0.5])
             # set_object_state_from_agent(self.env._sim, self.file_obj2, offset=offset2, orientation = object_orientation2)
             lock.release()
-            self._r.sleep()
+            self._r_sensor.sleep()
             
 
     def update_orientation(self):
@@ -865,7 +866,7 @@ class sim_env(threading.Thread):
             self.new_goal=True
 
 def callback(vel, my_env):
-    my_env.linear_velocity = np.array([(2.0 * vel.linear.y), 0.0, (2.0 * vel.linear.x)])
+    my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (1.0 * vel.linear.x)])
     my_env.angular_velocity = np.array([0, vel.angular.z, 0])
     # my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
     # my_env.angular_velocity = np.array([0, 0, vel.angular.z])
@@ -885,7 +886,7 @@ def main():
    
         my_env.update_orientation()
         # rospy.spin()
-        my_env._r.sleep()
+        my_env._r_control.sleep()
 
 if __name__ == "__main__":
     main()

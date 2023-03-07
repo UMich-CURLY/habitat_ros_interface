@@ -101,13 +101,13 @@ class ped_rvo():
         """
         self.neighbor_dist = self.config.get('orca_neighbor_dist', 5)
         self.max_neighbors = self.num_pedestrians
-        self.time_horizon = self.config.get('orca_time_horizon', 4.0)
+        self.time_horizon = self.config.get('orca_time_horizon', 2.0)
         self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 1.0)
         self.orca_radius = self.config.get('orca_radius', 0.2)
         self.orca_max_speed = self.config.get('orca_max_speed', 0.5)
-
+        self.dt = my_env.time_step
         self.orca_sim = rvo2.PyRVOSimulator(
-            1,
+            my_env.time_step,
             self.neighbor_dist,
             self.max_neighbors,
             self.time_horizon,
@@ -215,20 +215,20 @@ class ped_rvo():
         computed_velocity=[]
         for j in range(len(initial_state)):
             [x,y] = self.orca_sim.getAgentPosition(self.orca_ped[j])
-            velx = (x - initial_state[j][0])
-            vely = (y - initial_state[j][1])
+            velx = (x - initial_state[j][0])/self.dt
+            vely = (y - initial_state[j][1])/self.dt
             computed_velocity.append([velx,vely])
         print(computed_velocity)
         if save_anim:
             self.plot_obstacles()
-            num_steps = 10
+            num_steps = 1000
             for i in range(num_steps):
                 self.orca_sim.doStep()
                 colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))
                 for j in range(len(initial_state)):
                     [x,y] = self.orca_sim.getAgentPosition(self.orca_ped[j])
-                    velx = (x - initial_state[j][0])
-                    vely = (y - initial_state[j][1])
+                    velx = (x - initial_state[j][0])/self.dt
+                    vely = (y - initial_state[j][1])/self.dt
                     print(velx,vely)
                     self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j])
             self.fig.savefig(filename+".png", dpi=300)
