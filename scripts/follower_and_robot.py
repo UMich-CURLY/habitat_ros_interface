@@ -231,7 +231,12 @@ class sim_env(threading.Thread):
         self.env_config_file = env_config_file
         self.env = habitat.Env(config=habitat.get_config(self.env_config_file))
         self.env._sim.robot.params.arm_init_params = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
-        
+        floor_y = 0.0
+        top_down_map = maps.get_topdown_map(
+            self.env._sim.pathfinder, height=floor_y, meters_per_pixel=0.025
+        )
+        self.grid_dimensions = (top_down_map.shape[0], top_down_map.shape[1])
+        print("Grid size is ", self.grid_dimensions)
         print("Initializeed environment")
         # always assume height equals width
         # self.env._sim.agents[0].move_filter_fn = self.env._sim.step_filter
@@ -240,18 +245,22 @@ class sim_env(threading.Thread):
         arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         self.env._sim.robot.arm_joint_pos = arm_joint_positions
         temp_position = self.env._sim.pathfinder.get_random_navigable_point()
-        island_radius = self.env._sim.pathfinder.island_radius(temp_position)
+        island_radius = 2.0
         temp_island_radius = 2.0
         for i in range(50):
             new_temp_position = self.env._sim.pathfinder.get_random_navigable_point()
-            if new_temp_position[1] < 0.0:
+            [y,x] = np.array(to_grid(self.env._sim.pathfinder, new_temp_position, self.grid_dimensions))
+            if top_down_map[x][y] == 0:
+                if (i==49):
+                    embed()
                 continue
             temp_island_radius = self.env._sim.pathfinder.island_radius(new_temp_position)
             if island_radius < temp_island_radius:
                 temp_position = new_temp_position
                 island_radius = temp_island_radius
-        
-        if island_radius<2.0:
+                print("Found better one")
+        embed()
+        if island_radius<5.0:
             print("Island radius is ", island_radius)
             embed()
         
@@ -267,18 +276,7 @@ class sim_env(threading.Thread):
             "DEPTH": 720,
         }
         print(self.env._sim.pathfinder.get_bounds())
-        floor_y = 0.0
-        top_down_map = maps.get_topdown_map(
-            self.env._sim.pathfinder, height=floor_y, meters_per_pixel=0.025
-        )
-        self.grid_dimensions = (top_down_map.shape[0], top_down_map.shape[1])
-        print("Grid size is ", self.grid_dimensions)
-        maps.draw_path(top_down_map, ([0,0], [300,300]))
-        plt.figure(figsize=(12, 8))
-        ax = plt.subplot(1, 1, 1)
-        ax.axis("on")
-        plt.imshow(top_down_map)
-        plt.savefig("./top_down_map.png")
+        
         # agent_init_pos = np.array(from_grid(self.env._sim.pathfinder, AGENT_START_POS_2d, self.grid_dimensions))
         # agent_state.position = agent_init_pos
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
@@ -362,7 +360,7 @@ class sim_env(threading.Thread):
             if temp_goal_dist > goal_distance:
                 self.final_goals_3d[0,:] = goal
                 goal_distance = temp_goal_dist
-        if (goal_distance<15):
+        if (goal_distance<10):
             print("chose another scene maybe!", goal_distance)
             embed()
         path.requested_end = self.final_goals_3d[0,:]
@@ -373,7 +371,7 @@ class sim_env(threading.Thread):
         agents_initial_pos_3d =[]
         agents_goal_pos_3d = []
         agents_initial_pos_3d.append(path.points[0])
-        agents_goal_pos_3d.append(path.points[-1])
+        agents_goal_pos_3d.append(path.points[1])
         sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
         file_obj = rigid_obj_mgr.add_object_by_template_id(sphere_template_id)
         # self.objs.append(obj)

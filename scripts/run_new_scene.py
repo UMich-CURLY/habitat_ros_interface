@@ -10,6 +10,9 @@ dataset = ARGS.dataset
 if dataset =="gibson":
     if (not os.path.isfile("./data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz")):     
         __ = os.system('python ./scripts/rearrangement_episode_gibson.py --scene '+ scene)
+elif dataset == "hm3d":
+    if (not os.path.isfile("./data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz")):     
+        __ = os.system('python ./scripts/rearrangement_episode_hm3d.py --scene '+ scene)
 else:
     if (not os.path.isfile("./data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz")):     
         __ = os.system('python ./scripts/rearrangement_episode.py --scene '+ scene)

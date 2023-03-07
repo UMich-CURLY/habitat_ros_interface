@@ -101,13 +101,13 @@ class ped_rvo():
         """
         self.neighbor_dist = self.config.get('orca_neighbor_dist', 5)
         self.max_neighbors = self.num_pedestrians
-        self.time_horizon = self.config.get('orca_time_horizon', 2.0)
+        self.time_horizon = self.config.get('orca_time_horizon', 4.0)
         self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 1.0)
         self.orca_radius = self.config.get('orca_radius', 0.2)
         self.orca_max_speed = self.config.get('orca_max_speed', 0.5)
 
         self.orca_sim = rvo2.PyRVOSimulator(
-            my_env.time_step,
+            1,
             self.neighbor_dist,
             self.max_neighbors,
             self.time_horizon,
