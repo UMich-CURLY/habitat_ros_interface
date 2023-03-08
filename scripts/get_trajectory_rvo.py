@@ -208,8 +208,7 @@ class ped_rvo():
         for i in range(len(initial_state)):
             self.orca_ped.append(self.orca_sim.addAgent((initial_state[i][0],initial_state[i][1]), velocity = (initial_state[i][2], initial_state[i][3])))
             desired_vel = np.array([initial_state[i][4] - initial_state[i][0], initial_state[i][5]-initial_state[i][1]]) 
-            desired_vel = desired_vel / \
-            np.linalg.norm(desired_vel) * self.orca_max_speed
+            desired_vel = desired_vel/np.linalg.norm(desired_vel) * self.orca_max_speed
             self.orca_sim.setAgentPrefVelocity(self.orca_ped[-1], tuple(desired_vel))
         self.orca_sim.doStep()
         computed_velocity=[]
@@ -225,16 +224,58 @@ class ped_rvo():
             for i in range(num_steps):
                 self.orca_sim.doStep()
                 colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))
+                vel = []
                 for j in range(len(initial_state)):
                     [x,y] = self.orca_sim.getAgentPosition(self.orca_ped[j])
                     velx = (x - initial_state[j][0])/self.dt
                     vely = (y - initial_state[j][1])/self.dt
+                    initial_state[j][0] = x
+                    initial_state[j][1] = y
+                    vel.append([velx,vely])
                     print(velx,vely)
                     self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j])
+                if np.all(vel[0] == [0.0,0.0] and vel[1] == [0.0,0.0]):
+                    break
             self.fig.savefig(filename+".png", dpi=300)
             plt.close(self.fig)
         return np.array(computed_velocity)
             
+    def get_position(self,initial_state, current_heading = None, groups = None, filename = None, save_anim = False):
+        self.orca_ped = []
+        for i in range(len(initial_state)):
+            self.orca_ped.append(self.orca_sim.addAgent((initial_state[i][0],initial_state[i][1]), velocity = (initial_state[i][2], initial_state[i][3])))
+            desired_vel = np.array([initial_state[i][4] - initial_state[i][0], initial_state[i][5]-initial_state[i][1]]) 
+            desired_vel = desired_vel/np.linalg.norm(desired_vel) * self.orca_max_speed
+            self.orca_sim.setAgentPrefVelocity(self.orca_ped[-1], tuple(desired_vel))
+        self.orca_sim.doStep()
+        computed_velocity=[]
+        for j in range(len(initial_state)):
+            [x,y] = self.orca_sim.getAgentPosition(self.orca_ped[j])
+            velx = (x - initial_state[j][0])/self.dt
+            vely = (y - initial_state[j][1])/self.dt
+            computed_velocity.append([velx,vely])
+        print(computed_velocity)
+        if save_anim:
+            self.plot_obstacles()
+            num_steps = 1000
+            for i in range(num_steps):
+                self.orca_sim.doStep()
+                colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))
+                vel = []
+                for j in range(len(initial_state)):
+                    [x,y] = self.orca_sim.getAgentPosition(self.orca_ped[j])
+                    velx = (x - initial_state[j][0])/self.dt
+                    vely = (y - initial_state[j][1])/self.dt
+                    initial_state[j][0] = x
+                    initial_state[j][1] = y
+                    vel.append([velx,vely])
+                    print(velx,vely)
+                    self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j])
+                if np.all(vel[0] == [0.0,0.0] and vel[1] == [0.0,0.0]):
+                    break
+            self.fig.savefig(filename+".png", dpi=300)
+            plt.close(self.fig)
+        return np.array(computed_velocity)
 
     
     def plot_obstacles(self):
