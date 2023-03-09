@@ -200,6 +200,7 @@ class sim_env(threading.Thread):
     _sensor_rate = 50  # hz
     _r_sensor = rospy.Rate(_sensor_rate)
     _current_episode = 0
+    sensor_time_step = 1/_sensor_rate
     _total_number_of_episodes = 0
     _nodes = []
     _global_plan_published = False
@@ -211,7 +212,7 @@ class sim_env(threading.Thread):
     action_uncertainty_rate = 0.9
     follower = []
     new_goal = False
-    control_frequency = 5
+    control_frequency = 1
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
     linear_velocity = np.array([0.0,0.0,0.0])
@@ -558,21 +559,12 @@ class sim_env(threading.Thread):
         # self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
         self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}})
         ##### For teleop human/follower 
-
+        self.env.sim.step_physics(self.sensor_time_step)
+        self.observations.update(self.env._task._sim.get_sensor_observations())
         # self.follower_velocity_control.linear_velocity = self.linear_velocity
         # self.follower_velocity_control.angular_velocity = self.angular_velocity
 
     def update_pos_vel(self):
-        lin_vel = self.linear_velocity[2]
-        ang_vel = self.angular_velocity[1]
-        base_vel = [lin_vel, ang_vel]
-        # self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
-        self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}})
-        ##### For teleop human/follower 
-
-        # self.follower_velocity_control.linear_velocity = self.linear_velocity
-        # self.follower_velocity_control.angular_velocity = self.angular_velocity
-
         #### Update agent state 
         agent_pos = self.env.sim.robot.base_pos
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
@@ -694,9 +686,8 @@ class sim_env(threading.Thread):
                 self.initial_state[i][2:4] = computed_velocity[i]
                 self.goal_dist[i] = np.linalg.norm((np.array(self.initial_state[i][0:2])-np.array(self.initial_state[i][4:6])))
         self.human_update_counter +=1
-        self.env.sim.step_physics(self.time_step)
         
-        self.observations.update(self.env._task._sim.get_sensor_observations())
+        
         
 
 
@@ -872,7 +863,7 @@ def main():
     # # Old code
     while not rospy.is_shutdown():
    
-        my_env.update_orientation()
+        my_env.update_pos_vel()
         # rospy.spin()
         my_env._r_control.sleep()
 
