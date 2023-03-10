@@ -55,6 +55,7 @@ AGENT_START_POS_2d = [800,100]
 FOLLOWER_OFFSET = [1.5,-1.0,0.0]
 AGENTS_SPEED = 0.5
 USE_RVO = True
+MPP = 0.001
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
     bounds = pathfinder.get_bounds()
@@ -145,7 +146,6 @@ def map_to_base_link(msg, my_env):
                     "decision_frame",
                     "base_link"
     )
-    print(msg, theta)
     poseMsg = PoseStamped()
     poseMsg.header.stamp = rospy.Time.now()
     poseMsg.header.frame_id = "base_link"
@@ -190,7 +190,6 @@ def map_to_base_link(msg, my_env):
     goal_marker.color.g = 1.0
     goal_marker.color.b = 0.0
     my_env._pub_goal_marker.publish(goal_marker)
-    print(my_env.initial_state)
 
 class sim_env(threading.Thread):
     _x_axis = 0
@@ -212,9 +211,11 @@ class sim_env(threading.Thread):
     action_uncertainty_rate = 0.9
     follower = []
     new_goal = False
-    control_frequency = 1
+    control_frequency = 20
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
+    human_control_frequency = 5
+    human_time_step = 1/human_control_frequency
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
     received_vel = False
@@ -227,7 +228,8 @@ class sim_env(threading.Thread):
     obs = []
     update_counter = 0
     human_update_counter = 0 
-    update_multiple = 1
+    agent_update_counter = 0
+    update_multiple = human_time_step/time_step
     def __init__(self, env_config_file):
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
@@ -429,7 +431,6 @@ class sim_env(threading.Thread):
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
         self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+goal_pos)
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "leader_follower_initial", save_anim = True)
-        embed()
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "leader_follower_initial")
         human_state = self.follower.rigid_state
         next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
@@ -559,10 +560,15 @@ class sim_env(threading.Thread):
         # self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
         self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}})
         ##### For teleop human/follower 
-        self.env.sim.step_physics(self.sensor_time_step)
-        self.observations.update(self.env._task._sim.get_sensor_observations())
         # self.follower_velocity_control.linear_velocity = self.linear_velocity
         # self.follower_velocity_control.angular_velocity = self.angular_velocity
+        if(self.agent_update_counter/self.update_multiple == self.human_update_counter):
+            self.update_pos_vel()
+        self.agent_update_counter +=1
+        
+        #### Forward simulate
+        self.env.sim.step_physics(self.sensor_time_step)
+        self.observations.update(self.env._task._sim.get_sensor_observations())
 
     def update_pos_vel(self):
         #### Update agent state 
@@ -608,24 +614,24 @@ class sim_env(threading.Thread):
             self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
         # print(computed_velocity, self.follower_velocity_control.linear_velocity)
         self.update_counter+=1
-        a = self.env._sim.robot.base_transformation
-        b = a.transform_point([0.5,0.0,0.0])
-        d = a.transform_point([0.0,0.0,0.0])
-        c = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
-        e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
-        norm_fol = np.sqrt(computed_velocity[1,0]**2 + computed_velocity[1,1]**2)
-        # if(ang_vel!=0.0):
-        #     vel = (c-e)*(AGENTS_SPEED/np.linalg.norm(c-e)*np.ones([1,2]))[0]
-        # else:
-        #     vel = (c-e)*(lin_vel/np.linalg.norm(c-e)*np.ones([1,2]))[0]
-        vel = (c-e)*(AGENTS_SPEED/np.linalg.norm(c-e)*np.ones([1,2]))[0]
-        self.initial_state[0][2:4] = list(vel)
+        # a = self.env._sim.robot.base_transformation
+        # b = a.transform_point([0.5,0.0,0.0])
+        # d = a.transform_point([0.0,0.0,0.0])
+        # c = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
+        # e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
+        # norm_fol = np.sqrt(computed_velocity[1,0]**2 + computed_velocity[1,1]**2)
+        # # if(ang_vel!=0.0):
+        # #     vel = (c-e)*(AGENTS_SPEED/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+        # # else:
+        # #     vel = (c-e)*(lin_vel/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+        # vel = (c-e)*(AGENTS_SPEED/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+        # self.initial_state[0][2:4] = list(vel)
         self.initial_state[1][2:4] = [computed_velocity[1,0], computed_velocity[1,1]]
-        map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
+        # map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
 
         
         agent_state = self.env.sim.get_agent_state(0)
-        if(np.mod(self.human_update_counter, self.update_multiple) ==0 and self.N >1):
+        if(self.N >1):
             computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
             for i in range(self.N):
                 human_state = self.objs[i].rigid_state
@@ -721,7 +727,34 @@ class sim_env(threading.Thread):
 
             self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_depth.publish(np.float32(depth_with_res))
-            self.update_agent_pos_vel()
+            #### Update agent state 
+            agent_pos = self.env.sim.robot.base_pos
+            start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
+            initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
+            initial_pos = [pos*0.025 for pos in initial_pos]
+            self.initial_state[0][0:2] = initial_pos
+            self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
+            #### Update Follower state in ESFM
+            object_state = self.follower.rigid_state.translation
+            current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
+            current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
+            self.initial_state[1][0:2] = current_initial_pos_2d
+            self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
+            #### Update agent velocity 
+            a = self.env._sim.robot.base_transformation
+            b = a.transform_point([0.5,0.0,0.0])
+            d = a.transform_point([0.0,0.0,0.0])
+            c = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
+            e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
+            if(self.angular_velocity[1]!=0.0):
+                vel = (c-e)*(0.01/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+            else:
+                vel = (c-e)*(self.linear_velocity[2]/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+            # vel = (c-e)*(self.linear_velocity[2]/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+            self.initial_state[0][2:4] = list(vel)
+            #### Publish pose and transform
+            map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
+
             # print(agent_state)
             # self.vel_control_obj_2.linear_velocity = np.array([0.0,0.0,0.0])
             # self.vel_control_obj_2.angular_velocity = np.array([0.0,0.0,0.0])
@@ -745,7 +778,7 @@ class sim_env(threading.Thread):
             # self.vel_control_objs[0].angular_velocity = self.angular_velocity
             # self.vel_control.linear_velocity = self.linear_velocity
             # self.vel_control.angular_velocity = self.angular_velocity
-        self.update_pos_vel()
+        self.update_agent_pos_vel()
         if(self._global_plan_published):
             if(self.new_goal and self._current_episode<self._total_number_of_episodes):
                 print("Executing goal number ", self._current_episode, self._total_number_of_episodes)
@@ -863,7 +896,7 @@ def main():
     # # Old code
     while not rospy.is_shutdown():
    
-        my_env.update_pos_vel()
+        my_env.update_orientation()
         # rospy.spin()
         my_env._r_control.sleep()
 

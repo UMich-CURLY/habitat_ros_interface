@@ -81,8 +81,8 @@ def main():
         print("Replacing the data config to the new scene ", scene)
         documents = yaml.dump(config, file)
     #first parameter is config path, second parameter is map name
-    if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
-        get_topdown_map("configs/tasks/custom_rearrange.yml", "resolution_"+scene+"_"+str(meters_per_pixel))
+    # if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
+    get_topdown_map("configs/tasks/custom_rearrange.yml", "resolution_"+scene+"_"+str(meters_per_pixel))
 
 if __name__ == "__main__":
     main()

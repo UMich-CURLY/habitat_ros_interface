@@ -15,10 +15,10 @@ from habitat.utils.visualizations import maps
 import toml
 import matplotlib.pyplot as plt
 
-def my_ceil(a, precision=1):
+def my_ceil(a, precision=2):
     return np.true_divide(np.ceil(a * 10**precision), 10**precision)
 
-def my_floor(a, precision=1):
+def my_floor(a, precision=2):
     return np.true_divide(np.floor(a * 10**precision), 10**precision)
 
 class ped_rvo():
@@ -99,15 +99,15 @@ class ped_rvo():
         maxSpeed        The default maximum speed of a new agent.
                         Must be non-negative.
         """
-        self.neighbor_dist = self.config.get('orca_neighbor_dist', 5)
+        self.neighbor_dist = self.config.get('orca_neighbor_dist', 2)
         self.max_neighbors = self.num_pedestrians
-        self.time_horizon = self.config.get('orca_time_horizon', 2.0)
-        self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 1.0)
+        self.time_horizon = self.config.get('orca_time_horizon', 1.0)
+        self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 0.5)
         self.orca_radius = self.config.get('orca_radius', 0.2)
         self.orca_max_speed = self.config.get('orca_max_speed', 0.5)
-        self.dt = my_env.time_step
+        self.dt = my_env.human_time_step
         self.orca_sim = rvo2.PyRVOSimulator(
-            my_env.time_step,
+            my_env.human_time_step,
             self.neighbor_dist,
             self.max_neighbors,
             self.time_horizon,
@@ -197,7 +197,9 @@ class ped_rvo():
                     # obs.append([j,i])
                 if img_np[i][j]== 0:    # sample-map 128 -> space, 0 -> wall, 255-> nonspace
                     wall=wall+1
-                    self.orca_sim.addObstacle([tuple([my_floor(j/40), my_floor(i/40)]), tuple([my_ceil(j/40),my_ceil(i/40)]), tuple([my_ceil(j/40),my_ceil(i/40)]), tuple([my_floor(j/40), my_floor(i/40)])])
+                    self.orca_sim.addObstacle([tuple([my_floor(j/40), my_floor(i/40)]), tuple([my_ceil(j/40),my_floor(i/40)]), tuple([my_ceil(j/40),my_ceil(i/40)]), tuple([my_floor(j/40), my_ceil(i/40)])])
+                    # self.orca_sim.addObstacle([tuple([my_floor(j/40), my_floor(i/40)]), tuple([my_floor(j/40), my_floor(i/40)]), tuple([my_floor(j/40), my_floor(i/40)]), tuple([my_floor(j/40), my_floor(i/40)])])
+                    # self.orca_sim.addObstacle([tuple([j/40, i/40]), tuple([j/40,i/40]), tuple([j/40,i/40]), tuple([j/40, i/40])])
                 if img_np[i][j]== 128:
                     space=space+1
         print("building the obstacle tree")
@@ -233,7 +235,7 @@ class ped_rvo():
                     initial_state[j][1] = y
                     vel.append([velx,vely])
                     print(velx,vely)
-                    self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j])
+                    self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=0.5, color=colors[j])
                 if np.all(vel[0] == [0.0,0.0] and vel[1] == [0.0,0.0]):
                     break
             self.fig.savefig(filename+".png", dpi=300)
@@ -305,5 +307,5 @@ class ped_rvo():
             ymin = min(ymin,obs[1])
             ymax = max(ymax,obs[1])
         self.ax.set(xlim=(xmin-2,xmax+3), ylim=(ymin-2, ymax+3))
-        self.ax.plot(xy_limits[:, 0], xy_limits[:, 1], "o", color="black", markersize=0.5)
+        self.ax.plot(xy_limits[:, 0], xy_limits[:, 1], "o", color="black", markersize=0.1)
     
