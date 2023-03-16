@@ -308,7 +308,7 @@ class sim_env(threading.Thread):
         # self.tour_plan = tour_planner()
         print("before initialized object")
         if USE_RVO:
-            self.sfm = ped_rvo(self, "./maps/resolution_"+scene+"_0.025.pgm")
+            self.sfm = ped_rvo(self, map_path = "./maps/resolution_"+scene+"_0.01.pgm", resolution = 0.01)
             print("Initialized rvo2 sim")
         else:
             self.sfm = social_force()

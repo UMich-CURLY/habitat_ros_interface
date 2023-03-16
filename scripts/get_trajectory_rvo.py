@@ -24,7 +24,7 @@ def my_floor(a, precision=2):
 class ped_rvo():
     
     obs = []
-    def __init__(self, my_env, map_path, config_file = "./scripts/rvo2_default.toml"):
+    def __init__(self, my_env, map_path, config_file = "./scripts/rvo2_default.toml", resolution = 0.025):
         num_sqrt_meter = np.sqrt(my_env.grid_dimensions[0] * my_env.grid_dimensions[1]*0.025*0.025)
         self.config = {}
         user_config = toml.load(config_file)
@@ -115,7 +115,8 @@ class ped_rvo():
             self.orca_radius,
             self.orca_max_speed)
         print("About to load obs")
-        self.load_obs_from_map(map_path)
+        resolution = 0.01
+        self.load_obs_from_map(map_path, resolution)
         self.fig, self.ax = plt.subplots()
         # img = Image.open("/Py_Social_ROS/default.pgm").convert('L')
         # img.show()
@@ -183,7 +184,7 @@ class ped_rvo():
             self.obs.append([map_corners[2][0], map_corners[3][0], map_corners[2][1], map_corners[3][1]])
             self.obs.append([map_corners[3][0], map_corners[4][0], map_corners[3][1], map_corners[4][1]])
     
-    def load_obs_from_map(self, map_path):
+    def load_obs_from_map(self, map_path, resolution):
         img = Image.open(map_path).convert('L')
         # img.show()
         img_np = np.array(img)  # ndarray
@@ -197,7 +198,7 @@ class ped_rvo():
                     # obs.append([j,i])
                 if img_np[i][j]== 0:    # sample-map 128 -> space, 0 -> wall, 255-> nonspace
                     wall=wall+1
-                    self.orca_sim.addObstacle([tuple([my_floor(j/40), my_floor(i/40)]), tuple([my_ceil(j/40),my_floor(i/40)]), tuple([my_ceil(j/40),my_ceil(i/40)]), tuple([my_floor(j/40), my_ceil(i/40)])])
+                    self.orca_sim.addObstacle([tuple([my_floor(j*resolution), my_floor(i*resolution)]), tuple([my_ceil(j*resolution),my_floor(i*resolution)]), tuple([my_ceil(j*resolution),my_ceil(i*resolution)]), tuple([my_floor(j*resolution), my_ceil(i*resolution)])])
                     # self.orca_sim.addObstacle([tuple([my_floor(j/40), my_floor(i/40)]), tuple([my_floor(j/40), my_floor(i/40)]), tuple([my_floor(j/40), my_floor(i/40)]), tuple([my_floor(j/40), my_floor(i/40)])])
                     # self.orca_sim.addObstacle([tuple([j/40, i/40]), tuple([j/40,i/40]), tuple([j/40,i/40]), tuple([j/40, i/40])])
                 if img_np[i][j]== 128:
