@@ -101,9 +101,9 @@ class ped_rvo():
         """
         self.neighbor_dist = self.config.get('orca_neighbor_dist', 2)
         self.max_neighbors = self.num_pedestrians
-        self.time_horizon = self.config.get('orca_time_horizon', 1.0)
-        self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 0.5)
-        self.orca_radius = self.config.get('orca_radius', 0.2)
+        self.time_horizon = self.config.get('orca_time_horizon', 2.0)
+        self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 4.0)
+        self.orca_radius = self.config.get('orca_radius', 0.35)
         self.orca_max_speed = self.config.get('orca_max_speed', 0.5)
         self.dt = my_env.human_time_step
         self.orca_sim = rvo2.PyRVOSimulator(
@@ -115,7 +115,6 @@ class ped_rvo():
             self.orca_radius,
             self.orca_max_speed)
         print("About to load obs")
-        resolution = 0.01
         self.load_obs_from_map(map_path, resolution)
         self.fig, self.ax = plt.subplots()
         # img = Image.open("/Py_Social_ROS/default.pgm").convert('L')
@@ -209,7 +208,10 @@ class ped_rvo():
     def get_velocity(self,initial_state, current_heading = None, groups = None, filename = None, save_anim = False):
         self.orca_ped = []
         for i in range(len(initial_state)):
-            self.orca_ped.append(self.orca_sim.addAgent((initial_state[i][0],initial_state[i][1]), velocity = (initial_state[i][2], initial_state[i][3])))
+            if i==0:
+                self.orca_ped.append(self.orca_sim.addAgent((initial_state[i][0],initial_state[i][1]), velocity = (initial_state[i][2], initial_state[i][3]), radius = 0.55))
+            else:
+                self.orca_ped.append(self.orca_sim.addAgent((initial_state[i][0],initial_state[i][1]), velocity = (initial_state[i][2], initial_state[i][3])))
             desired_vel = np.array([initial_state[i][4] - initial_state[i][0], initial_state[i][5]-initial_state[i][1]]) 
             desired_vel = desired_vel/np.linalg.norm(desired_vel) * self.orca_max_speed
             self.orca_sim.setAgentPrefVelocity(self.orca_ped[-1], tuple(desired_vel))

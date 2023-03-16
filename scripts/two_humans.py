@@ -587,10 +587,31 @@ class sim_env(threading.Thread):
         #### Calculate new velocity
         human_state = self.follower.rigid_state
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
-        norm_fol = np.sqrt(computed_velocity[1,0]**2 + computed_velocity[1,1]**2)
         computed_velocity[1,:] = [computed_velocity[1,0], computed_velocity[1,1]]
-        # print("Computed Velocity is ", computed_velocity)
         next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
+        diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
+        diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
+        angle= tf.transformations.euler_from_quaternion(diff_list)
+        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = (np.pi/2-0.97)*180/np.pi+angle[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
+        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+        object_orientation2 = rotation_z * rotation_y * rotation_x
+        agent_state = self.env._sim.get_agent_state(0)
+        if(not np.isnan(angle).any()):
+            set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
+            if(self.goal_dist[1]>self.goal_dist[0]):
+                self.follower_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
+                print("setting linear velocity for follower")
+            else:
+                self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
+        else:
+            self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
+            self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
+            computed_velocity[1,:] = [computed_velocity[1,0], computed_velocity[1,1]]
+        next_vel_control = mn.Vector3(computed_velocity[0,0], computed_velocity[0,1], 0.0)
         diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
         diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
         angle= tf.transformations.euler_from_quaternion(diff_list)
