@@ -611,6 +611,7 @@ class sim_env(threading.Thread):
             self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
             self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
             computed_velocity[1,:] = [computed_velocity[1,0], computed_velocity[1,1]]
+        #### Setting robot velocity, POINT DYNAMICS ####
         next_vel_control = mn.Vector3(computed_velocity[0,0], computed_velocity[0,1], 0.0)
         diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
         diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
@@ -624,17 +625,15 @@ class sim_env(threading.Thread):
         object_orientation2 = rotation_z * rotation_y * rotation_x
         agent_state = self.env._sim.get_agent_state(0)
         if(not np.isnan(angle).any()):
-            set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-            if(self.goal_dist[1]>self.goal_dist[0]):
-                self.follower_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
-                print("setting linear velocity for follower")
-            else:
-                self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
+            self.env._sim.robot.base_rot = -angle[2]
+            self.linear_velocity[2] = np.linalg.norm([computed_velocity[1,0], 0.0,  computed_velocity[1,1]])
+            print("setting linear velocity for robot")
         else:
-            self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
-            self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
+            self.linear_velocity = [0.0,0.0,0.0]
+            self.angular_velocity = [0.0,0.0,0.0]
         # print(computed_velocity, self.follower_velocity_control.linear_velocity)
         self.update_counter+=1
+        embed()
         # a = self.env._sim.robot.base_transformation
         # b = a.transform_point([0.5,0.0,0.0])
         # d = a.transform_point([0.0,0.0,0.0])
@@ -768,6 +767,7 @@ class sim_env(threading.Thread):
             c = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
             e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
             if(self.angular_velocity[1]!=0.0):
+                print("Angular velocity found")
                 vel = (c-e)*(0.01/np.linalg.norm(c-e)*np.ones([1,2]))[0]
             else:
                 vel = (c-e)*(self.linear_velocity[2]/np.linalg.norm(c-e)*np.ones([1,2]))[0]
@@ -899,8 +899,10 @@ class sim_env(threading.Thread):
             self.new_goal=True
 
 def callback(vel, my_env):
-    my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (1.0 * vel.linear.x)])
-    my_env.angular_velocity = np.array([0, vel.angular.z, 0])
+    #### Robot Control ####
+    # my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (1.0 * vel.linear.x)])
+    # my_env.angular_velocity = np.array([0, vel.angular.z, 0])
+    #### Follower control #####
     # my_env.linear_velocity = np.array([-vel.linear.x*np.sin(0.97), -vel.linear.x*np.cos(0.97),0.0])
     # my_env.angular_velocity = np.array([0, 0, vel.angular.z])
     my_env.received_vel = True
