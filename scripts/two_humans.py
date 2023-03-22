@@ -124,7 +124,17 @@ def quat_from_two_vectors(v0: np.ndarray, v1: np.ndarray) -> qt.quaternion:
     s = np.sqrt((1 + c) * 2)
     return qt.quaternion(s * 0.5, *(axis / s))
 
-
+def draw_axes(sim, translation, axis_len=1.0):
+    lr = sim.get_debug_line_render()
+    # draw axes with x+ = red, y+ = green, z+ = blue
+    opacity = 1.0
+    red = mn.Color4(1.0, 0.0, 0.0, opacity)
+    green = mn.Color4(0.0, 1.0, 0.0, opacity)
+    blue = mn.Color4(0.0, 0.0, 1.0, opacity)
+    white = mn.Color4(1.0, 1.0, 1.0, opacity)
+    lr.draw_transformed_line(translation, mn.Vector3(axis_len, 0, 0), red)
+    lr.draw_transformed_line(translation, mn.Vector3(0, axis_len, 0), green)
+    lr.draw_transformed_line(translation, mn.Vector3(0, 0, axis_len), blue)
 # Set an object transform relative to the agent state
 def set_object_state_from_agent(
     sim,
@@ -266,7 +276,9 @@ class sim_env(threading.Thread):
             embed()
         
         agent_state.position = temp_position
-        
+        self.lr = self.env._sim.get_debug_line_render()
+        self.lr.set_line_width(3)
+
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
         print(self.env.sim)
@@ -565,9 +577,12 @@ class sim_env(threading.Thread):
         if(self.agent_update_counter/self.update_multiple == self.human_update_counter):
             self.update_pos_vel()
         self.agent_update_counter +=1
-        
+        self.lr.push_transform(self.env._sim.robot.base_transformation)
+        origin = mn.Vector3(0.0, 0.0, 0.0)
+        draw_axes(self.env._sim,origin, axis_len=0.4)
+        self.lr.pop_transform()
         #### Forward simulate
-        self.env.sim.step_physics(self.sensor_time_step)
+        self.env.sim.step_physics(self.time_step)
         self.observations.update(self.env._task._sim.get_sensor_observations())
 
     def update_pos_vel(self):
@@ -626,14 +641,15 @@ class sim_env(threading.Thread):
         agent_state = self.env._sim.get_agent_state(0)
         if(not np.isnan(angle).any()):
             self.env._sim.robot.base_rot = -angle[2]
-            self.linear_velocity[2] = np.linalg.norm([computed_velocity[1,0], 0.0,  computed_velocity[1,1]])
+            self.linear_velocity[2] = np.linalg.norm([computed_velocity[0,0], 0.0,  computed_velocity[0,1]])
             print("setting linear velocity for robot")
         else:
             self.linear_velocity = [0.0,0.0,0.0]
             self.angular_velocity = [0.0,0.0,0.0]
         # print(computed_velocity, self.follower_velocity_control.linear_velocity)
         self.update_counter+=1
-        embed()
+        print(" The robot heading is ", self.env._sim.robot.base_rot)
+        print("The comuted velocity angle is ", np.arctan2(computed_velocity[0,1], computed_velocity[0,0]))
         # a = self.env._sim.robot.base_transformation
         # b = a.transform_point([0.5,0.0,0.0])
         # d = a.transform_point([0.0,0.0,0.0])
@@ -775,7 +791,7 @@ class sim_env(threading.Thread):
             self.initial_state[0][2:4] = list(vel)
             #### Publish pose and transform
             map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
-
+            
             # print(agent_state)
             # self.vel_control_obj_2.linear_velocity = np.array([0.0,0.0,0.0])
             # self.vel_control_obj_2.angular_velocity = np.array([0.0,0.0,0.0])
