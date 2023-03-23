@@ -101,8 +101,8 @@ class ped_rvo():
         """
         self.neighbor_dist = self.config.get('orca_neighbor_dist', 2)
         self.max_neighbors = self.num_pedestrians
-        self.time_horizon = self.config.get('orca_time_horizon', 2.0)
-        self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 4.0)
+        self.time_horizon = self.config.get('orca_time_horizon', 1.0)
+        self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 2.0)
         self.orca_radius = self.config.get('orca_radius', 0.35)
         self.orca_max_speed = self.config.get('orca_max_speed', 0.5)
         self.dt = my_env.human_time_step
@@ -118,7 +118,7 @@ class ped_rvo():
         self.load_obs_from_map(map_path, resolution)
         self.fig, self.ax = plt.subplots()
         self.plot_obstacles()
-        self.max_counter = 10
+        self.max_counter = int(10/my_env.human_time_step)
         self.update_number = 0
         # img = Image.open("/Py_Social_ROS/default.pgm").convert('L')
         # img.show()
@@ -220,20 +220,23 @@ class ped_rvo():
             self.orca_sim.setAgentPrefVelocity(self.orca_ped[-1], tuple(desired_vel))
         self.orca_sim.doStep()
         colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))
+        alpha = np.linspace(0.5,1,self.max_counter+1)
         computed_velocity=[]
         for j in range(len(initial_state)):
             [x,y] = self.orca_sim.getAgentPosition(self.orca_ped[j])
             velx = (x - initial_state[j][0])/self.dt
             vely = (y - initial_state[j][1])/self.dt
             computed_velocity.append([velx,vely])
-            self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j])
-            self.update_number+=1
-            if (np.all(computed_velocity[0] == [0.0,0.0] and computed_velocity[1] == [0.0,0.0]) or self.update_number >= self.max_counter):
+            if (np.all(computed_velocity[0] == [0.0,0.0] and computed_velocity[1] == [0.0,0.0]) or self.update_number == self.max_counter):
                 self.fig.savefig("save_stepwise"+".png", dpi=300)
                 plt.close(self.fig)
+            elif (self.update_number < self.max_counter):
+                self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
             print("Initial state is ", [initial_state[j][0], initial_state[j][1]])
             print("Point reaches in this step is ", [x,y])
-        print(computed_velocity)
+        self.update_number+=1
+        
+        print("Computed velocity by rvo2 is ",computed_velocity)
         
         if save_anim:
             self.plot_obstacles()
