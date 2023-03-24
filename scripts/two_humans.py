@@ -439,7 +439,7 @@ class sim_env(threading.Thread):
         object_state = self.leader.rigid_state.translation
         current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+goal_pos)
+        self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+initial_pos)
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         ##### Follower Human being initiated #####
         human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
@@ -475,7 +475,7 @@ class sim_env(threading.Thread):
         object_state = self.follower.rigid_state.translation
         current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+goal_pos)
+        self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+initial_pos)
         
         # computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "leader_follower_initial", save_anim = True)
         # computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "leader_follower_initial")
@@ -562,11 +562,13 @@ class sim_env(threading.Thread):
         current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
         self.initial_state[0][0:2] = current_initial_pos_2d
+        self.initial_state[0][4:6] = initial_pos
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         #### Update Follower state in ESFM
         object_state = self.follower.rigid_state.translation
         current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
+        self.initial_state[1][4:6] = initial_pos
         self.initial_state[1][0:2] = current_initial_pos_2d
         self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
         #### Calculate new velocity
@@ -587,11 +589,11 @@ class sim_env(threading.Thread):
         agent_state = self.env._sim.get_agent_state(0)
         if(not np.isnan(angle).any()):
             set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-            if(self.goal_dist[1]>self.goal_dist[0]):
-                self.follower_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
-                print("setting linear velocity for follower")
-            else:
-                self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
+            # if(self.goal_dist[1]>self.goal_dist[0]):
+            self.follower_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
+            print("setting linear velocity for follower")
+            # else:
+                # self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
         else:
             self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
             self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
@@ -697,7 +699,6 @@ class sim_env(threading.Thread):
             c = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
             e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
             if(self.angular_velocity[1]!=0.0):
-                print("Angular velocity found")
                 vel = (c-e)*(0.01/np.linalg.norm(c-e)*np.ones([1,2]))[0]
             else:
                 vel = (c-e)*(self.linear_velocity[2]/np.linalg.norm(c-e)*np.ones([1,2]))[0]

@@ -101,7 +101,7 @@ class ped_rvo():
         """
         self.neighbor_dist = self.config.get('orca_neighbor_dist', 2)
         self.max_neighbors = self.num_pedestrians
-        self.time_horizon = self.config.get('orca_time_horizon', 1.0)
+        self.time_horizon = self.config.get('orca_time_horizon', 5.0)
         self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 2.0)
         self.orca_radius = self.config.get('orca_radius', 0.35)
         self.orca_max_speed = self.config.get('orca_max_speed', 0.5)
@@ -232,7 +232,7 @@ class ped_rvo():
                 plt.close(self.fig)
             elif (self.update_number < self.max_counter):
                 self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
-            print("Initial state is ", [initial_state[j][0], initial_state[j][1]])
+            print("Initial state is ",initial_state[j])
             print("Point reaches in this step is ", [x,y])
         self.update_number+=1
         
