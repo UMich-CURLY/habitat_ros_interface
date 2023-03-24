@@ -401,8 +401,9 @@ class sim_env(threading.Thread):
         
         goal_pos = list(to_grid(self.env._sim.pathfinder, agents_goal_pos_3d[0], self.grid_dimensions))
         goal_pos = [pos*0.025 for pos in goal_pos]
-        
-        ##### Leader Human being initiated #####
+        self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+goal_pos)
+        self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
+        ##### Human 1 being initiated #####
         human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
         self.leader_id = human_template_id
         file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
@@ -437,8 +438,8 @@ class sim_env(threading.Thread):
         current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
         self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+initial_pos)
-        self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
-        ##### Follower Human being initiated #####
+        self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
+        ##### Human 2 being initiated #####
         human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
         self.follower_id = human_template_id
         file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
@@ -473,7 +474,7 @@ class sim_env(threading.Thread):
         current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
         self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+initial_pos)
-        
+        self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
         # computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "leader_follower_initial", save_anim = True)
         # computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "leader_follower_initial")
         # human_state = self.follower.rigid_state
@@ -557,26 +558,27 @@ class sim_env(threading.Thread):
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
         initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
-
+        self.initial_state[0][0:2] = initial_pos
+        self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         ####  Update Leader state in ESFM 
         object_state = self.leader.rigid_state.translation
-        current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
-        current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        self.initial_state[0][0:2] = current_initial_pos_2d
-        self.initial_state[0][4:6] = initial_pos
-        self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
-        #### Update Follower state in ESFM
-        object_state = self.follower.rigid_state.translation
         current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
         self.initial_state[1][0:2] = current_initial_pos_2d
         self.initial_state[1][4:6] = initial_pos
         self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
+        #### Update Follower state in ESFM
+        object_state = self.follower.rigid_state.translation
+        current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
+        current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
+        self.initial_state[2][4:6] = initial_pos
+        self.initial_state[2][0:2] = current_initial_pos_2d
+        self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
         #### Calculate new velocity
         human_state = self.follower.rigid_state
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
-        computed_velocity[1,:] = [computed_velocity[1,0], computed_velocity[1,1]]
-        next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
+        computed_velocity[2,:] = [computed_velocity[2,0], computed_velocity[2,1]]
+        next_vel_control = mn.Vector3(computed_velocity[2,0], computed_velocity[2,1], 0.0)
         diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
         diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
         angle= tf.transformations.euler_from_quaternion(diff_list)
@@ -591,17 +593,17 @@ class sim_env(threading.Thread):
         if(not np.isnan(angle).any()):
             set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
             # if(self.goal_dist[1]>self.goal_dist[0]):
-            self.follower_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
+            self.follower_velocity_control.linear_velocity = [computed_velocity[2,0], 0.0,  computed_velocity[2,1]]
             print("setting linear velocity for follower")
             # else:
                 # self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
         else:
             self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
             self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
-            computed_velocity[1,:] = [computed_velocity[1,0], computed_velocity[1,1]]
+            computed_velocity[2,:] = [computed_velocity[2,0], computed_velocity[2,1]]
         #### Setting leader velocity ####
         human_state = self.leader.rigid_state
-        next_vel_control = mn.Vector3(computed_velocity[0,0], computed_velocity[0,1], 0.0)
+        next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
         diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
         diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
         angle= tf.transformations.euler_from_quaternion(diff_list)
@@ -615,7 +617,7 @@ class sim_env(threading.Thread):
         agent_state = self.env._sim.get_agent_state(0)
         if(not np.isnan(angle).any()):
             set_object_state_from_agent(self.env._sim, self.leader, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-            self.leader_velocity_control.linear_velocity = [computed_velocity[0,0], 0.0,  computed_velocity[0,1]]
+            self.leader_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
             print("setting linear velocity for leader")
         else:
             self.leader_velocity_control.linear_velocity = [0.0,0.0,0.0]
