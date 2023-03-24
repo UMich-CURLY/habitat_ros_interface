@@ -333,7 +333,7 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
 
-        self.N = 0
+        self.N = 1
         self.groups = [[0,1]]
 
 
@@ -346,7 +346,7 @@ class sim_env(threading.Thread):
         humans_initial_pos_3d = []
         humans_goal_pos_3d = []
         humans_initial_velocity = []
-        self.final_goals_3d = np.zeros([self.N+2, 3])
+        self.final_goals_3d = np.zeros([1, 3])
         self.goal_dist = np.zeros(self.N+2)
 
 
@@ -401,7 +401,7 @@ class sim_env(threading.Thread):
         
         goal_pos = list(to_grid(self.env._sim.pathfinder, agents_goal_pos_3d[0], self.grid_dimensions))
         goal_pos = [pos*0.025 for pos in goal_pos]
-        self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+goal_pos)
+        self.initial_state.append(initial_pos+agents_initial_velocity+goal_pos)
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         ##### Human 1 being initiated #####
         human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
@@ -622,7 +622,7 @@ class sim_env(threading.Thread):
         else:
             self.leader_velocity_control.linear_velocity = [0.0,0.0,0.0]
             self.leader_velocity_control.angular_velocity = [0.0,0.0,0.0]
-            computed_velocity[0,:] = [computed_velocity[0,0], computed_velocity[0,1]]
+            computed_velocity[1,:] = [computed_velocity[1,0], computed_velocity[1,1]]
         # print(computed_velocity, self.follower_velocity_control.linear_velocity)
         self.update_counter+=1
         # print(" The robot heading is ", self.env._sim.robot.base_rot)
@@ -642,7 +642,7 @@ class sim_env(threading.Thread):
         # vel = (c-e)*(AGENTS_SPEED/np.linalg.norm(c-e)*np.ones([1,2]))[0]
         # self.initial_state[0][2:4] = list(vel)
         self.initial_state[1][2:4] = [computed_velocity[1,0], computed_velocity[1,1]]
-        self.initial_state[0][2:4] = [computed_velocity[0,0], computed_velocity[0,1]]
+        self.initial_state[2][2:4] = [computed_velocity[2,0], computed_velocity[2,1]]
         # map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
 
         
@@ -687,14 +687,14 @@ class sim_env(threading.Thread):
             object_state = self.leader.rigid_state.translation
             current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
             current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-            self.initial_state[0][0:2] = current_initial_pos_2d
-            self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
+            self.initial_state[1][0:2] = current_initial_pos_2d
+            self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
             #### Update Follower state in ESFM
             object_state = self.follower.rigid_state.translation
             current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
             current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-            self.initial_state[1][0:2] = current_initial_pos_2d
-            self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
+            self.initial_state[2][0:2] = current_initial_pos_2d
+            self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
             #### Update agent velocity 
             a = self.env._sim.robot.base_transformation
             b = a.transform_point([0.5,0.0,0.0])
@@ -702,7 +702,7 @@ class sim_env(threading.Thread):
             c = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
             e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
             if(self.angular_velocity[1]!=0.0):
-                vel = (c-e)*(0.01/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+                vel = (c-e)*(0.1/np.linalg.norm(c-e)*np.ones([1,2]))[0]
             else:
                 vel = (c-e)*(self.linear_velocity[2]/np.linalg.norm(c-e)*np.ones([1,2]))[0]
             # vel = (c-e)*(self.linear_velocity[2]/np.linalg.norm(c-e)*np.ones([1,2]))[0]
@@ -712,6 +712,9 @@ class sim_env(threading.Thread):
             start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
             initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
             initial_pos = [pos*0.025 for pos in initial_pos]
+            self.initial_state[0][0:2] = initial_pos
+            self.initial_state[0][2:4] = vel
+            self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
             map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
             
             # print(agent_state)
