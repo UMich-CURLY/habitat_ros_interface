@@ -22,25 +22,22 @@ class social_force():
     
     obs = []
     
-    def __init__(self, map_path):
+    def __init__(self,my_env, map_path, resolution = 0.025):
         self.load_obs_from_map(map_path)
-        # img = Image.open("/Py_Social_ROS/default.pgm").convert('L')
-        # img.show()
-        # img_np = np.array(img)  # ndarray
-        # white=0
-        # wall=0
-        # space=0
-        # obs = []
-        # for i in np.arange(img_np.shape[0]):
-        #     for j in np.arange(img_np.shape[1]):
-        #         if img_np[i][j]== 255:  # my-map 254 ->space, 0 -> wall, 205-> nonspace
-        #             white=white+1
-        #             # obs.append([j,i])
-        #         if img_np[i][j]== 0:    # sample-map 128 -> space, 0 -> wall, 255-> nonspace
-        #             wall=wall+1
-        #             self.obs.append([j,i])
-        #         if img_np[i][j]== 128:
-        #             space=space+1 
+        s = psf.Simulator(
+            my_env.initial_state,
+            groups=groups,
+            obstacles=self.obs,
+            config_file=Path(__file__).resolve().parent.joinpath("/Py_Social_ROS/examples/example.toml"),
+        )
+        self.dt = my_env.human_time_step
+        print("About to load obs")
+        self.load_obs_from_map(map_path, resolution)
+        self.fig, self.ax = plt.subplots()
+        self.plot_obstacles()
+        self.max_counter = int(10/my_env.human_time_step)
+        self.update_number = 0
+        
     def load_obstacles(self, env):
         # Add scenes objects to ORCA simulator as obstacles
         sem_scene = env._sim.semantic_annotations()
@@ -104,28 +101,41 @@ class social_force():
                     # obs.append([j,i])
                 if img_np[i][j]== 0:    # sample-map 128 -> space, 0 -> wall, 255-> nonspace
                     wall=wall+1
-                    self.obs.append([my_floor(j/40), my_ceil(j/40),my_floor(i/40),my_ceil(i/40)])
+                    self.obs.append([my_floor(j*resolution), my_ceil(j*resolution),my_floor(i*resolution),my_ceil(i*resolution)])
                 if img_np[i][j]== 128:
                     space=space+1 
 
     def get_velocity(self,initial_state, current_heading = None, groups = None, filename = None, save_anim = False):
         # initiate the simulator,
-        
-        s = psf.Simulator(
-            initial_state,
-            groups=groups,
-            obstacles=self.obs,
-            config_file=Path(__file__).resolve().parent.joinpath("/Py_Social_ROS/examples/example.toml"),
-        )
         # update 80 steps
-        
-        if(save_anim):
-            s.step(100)
-            with psf.plot.SceneVisualizer(s, "/Py_Social_ROS/images/"+filename) as sv:
-                # sv.animate()
-                sv.plot()
         s.step(1)
+        ### Find out how to update agent positions in this ####
+        
         # print("Agent radius is", s.peds.agent_radius)
         return s.peds.vel()
     
-    
+    def plot_obstacles(self):
+        self.fig.set_tight_layout(True)
+        self.ax.grid(linestyle="dotted")
+        self.ax.set_aspect("equal")
+        self.ax.margins(2.0)
+        self.ax.set_axisbelow(True)
+        self.ax.set_xlabel("x [m]")
+        self.ax.set_ylabel("y [m]")
+
+        plt.rcParams["animation.html"] = "jshtml"
+
+        # x, y limit from states, only for animation
+        margin = 2.0 
+        xy_limits=np.array(self.obs)
+        xmin = 10000
+        ymin = 10000
+        xmax = -10000
+        ymax = -10000
+        for obs in xy_limits:
+            xmin = min(xmin,obs[0])
+            xmax = max(xmax,obs[0])
+            ymin = min(ymin,obs[1])
+            ymax = max(ymax,obs[1])
+        self.ax.set(xlim=(xmin-2,xmax+3), ylim=(ymin-2, ymax+3))
+        self.ax.plot(xy_limits[:, 0], xy_limits[:, 1], "o", color="black", markersize=0.1)

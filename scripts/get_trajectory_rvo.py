@@ -237,7 +237,7 @@ class ped_rvo():
             computed_velocity.append([velx,vely])
             [velx, vely] = self.orca_sim.getAgentVelocity(self.orca_ped[j])
             actual_velocity.append([velx,vely])
-            if (np.all(computed_velocity[0] == [0.0,0.0] and computed_velocity[1] == [0.0,0.0]) or self.update_number == self.max_counter):
+            if (self.update_number == self.max_counter):
                 self.fig.savefig("save_stepwise"+".png", dpi=300)
                 plt.close(self.fig)
             elif (self.update_number < self.max_counter):
