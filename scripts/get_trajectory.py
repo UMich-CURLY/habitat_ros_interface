@@ -40,7 +40,7 @@ class social_force():
         self.max_counter = int(10/my_env.human_time_step)
         self.update_number = 0
         self.dt = my_env.human_time_step
-        # self.s.peds.step_width = 0.4*my_env.human_time_step
+        self.s.peds.step_width = 0.5*my_env.human_time_step
 
         
     def load_obstacles(self, env):
