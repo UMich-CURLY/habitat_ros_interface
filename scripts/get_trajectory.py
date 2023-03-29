@@ -11,6 +11,7 @@ import itertools
 from IPython import embed
 import tf
 from habitat.utils.visualizations import maps
+import matplotlib.pyplot as plt
 
 def my_ceil(a, precision=1):
     return np.true_divide(np.ceil(a * 10**precision), 10**precision)
@@ -22,21 +23,25 @@ class social_force():
     
     obs = []
     
-    def __init__(self,my_env, map_path, resolution = 0.025):
+    def __init__(self,my_env, map_path, resolution = 0.025, groups = [[0,1]]):
         self.load_obs_from_map(map_path)
-        s = psf.Simulator(
-            my_env.initial_state,
+        groups = my_env.groups
+        self.dt = my_env.human_time_step
+        print("About to load obs")
+        self.load_obs_from_map(map_path, resolution)
+        self.s = psf.Simulator(
+            np.array(my_env.initial_state),
             groups=groups,
             obstacles=self.obs,
             config_file=Path(__file__).resolve().parent.joinpath("/Py_Social_ROS/examples/example.toml"),
         )
-        self.dt = my_env.human_time_step
-        print("About to load obs")
-        self.load_obs_from_map(map_path, resolution)
         self.fig, self.ax = plt.subplots()
         self.plot_obstacles()
         self.max_counter = int(10/my_env.human_time_step)
         self.update_number = 0
+        self.dt = my_env.human_time_step
+        # self.s.peds.step_width = 0.4*my_env.human_time_step
+
         
     def load_obstacles(self, env):
         # Add scenes objects to ORCA simulator as obstacles
@@ -87,9 +92,9 @@ class social_force():
             self.obs.append([map_corners[2][0], map_corners[3][0], map_corners[2][1], map_corners[3][1]])
             self.obs.append([map_corners[3][0], map_corners[4][0], map_corners[3][1], map_corners[4][1]])
     
-    def load_obs_from_map(self, map_path):
+    def load_obs_from_map(self, map_path, resolution = 0.025):
         img = Image.open(map_path).convert('L')
-        # img.show()
+        # img.show() 
         img_np = np.array(img)  # ndarray
         white=0
         wall=0
@@ -108,11 +113,29 @@ class social_force():
     def get_velocity(self,initial_state, current_heading = None, groups = None, filename = None, save_anim = False):
         # initiate the simulator,
         # update 80 steps
-        s.step(1)
+        for i in range(len(initial_state)):
+            self.s.peds.state[i,0:6] = initial_state[i][0:6]
+        self.s.step(1)
+        colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))
+        alpha = np.linspace(0.5,1,self.max_counter+1)
+        computed_velocity=[]
+        for j in range(len(initial_state)):
+            [x,y] = self.s.peds.state[j,0:2]
+            velx = (x - initial_state[j][0])/self.dt
+            vely = (y - initial_state[j][1])/self.dt
+            computed_velocity.append([velx,vely])
+            if (self.update_number == self.max_counter):
+                self.fig.savefig("save_stepwise_esfm"+".png", dpi=300)
+                plt.close(self.fig)
+            elif (self.update_number < self.max_counter):
+                self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
+            print("Initial state is ",initial_state[j])
+            print("Point reaches in this step is ", [x,y])
+        self.update_number+=1
         ### Find out how to update agent positions in this ####
-        
+        print("Velocity returned is ", computed_velocity)
         # print("Agent radius is", s.peds.agent_radius)
-        return s.peds.vel()
+        return np.array(computed_velocity)
     
     def plot_obstacles(self):
         self.fig.set_tight_layout(True)
@@ -134,8 +157,9 @@ class social_force():
         ymax = -10000
         for obs in xy_limits:
             xmin = min(xmin,obs[0])
-            xmax = max(xmax,obs[0])
-            ymin = min(ymin,obs[1])
-            ymax = max(ymax,obs[1])
+            xmax = max(xmax,obs[1])
+            ymin = min(ymin,obs[2])
+            ymax = max(ymax,obs[3])
         self.ax.set(xlim=(xmin-2,xmax+3), ylim=(ymin-2, ymax+3))
-        self.ax.plot(xy_limits[:, 0], xy_limits[:, 1], "o", color="black", markersize=0.1)
+        for k in self.s.get_obstacles():
+            self.ax.plot(k[:, 0], k[:, 1], "-o", color="black", markersize=0.1)

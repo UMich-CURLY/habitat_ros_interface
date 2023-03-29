@@ -238,7 +238,7 @@ class ped_rvo():
             [velx, vely] = self.orca_sim.getAgentVelocity(self.orca_ped[j])
             actual_velocity.append([velx,vely])
             if (self.update_number == self.max_counter):
-                self.fig.savefig("save_stepwise"+".png", dpi=300)
+                self.fig.savefig("save_stepwise_rvo2"+".png", dpi=300)
                 plt.close(self.fig)
             elif (self.update_number < self.max_counter):
                 self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])

@@ -54,7 +54,7 @@ AGENT_GOAL_POS_2d = [800,500]
 AGENT_START_POS_2d = [800,100]
 FOLLOWER_OFFSET = [1.5,-1.0,0.0]
 AGENTS_SPEED = 0.5
-USE_RVO = True
+USE_RVO = False
 MPP = 0.001
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
@@ -224,7 +224,7 @@ class sim_env(threading.Thread):
     control_frequency = 20
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
-    human_control_frequency = 5
+    human_control_frequency = 1
     human_time_step = 1/human_control_frequency
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
@@ -369,7 +369,7 @@ class sim_env(threading.Thread):
             if temp_goal_dist > goal_distance:
                 self.final_goals_3d[0,:] = goal
                 goal_distance = temp_goal_dist
-        if (goal_distance<10):
+        if (goal_distance<5):
             print("chose another scene maybe!", goal_distance)
             embed()
         path.requested_end = self.final_goals_3d[0,:]
@@ -510,7 +510,8 @@ class sim_env(threading.Thread):
             self.sfm = ped_rvo(self, map_path = "./maps/resolution_"+scene+"_0.025.pgm", resolution = 0.025)
             print("Initialized rvo2 sim")
         else:
-            self.sfm = social_force()
+            self.sfm = social_force(self, map_path = "./maps/resolution_"+scene+"_0.025.pgm", resolution = 0.025, groups = self.groups)
+            print("Initialized ESFM sim")
         print(self.initial_state)
         # self.initial_state.append(robot_pos_in_2d+humans_initial_velocity[0]+humans_goal_pos_2d[2])
         # self.groups.append([self.N])
@@ -704,7 +705,7 @@ class sim_env(threading.Thread):
             else:
                 vel = (c-e)*(self.linear_velocity[2]/np.linalg.norm(c-e)*np.ones([1,2]))[0]
             # vel = (c-e)*(self.linear_velocity[2]/np.linalg.norm(c-e)*np.ones([1,2]))[0]
-            self.initial_state[0][2:4] = list(vel)
+            # self.initial_state[0][2:4] = list(vel)
             #### Publish pose and transform
             agent_pos = self.env.sim.robot.base_pos
             start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]

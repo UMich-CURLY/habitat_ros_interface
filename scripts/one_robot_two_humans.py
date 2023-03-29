@@ -54,7 +54,7 @@ AGENT_GOAL_POS_2d = [800,500]
 AGENT_START_POS_2d = [800,100]
 FOLLOWER_OFFSET = [1.5,-1.0,0.0]
 AGENTS_SPEED = 0.5
-USE_RVO = True
+USE_RVO = False
 MPP = 0.001
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
@@ -224,7 +224,7 @@ class sim_env(threading.Thread):
     control_frequency = 20
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
-    human_control_frequency = 5
+    human_control_frequency = 1
     human_time_step = 1/human_control_frequency
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
@@ -334,7 +334,7 @@ class sim_env(threading.Thread):
         ### Add human objects and groups here! 
 
         self.N = 1
-        self.groups = [[0,1]]
+        self.groups = [[0,1,2]]
 
 
         ##### Initiating objects for other humans #####
@@ -511,12 +511,14 @@ class sim_env(threading.Thread):
             self.sfm = ped_rvo(self, map_path = "./maps/resolution_"+scene+"_0.025.pgm", resolution = 0.025)
             print("Initialized rvo2 sim")
         else:
-            self.sfm = social_force()
+            self.sfm = social_force(self, map_path = "./maps/resolution_"+scene+"_0.025.pgm", resolution = 0.025, groups = self.groups)
+            print("Initialized ESFM sim")
         print(self.initial_state)
         # self.initial_state.append(robot_pos_in_2d+humans_initial_velocity[0]+humans_goal_pos_2d[2])
         # self.groups.append([self.N])
         agent_state = self.env.sim.get_agent_state(0)
         map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot}, self)
+        self.initial_pos = initial_pos
         print("created habitat_plant succsefully")
 
     def __del__(self):
@@ -532,9 +534,15 @@ class sim_env(threading.Thread):
         self.observations.update(self.env._task._sim.get_observations_at()) 
 
 
-    def update_agent_pos_vel(self):
+    def update_agent_pos_vel(self): 
         if(self.agent_update_counter/self.update_multiple == self.human_update_counter):
             self.update_pos_vel()
+            agent_pos = self.env.sim.robot.base_pos
+            start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
+            initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
+            initial_pos = [pos*0.025 for pos in initial_pos]
+            vel = [(self.initial_pos[0]-initial_pos[0])/self.human_time_step,(self.initial_pos[1]-initial_pos[1])/self.human_time_step]
+            self.initial_state[0][2:4] = vel
         self.agent_update_counter +=1
         lin_vel = self.linear_velocity[2]
         ang_vel = self.angular_velocity[1]
@@ -713,7 +721,7 @@ class sim_env(threading.Thread):
             initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
             initial_pos = [pos*0.025 for pos in initial_pos]
             self.initial_state[0][0:2] = initial_pos
-            self.initial_state[0][2:4] = vel
+            # self.initial_state[0][2:4] = vel
             self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
             map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
             
