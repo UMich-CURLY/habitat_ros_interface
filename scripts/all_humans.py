@@ -335,7 +335,7 @@ class sim_env(threading.Thread):
         ### N has the total number of extra humans, besides the robot and the two followers
         self.N = 1
 
-        self.groups = [[0,1,2], [1]]
+        self.groups = [[0,1,2], [3]]
 
 
         ##### Initiating objects for other humans #####
@@ -485,11 +485,11 @@ class sim_env(threading.Thread):
             obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
             # self.objs.append(obj)
             
-            obj_template_handle = './scripts/humantwo.object_config.json'
-            obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
-            print(obj_template)
-            file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
-            print(file_obj)
+            # obj_template_handle = './scripts/humantwo.object_config.json'
+            # obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
+            # print(obj_template)
+            # file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
+            # print(file_obj)
             file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
             self.objs.append(file_obj)
             
@@ -607,9 +607,19 @@ class sim_env(threading.Thread):
         self.initial_state[2][4:6] = initial_pos
         self.initial_state[2][0:2] = current_initial_pos_2d
         self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
+        #### Update other humans state in ESFM, sample new goal if reached 
+        for k in range(self.N):
+            human_state = self.objs[k].rigid_state.translation
+            current_initial_pos_2d = to_grid(self.env._sim.pathfinder, human_state, self.grid_dimensions)
+            current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
+            self.initial_state[k+3][0:2] = current_initial_pos_2d
+            self.goal_dist[+3] = np.linalg.norm((np.array(self.initial_state[k+3][0:2])-np.array(self.initial_state[k+3][4:6])))
         #### Calculate new velocity
-        human_state = self.follower.rigid_state
+        
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
+        
+        #### Set new velocity for the follower
+        human_state = self.follower.rigid_state
         computed_velocity[2,:] = [computed_velocity[2,0], computed_velocity[2,1]]
         next_vel_control = mn.Vector3(computed_velocity[2,0], computed_velocity[2,1], 0.0)
         diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
@@ -634,6 +644,7 @@ class sim_env(threading.Thread):
             self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
             self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
             computed_velocity[2,:] = [computed_velocity[2,0], computed_velocity[2,1]]
+
         #### Setting leader velocity ####
         human_state = self.leader.rigid_state
         next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
@@ -657,10 +668,11 @@ class sim_env(threading.Thread):
             self.leader_velocity_control.angular_velocity = [0.0,0.0,0.0]
             computed_velocity[1,:] = [computed_velocity[1,0], computed_velocity[1,1]]
         # print(computed_velocity, self.follower_velocity_control.linear_velocity)
-        self.update_counter+=1
+        
         self.initial_state[1][2:4] = [computed_velocity[1,0], computed_velocity[1,1]]
         self.initial_state[2][2:4] = [computed_velocity[2,0], computed_velocity[2,1]]
 
+        #### Setting velocity for the other humans 
         for k in range(self.N):
             human_state = self.objs[k].rigid_state
             next_vel_control = mn.Vector3(computed_velocity[k+3,0], computed_velocity[k+3,1], 0.0)
@@ -683,12 +695,10 @@ class sim_env(threading.Thread):
                 self.leader_velocity_control.linear_velocity = [0.0,0.0,0.0]
                 self.leader_velocity_control.angular_velocity = [0.0,0.0,0.0]
             # print(computed_velocity, self.follower_velocity_control.linear_velocity)
-            self.update_counter+=1
             self.initial_state[k+3][2:4] = [computed_velocity[k+3,0], computed_velocity[k+3,1]]
         # map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
 
-        
-        agent_state = self.env.sim.get_agent_state(0)
+        self.update_counter+=1
         self.human_update_counter +=1
         
         
