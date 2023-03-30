@@ -333,7 +333,7 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
         ### N has the total number of extra humans, besides the robot and the two followers
-        self.N = 1
+        self.N = 10
 
         self.groups = [[0,1,2], [3]]
 
@@ -482,7 +482,7 @@ class sim_env(threading.Thread):
         for k in range(self.N):
             human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
             self.human_template_ids.append(human_template_id)
-            obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
+            file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
             # self.objs.append(obj)
             
             # obj_template_handle = './scripts/humantwo.object_config.json'
