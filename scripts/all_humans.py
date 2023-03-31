@@ -334,7 +334,7 @@ class sim_env(threading.Thread):
         ### Add human objects and groups here! 
         ### N has the total number of extra humans, besides the robot and the two followers
         self.N = 5
-
+        
         self.groups = [[0,1,2], [3], [4,5],[6,7]]
 
 
@@ -347,6 +347,8 @@ class sim_env(threading.Thread):
         humans_initial_pos_3d = []
         humans_goal_pos_3d = []
         humans_initial_velocity = []
+        ##### Final 3d goals for the agent and the extra agents, the leader and followers just follow the agent 
+        self.final_goals_3d = np.zeros(self.N+1,3)
         self.goal_dist = np.zeros(self.N+3)
 
 
@@ -372,7 +374,7 @@ class sim_env(threading.Thread):
             print("chose another scene maybe!", goal_distance)
             embed()
         path.requested_end = agent_goal_pos_3d
-        
+        self.final_goals_3d[0,:] = agent_goal_pos_3d
         if(not self.env._sim.pathfinder.find_path(path)):
             print("Watch this one Tribhi!!!!")
             embed()
@@ -479,8 +481,9 @@ class sim_env(threading.Thread):
         self.human_template_ids = []
         self.objs = []
         self.vel_control_objs = []
+        
         for k in range(self.N):
-            human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
+            human_template_id = obj_template_mgr.load_configs('./scripts/human')[0]
             self.human_template_ids.append(human_template_id)
             file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
             # self.objs.append(obj)
@@ -496,7 +499,8 @@ class sim_env(threading.Thread):
             #### Pick a random start location for this agent ####
             start_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos,10)
             # start_pos = from_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
-            goal_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(start_pos, 10)
+            goal_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(start_pos_3d, 10)
+            self.final_goals_3d[k+1,:] = goal_pos_3d
             path = habitat_path.ShortestPath()
             path.requested_start = np.array(start_pos_3d)
             path.requested_end = goal_pos_3d
@@ -698,6 +702,36 @@ class sim_env(threading.Thread):
                 self.leader_velocity_control.angular_velocity = [0.0,0.0,0.0]
             # print(computed_velocity, self.follower_velocity_control.linear_velocity)
             self.initial_state[k+3][2:4] = [computed_velocity[k+3,0], computed_velocity[k+3,1]]
+            
+            #### Update to next topogoal if reached the first one 
+            GOAL_THRESHOLD = 0.2
+            if (self.goal_dist[k]<= GOAL_THRESHOLD):
+                final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[k+1,:], self.grid_dimensions))
+                goal_pos = [pos*0.025 for pos in final_goal_grid]
+                dist = np.linalg(goal_pos - self.initial_state[k+3][4:6])
+                path = habitat_path.ShortestPath()
+                path.requested_start = np.array(human_state.translation)
+                #### If it isn't a intermediate goal, sample a new goal for the agent 
+                if dist<=GOAL_THRESHOLD:
+                    new_goal_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(human_state.translation, 10)
+                    path.requested_end = new_goal_pos_3d 
+                    if(not self.env._sim.pathfinder.find_path(path)):
+                        continue
+                    self.final_goals_3d[k+1,:] = new_goal_pos_3d 
+                    
+                #### Update to next intermediate goal 
+                else:
+                    path.requested_end = self.final_goals_3d[k+1,:]
+                    if(not self.env._sim.pathfinder.find_path(path)):
+                        continue
+                humans_goal_pos_3d = path.points[1]
+                goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d, self.grid_dimensions))
+                goal_pos = [pos*0.025 for pos in goal_pos]
+                self.initial_state[k+3][4:6] = goal_pos
+                self.goal_dist[k+3] = np.linalg((np.array(self.initial_state[k+3][0:2])-np.array(self.initial_state[k+3][4:6])))
+
+
+
         # map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
 
         self.update_counter+=1
