@@ -54,7 +54,7 @@ AGENT_GOAL_POS_2d = [800,500]
 AGENT_START_POS_2d = [800,100]
 FOLLOWER_OFFSET = [1.5,-1.0,0.0]
 AGENTS_SPEED = 0.5
-USE_RVO = True
+USE_RVO = False
 MPP = 0.001
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
@@ -221,10 +221,10 @@ class sim_env(threading.Thread):
     action_uncertainty_rate = 0.9
     follower = []
     new_goal = False
-    control_frequency = 20
+    control_frequency = 10
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
-    human_control_frequency = 5
+    human_control_frequency = 10
     human_time_step = 1/human_control_frequency
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
@@ -333,9 +333,9 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
         ### N has the total number of extra humans, besides the robot and the two followers
-        self.N = 10
+        self.N = 5
 
-        self.groups = [[0,1,2], [3]]
+        self.groups = [[0,1,2], [3], [4,5],[6,7]]
 
 
         ##### Initiating objects for other humans #####
@@ -394,7 +394,7 @@ class sim_env(threading.Thread):
         file_obj.translation = mn.Vector3(sphere_pos[0],sphere_pos[1], sphere_pos[2])
         # sphere_offset = file_obj.translation - agent_state.position
         # set_object_state_from_agent(self.env._sim, file_obj, np.array(sphere_offset - sphere), orientation = object_orientation2)
-        agents_initial_velocity = [0.0,0.0]
+        agents_initial_velocity = [0.5,0.0]
         initial_pos = list(to_grid(self.env._sim.pathfinder, agents_initial_pos_3d[0], self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
         
@@ -494,11 +494,11 @@ class sim_env(threading.Thread):
             self.objs.append(file_obj)
             
             #### Pick a random start location for this agent ####
-            start_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos,5)
-            start_pos = from_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
-            goal_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(start_pos, 5)
+            start_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos,10)
+            # start_pos = from_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
+            goal_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(start_pos, 10)
             path = habitat_path.ShortestPath()
-            path.requested_start = np.array(start_pos)
+            path.requested_start = np.array(start_pos_3d)
             path.requested_end = goal_pos_3d
             if(not self.env._sim.pathfinder.find_path(path)):
                 print("Watch this one Tribhi!!!!",i)
@@ -506,7 +506,9 @@ class sim_env(threading.Thread):
             humans_initial_pos_3d.append(path.points[0])
             humans_goal_pos_3d.append(path.points[1])
             human_initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
+            human_initial_pos = [pos*0.025 for pos in human_initial_pos]
             goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[-1], self.grid_dimensions))
+            goal_pos = [pos*0.025 for pos in goal_pos]
             self.initial_state.append(human_initial_pos+agents_initial_velocity+goal_pos)
             agent_state = self.env.sim.get_agent_state(0)
             offset = humans_initial_pos_3d[k]-agent_state.position
