@@ -348,7 +348,7 @@ class sim_env(threading.Thread):
         humans_goal_pos_3d = []
         humans_initial_velocity = []
         ##### Final 3d goals for the agent and the extra agents, the leader and followers just follow the agent 
-        self.final_goals_3d = np.zeros(self.N+1,3)
+        self.final_goals_3d = np.zeros([self.N+1,3])
         self.goal_dist = np.zeros(self.N+3)
 
 
