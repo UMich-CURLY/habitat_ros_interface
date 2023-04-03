@@ -241,6 +241,7 @@ class sim_env(threading.Thread):
     agent_update_counter = 0
     update_multiple = human_time_step/time_step
     def __init__(self, env_config_file):
+        ##### Checking the git branch stuff
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
         self.env = habitat.Env(config=habitat.get_config(self.env_config_file))
