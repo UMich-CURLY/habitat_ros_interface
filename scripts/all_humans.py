@@ -154,12 +154,18 @@ def map_to_base_link(msg, my_env):
                     tf.transformations.quaternion_from_euler(0, 0, 0.0),
                     rospy.Time.now(),
                     "decision_frame",
+                    "interim_link"
+    )
+    my_env.br.sendTransform((0.0,0.0,0.0),
+                    tf.transformations.quaternion_from_euler(0, 0, -theta),
+                    rospy.Time.now(),
+                    "interim_link",
                     "base_link"
     )
     poseMsg = PoseStamped()
     poseMsg.header.stamp = rospy.Time.now()
     poseMsg.header.frame_id = "base_link"
-    quat = tf.transformations.quaternion_from_euler(0, 0, theta)
+    quat = tf.transformations.quaternion_from_euler(0, 0, 0.0)
     poseMsg.pose.orientation.x = quat[0]
     poseMsg.pose.orientation.y = quat[1]
     poseMsg.pose.orientation.z = quat[2]
@@ -478,7 +484,7 @@ class sim_env(threading.Thread):
         self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+initial_pos)
         self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
 
-        #### Add the rest of the people iwth random goal assigned ####
+        #### Add the rest of the people with random goal assigned ####
         self.human_template_ids = []
         self.objs = []
         self.vel_control_objs = []
@@ -772,18 +778,7 @@ class sim_env(threading.Thread):
 
             self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_depth.publish(np.float32(depth_with_res))
-            
-            #### Update agent velocity 
-            a = self.env._sim.robot.base_transformation
-            b = a.transform_point([0.5,0.0,0.0])
-            d = a.transform_point([0.0,0.0,0.0])
-            c = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
-            e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
-            if(self.angular_velocity[1]!=0.0):
-                vel = (c-e)*(0.5/np.linalg.norm(c-e)*np.ones([1,2]))[0]
-            else:
-                vel = (c-e)*(self.linear_velocity[2]/np.linalg.norm(c-e)*np.ones([1,2]))[0]
-            # vel = (c-e)*(self.linear_velocity[2]/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+
             #### Publish pose and transform
             agent_pos = self.env.sim.robot.base_pos
             start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
@@ -792,7 +787,7 @@ class sim_env(threading.Thread):
             self.initial_state[0][0:2] = initial_pos
             # self.initial_state[0][2:4] = vel
             self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
-            map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
+            map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.get_object_heading(self.env._sim.robot.base_transformation)},self)
             lock.release()
             self._r_sensor.sleep()
             
@@ -833,7 +828,15 @@ class sim_env(threading.Thread):
     def set_dt(self, dt):
         self._dt = dt
       
-        
+    def get_object_heading(self,obj_transform):
+        a = obj_transform
+        b = a.transform_point([0.5,0.0,0.0])
+        d = a.transform_point([0.0,0.0,0.0])
+        c = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
+        e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
+        vel = (c-e)*(0.5/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+        return mn.Rad(np.arctan2(vel[1], vel[0]))
+
     def plan_callback(self,msg):
         print("In plan_callback ", self._global_plan_published)
         # if(self._global_plan_published == False):
