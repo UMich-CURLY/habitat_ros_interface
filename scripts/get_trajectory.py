@@ -37,7 +37,7 @@ class social_force():
         )
         self.fig, self.ax = plt.subplots()
         self.plot_obstacles()
-        self.max_counter = int(10/my_env.human_time_step)
+        self.max_counter = int(20/my_env.human_time_step)
         self.update_number = 0
         self.dt = my_env.human_time_step
         self.s.peds.step_width = 0.5*my_env.human_time_step
@@ -124,13 +124,15 @@ class social_force():
             velx = (x - initial_state[j][0])/self.dt
             vely = (y - initial_state[j][1])/self.dt
             computed_velocity.append([velx,vely])
-            if (self.update_number == self.max_counter):
-                self.fig.savefig("save_stepwise_esfm"+".png", dpi=300)
-                plt.close(self.fig)
-            elif (self.update_number < self.max_counter):
+            if (self.update_number < self.max_counter):
                 self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
+                self.ax.plot(initial_state[j][4], initial_state[j][5], "-x", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
             print("Initial state is ",initial_state[j])
             print("Point reaches in this step is ", [x,y])
+        if (self.update_number == self.max_counter):
+            print("saving the offline plot!!")
+            self.fig.savefig("save_stepwise_esfm"+".png", dpi=300)
+            plt.close(self.fig)
         self.update_number+=1
         ### Find out how to update agent positions in this ####
         print("Velocity returned is ", computed_velocity)
