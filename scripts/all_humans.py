@@ -44,7 +44,7 @@ from get_trajectory_rvo import *
 
 import tf2_ros
 lock = threading.Lock()
-rospy.init_node("robot_1", anonymous=False)
+rospy.init_node("sim", anonymous=False)
 import argparse
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
@@ -396,7 +396,7 @@ class sim_env(threading.Thread):
                 goal_distance = temp_goal_dist
         if (goal_distance<10):
             print("chose another scene maybe!", goal_distance)
-            embed()
+            # embed()
         path.requested_end = agent_goal_pos_3d
         self.final_goals_3d[0,:] = agent_goal_pos_3d
         if(not self.env._sim.pathfinder.find_path(path)):

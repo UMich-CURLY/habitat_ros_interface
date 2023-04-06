@@ -1,29 +1,51 @@
-from cmath import e
+#!/usr/bin/env python
+# note need to run viewer with python2!!!
 
+from cmath import e
+import os
+import sys
+sys.path.append(os.path.abspath('/home/catkin_ws/src/SoLo_TDIRL/script/irl/'))
+sys.path.append(os.path.abspath('/home/catkin_ws/src/SoLo_TDIRL/script/'))
 from pyparsing import empty
 from distance2goal import Distance2goal
 from laser2density import Laser2density
 from social_distance import SocialDistance
+# from traj_predict import TrajPred
 import rospy
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray
 import numpy as np
 from numpy import cos, sin
 import matplotlib.pyplot as plt
 from matplotlib import colors, markers
-import os
-import sys
-sys.path.append(os.path.abspath('./irl/'))
-import img_utils
+# import img_utils
 import tf
 from tf.transformations import quaternion_matrix
-
+import tf2_ros
+import tf2_geometry_msgs
 from collections import namedtuple
 from threading import Thread
-from traj_predict import TrajPred
 
 from rospy.numpy_msg import numpy_msg
 from rospy_tutorials.msg import Floats
 
+def transform_pose(input_pose, from_frame, to_frame):
+
+    # **Assuming /tf2 topic is being broadcasted
+    tf_buffer = tf2_ros.Buffer()
+    listener = tf2_ros.TransformListener(tf_buffer)
+
+    pose_stamped = tf2_geometry_msgs.PoseStamped()
+    pose_stamped.pose = input_pose
+    pose_stamped.header.frame_id = from_frame
+    pose_stamped.header.stamp = rospy.Time.now()
+
+    try:
+        # ** It is important to wait for the listener to start listening. Hence the rospy.Duration(1)
+        output_pose_stamped = tf_buffer.transform(pose_stamped, to_frame, rospy.Duration(4.0))
+        return output_pose_stamped
+
+    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+        raise
 
 Step = namedtuple('Step','cur_state next_state')
 class FeatureExpect():
@@ -37,8 +59,8 @@ class FeatureExpect():
         self.traj_sub = rospy.Subscriber("traj_matrix", numpy_msg(Floats), self.traj_callback,queue_size=100)
         self.SocialDistance = SocialDistance(gridsize=gridsize, resolution=resolution)
 
-        ### Reploce with pedsim 
-        self.sub_people = rospy.Subscriber("people_states", PoseArray,self.people_callback, queue_size=100)
+        ### Replace with esfm
+        self.sub_people = rospy.Subscriber("sim/agent_poses", PoseArray,self.people_callback, queue_size=100)
         self.robot_pose = [0.0, 0.0]
         self.previous_robot_pose = []
         self.robot_pose_rb = [0.0, 0.0]
@@ -92,7 +114,9 @@ class FeatureExpect():
 
     def people_callback(self,data):
             # print(percent_change)
-        self.pose_people = np.array([[people.pose.position.x,people.pose.position.y, people.pose.position.z, people.pose.orientation.x, people.pose.orientation.y, people.pose.orientation.z, people.pose.orientation.w] for people in data.agent_states])
+        agent_poses = data.poses
+        people_stamped = np.array([transform_pose(people, "my_map_frame", "map") for people in agent_poses])
+        self.pose_people = np.array([[people.pose.position.x,people.pose.position.y, people.pose.position.z, people.pose.orientation.x, people.pose.orientation.y, people.pose.orientation.z, people.pose.orientation.w] for people in people_stamped])
         self.pose_people_tf = np.empty((0,4 ,4), float)
         for people_pose in self.pose_people:
             rot = people_pose[3:]

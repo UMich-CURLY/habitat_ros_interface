@@ -27,6 +27,9 @@
 	<node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" name="teleop" output="screen">
 		<param name="~key_timeout" type="double" value="0.05" />   
 	</node>
+
+	<node pkg="habitat_interface" type="feature_expect.py" name="feature_expect" output="screen">
+	</node>
 <!-- 	<node pkg="habitat_interface" type="bc_sensor_ros.py" name="bc_sensor_ros">
 		<remap from="rgb" to="habitat/bc_sensor"/>
 	</node> -->
