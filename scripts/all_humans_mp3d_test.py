@@ -41,6 +41,7 @@ from IPython import embed
 from nav_msgs.srv import GetPlan
 from get_trajectory import *
 from get_trajectory_rvo import *
+from habitat_sim.utils.common import d3_40_colors_rgb
 
 import tf2_ros
 lock = threading.Lock()
@@ -256,7 +257,43 @@ class sim_env(threading.Thread):
         # always assume height equals width
         # self.env._sim.agents[0].move_filter_fn = self.env._sim.step_filter
         agent_state = self.env.sim.get_agent_state(0)
+        # test scne
+        def print_scene_recur(scene, limit_output=10):
+            print(f"House has {len(scene.levels)} levels, {len(scene.regions)} regions and {len(scene.objects)} objects")
+            print(f"House center:{scene.aabb.center} dims:{scene.aabb.sizes}")
+
+            count = 0
+            for level in scene.levels:
+                print(
+                    f"Level id:{level.id}, center:{level.aabb.center},"
+                    f" dims:{level.aabb.sizes}"
+                )
+                for region in level.regions:
+                    print(
+                        f"Region id:{region.id}, category:{region.category.name()},"
+                        f" center:{region.aabb.center}, dims:{region.aabb.sizes}"
+                    )
+                    for obj in region.objects:
+                        print(
+                            f"Object id:{obj.id}, category:{obj.category.name()},"
+                            f" center:{obj.aabb.center}, dims:{obj.aabb.sizes}"
+                        )
+                        count += 1
+                        if count >= limit_output:
+                            return None
+
+        # Print semantic annotation information (id, category, bounding box details)
+        # about levels, regions and objects in a hierarchical fashion
+        scene_test = self.env.sim.semantic_scene
+        print_scene_recur(scene_test)
+
         self.observations = self.env.reset()
+        # print('observations:', self.observations)
+        env_semantic_annotations = self.env.sim.semantic_annotations()
+        instance_id_to_label_id = {int(obj.id.split("_")[-1]): obj.category.index() for obj in env_semantic_annotations.objects}
+        # print('instance id to label id:', instance_id_to_label_id)
+        self.instance_label_mapping = np.array([ instance_id_to_label_id[i] for i in range(len(instance_id_to_label_id)) ])
+
         arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         self.env._sim.robot.arm_joint_pos = arm_joint_positions
         temp_position = self.env._sim.pathfinder.get_random_navigable_point()
@@ -288,6 +325,7 @@ class sim_env(threading.Thread):
         self._sensor_resolution = {
             "RGB": 720,  
             "DEPTH": 720,
+            "SEMANTIC": 720
         }
         print(self.env._sim.pathfinder.get_bounds())
         
@@ -295,7 +333,8 @@ class sim_env(threading.Thread):
         # agent_state.position = agent_init_pos
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
-        self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
+        # self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
+        self._pub_semantic = rospy.Publisher("~semantic", numpy_msg(Floats), queue_size=1)
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
         self._robot_pose = rospy.Publisher("~robot_pose", PoseStamped, queue_size = 1)
         self._pub_follower = rospy.Publisher("~follower_pose", PoseStamped, queue_size = 1)
@@ -760,6 +799,33 @@ class sim_env(threading.Thread):
                     ),
                 )
             )
+
+            print('!!! Semantic Check !!!')
+            # print('semantic observations:', self.observations['semantic'])
+            observations_semantic = np.take(self.instance_label_mapping, self.observations['semantic'])
+            # observations_semantic = self.observations['semantic']
+            semantic_img = Image.new("P", (480, 640))
+            semantic_img.putpalette(d3_40_colors_rgb.flatten())
+            semantic_img.putdata((observations_semantic.flatten()%40).astype(np.uint8))
+            semantic_img = semantic_img.convert("RGBA")
+            semantic_img = np.asarray(semantic_img)
+            # semantic_with_res = np.concatenate(
+            #     (
+            #         np.float32(semantic_img[:, :, 0:3].ravel()),
+            #         np.array(
+            #             [self._sensor_resolution["SEMANTIC"], self._sensor_resolution["SEMANTIC"]]
+            #         ),
+            #     )
+            # )
+            semantic_with_res = np.concatenate(
+                (
+                    np.float32(semantic_img[:,:,0:3].ravel()),
+                    np.array(
+                        [480, 640]
+                    ),
+                )
+            )
+
             # multiply by 10 to get distance in meters
             depth_with_res = np.concatenate(
                 (
@@ -773,7 +839,8 @@ class sim_env(threading.Thread):
                 )
             )       
 
-            self._pub_rgb.publish(np.float32(rgb_with_res))
+            # self._pub_rgb.publish(np.float32(rgb_with_res))
+            self._pub_semantic.publish(np.float32(semantic_with_res))
             self._pub_depth.publish(np.float32(depth_with_res))
             
             #### Update agent velocity 
@@ -918,7 +985,7 @@ def callback(vel, my_env):
 
 def main():
 
-    my_env = sim_env(env_config_file="configs/tasks/custom_rearrange.yml")
+    my_env = sim_env(env_config_file="configs/tasks/custom_rearrange_mp3d.yaml")
     # start the thread that publishes sensor readings
     my_env.start()
 

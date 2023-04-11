@@ -129,11 +129,11 @@ class social_force():
                 plt.close(self.fig)
             elif (self.update_number < self.max_counter):
                 self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
-            print("Initial state is ",initial_state[j])
-            print("Point reaches in this step is ", [x,y])
+            # print("Initial state is ",initial_state[j])
+            # print("Point reaches in this step is ", [x,y])
         self.update_number+=1
         ### Find out how to update agent positions in this ####
-        print("Velocity returned is ", computed_velocity)
+        # print("Velocity returned is ", computed_velocity)
         # print("Agent radius is", s.peds.agent_radius)
         return np.array(computed_velocity)
     
