@@ -54,7 +54,7 @@ AGENT_GOAL_POS_2d = [800,500]
 AGENT_START_POS_2d = [800,100]
 FOLLOWER_OFFSET = [1.5,-1.0,0.0]
 AGENTS_SPEED = 0.5
-USE_RVO = False
+USE_RVO = True
 MPP = 0.001
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
@@ -621,6 +621,10 @@ class sim_env(threading.Thread):
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
         initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
+        a = self.env.sim.robot.base_transformation
+        b = a.transform_point([-0.2,0.0,0.0])
+        point_behind = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
+        point_behind = [point_behind*0.025 for pos in point_behind]
         self.initial_state[0][0:2] = initial_pos
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         ####  Update Leader state in ESFM 
@@ -628,13 +632,13 @@ class sim_env(threading.Thread):
         current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
         self.initial_state[1][0:2] = current_initial_pos_2d
-        self.initial_state[1][4:6] = initial_pos
+        self.initial_state[1][4:6] = point_behind
         self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
         #### Update Follower state in ESFM
         object_state = self.follower.rigid_state.translation
         current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        self.initial_state[2][4:6] = initial_pos
+        self.initial_state[2][4:6] = point_behind
         self.initial_state[2][0:2] = current_initial_pos_2d
         self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
         #### Update other humans state in ESFM, sample new goal if reached 

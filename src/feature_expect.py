@@ -7,8 +7,8 @@ import sys
 sys.path.append(os.path.abspath('/home/catkin_ws/src/SoLo_TDIRL/script/irl/'))
 sys.path.append(os.path.abspath('/home/catkin_ws/src/SoLo_TDIRL/script/'))
 from pyparsing import empty
-from distance2goal import Distance2goal
-from laser2density import Laser2density
+# from distance2goal import Distance2goal
+# from laser2density import Laser2density
 from social_distance import SocialDistance
 # from traj_predict import TrajPred
 import rospy
@@ -53,10 +53,10 @@ class FeatureExpect():
         self.gridsize = gridsize
         self.resolution = resolution
 
-        self.Distance2goal = Distance2goal(gridsize=gridsize, resolution=resolution)
+        # self.Distance2goal = Distance2goal(gridsize=gridsize, resolution=resolution)
         self.goal = goal
-        self.Laser2density = Laser2density(gridsize=gridsize, resolution=resolution)
-        self.traj_sub = rospy.Subscriber("traj_matrix", numpy_msg(Floats), self.traj_callback,queue_size=100)
+        # self.Laser2density = Laser2density(gridsize=gridsize, resolution=resolution)
+        # self.traj_sub = rospy.Subscriber("traj_matrix", numpy_msg(Floats), self.traj_callback,queue_size=100)
         self.SocialDistance = SocialDistance(gridsize=gridsize, resolution=resolution)
 
         ### Replace with esfm
@@ -94,8 +94,8 @@ class FeatureExpect():
         self.initpose_get = True
 
     def get_robot_pose(self):
-        self.tf_listener.waitForTransform("/map", "/base_link", rospy.Time(), rospy.Duration(4.0))
-        (trans,rot) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
+        self.tf_listener.waitForTransform("/my_map_frame", "/base_link", rospy.Time(), rospy.Duration(4.0))
+        (trans,rot) = self.tf_listener.lookupTransform('/my_map_frame', '/base_link', rospy.Time(0))
         self.robot_pose = [trans[0], trans[1]]
         if(len(self.previous_robot_pose) == 0):
             self.previous_robot_pose = self.robot_pose
@@ -115,8 +115,8 @@ class FeatureExpect():
     def people_callback(self,data):
             # print(percent_change)
         agent_poses = data.poses
-        people_stamped = np.array([transform_pose(people, "my_map_frame", "map") for people in agent_poses])
-        self.pose_people = np.array([[people.pose.position.x,people.pose.position.y, people.pose.position.z, people.pose.orientation.x, people.pose.orientation.y, people.pose.orientation.z, people.pose.orientation.w] for people in people_stamped])
+        # people_stamped = np.array([transform_pose(people, "my_map_frame", "map") for people in agent_poses])
+        self.pose_people = np.array([[people.position.x,people.position.y, people.position.z, people.orientation.x, people.orientation.y, people.orientation.z, people.orientation.w] for people in agent_poses])
         self.pose_people_tf = np.empty((0,4 ,4), float)
         for people_pose in self.pose_people:
             rot = people_pose[3:]
@@ -200,11 +200,11 @@ class FeatureExpect():
             return None
 
     def get_current_feature(self):
-        self.distance_feature = self.Distance2goal.get_feature_matrix(self.goal)
-        self.localcost_feature = self.Laser2density.temp_result
+        # self.distance_feature = self.Distance2goal.get_feature_matrix(self.goal)
+        # self.localcost_feature = self.Laser2density.temp_result
         self.social_distance_feature = np.ndarray.tolist(self.SocialDistance.get_features())
-        self.current_feature = np.array([self.distance_feature[i] + self.localcost_feature[i] + self.traj_feature[i] + [0.0] for i in range(len(self.distance_feature))])
-        self.feature_maps.append(np.array(self.current_feature).T)
+        # self.current_feature = np.array([self.distance_feature[i] + self.localcost_feature[i] + self.traj_feature[i] + [0.0] for i in range(len(self.distance_feature))])
+        # self.feature_maps.append(np.array(self.current_feature).T)
 
     def get_expect(self):
         R1 = self.get_robot_pose()

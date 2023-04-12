@@ -11,12 +11,12 @@
 
 
 	<node pkg="habitat_interface" type="depth_ros.py" name="depth_ros" >
-		<remap from="depth_1" to="robot_1/depth"/>
+		<remap from="depth_1" to="sim/depth"/>
 	</node>
 	
 	
 	<node pkg="habitat_interface" type="rgb_ros.py" name="rgb_ros">
-		<remap from="rgb_1" to="robot_1/rgb"/>
+		<remap from="rgb_1" to="sim/rgb"/>
 	</node>
 	<arg name="scene" default="17DRP5sb8fy"/>
     <arg name="map_file" default="$(find habitat_interface)/maps/resolution_$(arg scene)_0.025.yaml"/>
