@@ -118,7 +118,7 @@ class ped_rvo():
         self.load_obs_from_map(map_path, resolution)
         self.fig, self.ax = plt.subplots()
         self.plot_obstacles()
-        self.max_counter = int(10/my_env.human_time_step)
+        self.max_counter = int(30/my_env.human_time_step)
         self.update_number = 0
         self.orca_ped = []
         initial_state = my_env.initial_state
@@ -223,6 +223,10 @@ class ped_rvo():
             self.orca_sim.setAgentPosition(self.orca_ped[i], tuple(np.array([initial_state[i][0], initial_state[i][1]])))
             self.orca_sim.setAgentVelocity(self.orca_ped[i], tuple(np.array([initial_state[i][2], initial_state[i][3]])))
             desired_vel = np.array([initial_state[i][4] - initial_state[i][0], initial_state[i][5]-initial_state[i][1]]) 
+            goal_dist = np.linalg.norm(desired_vel)
+            if goal_dist<0.2:
+                desired_vel = np.array([0.0,0.0])
+                print("Agent ", i, " has reached its goal")
             desired_vel = desired_vel/np.linalg.norm(desired_vel) * self.orca_max_speed
             self.orca_sim.setAgentPrefVelocity(self.orca_ped[i], tuple(desired_vel))
         self.orca_sim.doStep()

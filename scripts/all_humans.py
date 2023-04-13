@@ -624,7 +624,7 @@ class sim_env(threading.Thread):
         a = self.env.sim.robot.base_transformation
         b = a.transform_point([-0.2,0.0,0.0])
         point_behind = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
-        point_behind = [point_behind*0.025 for pos in point_behind]
+        point_behind = [pos*0.025 for pos in point_behind]
         self.initial_state[0][0:2] = initial_pos
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         ####  Update Leader state in ESFM 
@@ -732,7 +732,7 @@ class sim_env(threading.Thread):
             self.initial_state[k+3][2:4] = [computed_velocity[k+3,0], computed_velocity[k+3,1]]
             
             #### Update to next topogoal if reached the first one 
-            GOAL_THRESHOLD = 0.2
+            GOAL_THRESHOLD = 0.3
             if (self.goal_dist[k+3]<= GOAL_THRESHOLD):
                 final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[k+1,:], self.grid_dimensions))
                 goal_pos = [pos*0.025 for pos in final_goal_grid]
