@@ -54,7 +54,7 @@ AGENT_GOAL_POS_2d = [800,500]
 AGENT_START_POS_2d = [800,100]
 FOLLOWER_OFFSET = [1.5,-1.0,0.0]
 AGENTS_SPEED = 0.5
-USE_RVO = True
+USE_RVO = False
 MPP = 0.001
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
@@ -359,7 +359,7 @@ class sim_env(threading.Thread):
         ### N has the total number of extra humans, besides the robot and the two followers
         self.N = 5
         
-        self.groups = [[0,1,2], [3], [4,5],[6,7]]
+        self.groups = [[0,1,2], [3], [4],[5],[6],[7]]
 
 
         ##### Initiating objects for other humans #####
@@ -598,6 +598,7 @@ class sim_env(threading.Thread):
             initial_pos = [pos*0.025 for pos in initial_pos]
             vel = [(self.initial_pos[0]-initial_pos[0])/self.human_time_step,(self.initial_pos[1]-initial_pos[1])/self.human_time_step]
             self.initial_state[0][2:4] = vel
+            self.initial_pos = initial_pos
         self.agent_update_counter +=1
         lin_vel = self.linear_velocity[2]
         ang_vel = self.angular_velocity[1]
