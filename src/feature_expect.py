@@ -7,7 +7,7 @@ import sys
 sys.path.append(os.path.abspath('/home/catkin_ws/src/SoLo_TDIRL/script/irl/'))
 sys.path.append(os.path.abspath('/home/catkin_ws/src/SoLo_TDIRL/script/'))
 from pyparsing import empty
-# from distance2goal import Distance2goal
+from distance2goal import Distance2goal
 # from laser2density import Laser2density
 from social_distance import SocialDistance
 # from traj_predict import TrajPred
@@ -24,7 +24,7 @@ import tf2_ros
 import tf2_geometry_msgs
 from collections import namedtuple
 from threading import Thread
-
+from IPython import embed
 from rospy.numpy_msg import numpy_msg
 from rospy_tutorials.msg import Floats
 
@@ -49,18 +49,20 @@ def transform_pose(input_pose, from_frame, to_frame):
 
 Step = namedtuple('Step','cur_state next_state')
 class FeatureExpect():
-    def __init__(self, goal, gridsize=(3,3), resolution=1):
+    def __init__(self, gridsize=(3,3), resolution=1):
         self.gridsize = gridsize
         self.resolution = resolution
 
-        # self.Distance2goal = Distance2goal(gridsize=gridsize, resolution=resolution)
-        self.goal = goal
+        self.Distance2goal = Distance2goal(gridsize=gridsize, resolution=resolution)
+        self.goal = PoseStamped()
+        self.received_goal = False
         # self.Laser2density = Laser2density(gridsize=gridsize, resolution=resolution)
         # self.traj_sub = rospy.Subscriber("traj_matrix", numpy_msg(Floats), self.traj_callback,queue_size=100)
         self.SocialDistance = SocialDistance(gridsize=gridsize, resolution=resolution)
 
         ### Replace with esfm
-        self.sub_people = rospy.Subscriber("sim/agent_poses", PoseArray,self.people_callback, queue_size=100)
+        self.sub_people = rospy.Subscriber("sim/agent_poses", PoseArray, self.people_callback, queue_size=100)
+        self.sub_goal = rospy.Subscriber("move_base_simple/goal", PoseStamped, self.goal_callback, queue_size=100)
         self.robot_pose = [0.0, 0.0]
         self.previous_robot_pose = []
         self.robot_pose_rb = [0.0, 0.0]
@@ -84,14 +86,14 @@ class FeatureExpect():
         self.delta_t = 0.0
         self.pose_people_tf = np.empty((0,4 ,4), float)
 
-        self.initpose_pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped, queue_size=1)
-        self.initpose_sub = rospy.Subscriber("/initialpose", PoseWithCovarianceStamped, self.initpose_callback, queue_size=1)
-        self.initpose = PoseWithCovarianceStamped()
-        self.initpose_get = False
+        # self.initpose_pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped, queue_size=1)
+        # self.initpose_sub = rospy.Subscriber("/initialpose", PoseWithCovarianceStamped, self.initpose_callback, queue_size=1)
+        # self.initpose = PoseWithCovarianceStamped()
+        # self.initpose_get = False
     
-    def initpose_callback(self,data):
-        self.initpose = data
-        self.initpose_get = True
+    # def initpose_callback(self,data):
+    #     self.initpose = data
+    #     self.initpose_get = True
 
     def get_robot_pose(self):
         self.tf_listener.waitForTransform("/my_map_frame", "/base_link", rospy.Time(), rospy.Duration(4.0))
@@ -125,6 +127,10 @@ class FeatureExpect():
             pose_people_tf[1][3] = people_pose[1]
             pose_people_tf[2][3] = people_pose[2]
             self.pose_people_tf = np.append(self.pose_people_tf, np.array([pose_people_tf]), axis=0)
+    def goal_callback(self,data):
+        print("Goal received!")
+        self.goal = data
+        self.received_goal = True
 
     # def people_callback(self,data):
 
@@ -200,11 +206,16 @@ class FeatureExpect():
             return None
 
     def get_current_feature(self):
-        # self.distance_feature = self.Distance2goal.get_feature_matrix(self.goal)
+        # 
         # self.localcost_feature = self.Laser2density.temp_result
         self.social_distance_feature = np.ndarray.tolist(self.SocialDistance.get_features())
+        # feature_list = [self.social_distance_feature]
         # self.current_feature = np.array([self.distance_feature[i] + self.localcost_feature[i] + self.traj_feature[i] + [0.0] for i in range(len(self.distance_feature))])
-        # self.feature_maps.append(np.array(self.current_feature).T)
+        if (self.received_goal):
+            self.distance_feature = self.Distance2goal.get_feature_matrix(self.goal)
+            self.current_feature = np.array([self.distance_feature[i] + [0.0] for i in range(len(self.distance_feature))])
+            print("Have a goal feature", self.current_feature)
+            self.feature_maps.append(np.array(self.current_feature).T)
 
     def get_expect(self):
         R1 = self.get_robot_pose()
@@ -271,27 +282,27 @@ class FeatureExpect():
 
         return z
 
-    def reset_robot(self):
-        self.initpose_pub.publish(self.initpose)
+    # def reset_robot(self):
+    #     self.initpose_pub.publish(self.initpose)
         # print("Publish successfully")
+
+        
 
 
 
 if __name__ == "__main__":
         rospy.init_node("Feature_expect",anonymous=False)
-        initpose_pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped, queue_size=1)
-        data = PoseStamped()
-        data.pose.position.x = 4
-        data.pose.position.y = 0
-        data.header.frame_id = "/map"
-        feature = FeatureExpect(goal=data, resolution=0.5, gridsize=(31,31))
+        # initpose_pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped, queue_size=1)
+        feature = FeatureExpect(resolution=0.5, gridsize=(31,31))
 
         fm_file = "../dataset/fm/fm.npz"
         traj_file = "../dataset/trajs/trajs.npz"
-        while(not feature.initpose_get):
-            rospy.sleep(0.1)
-        feature.reset_robot()
+        # while(not feature.initpose_get):
+        #     rospy.sleep(0.1)
+        # feature.reset_robot()
         rospy.sleep(1)
+        while(not feature.received_goal):
+            rospy.sleep(0.1)
         feature.get_current_feature()
         np.savez(fm_file, *feature.feature_maps)
         while(not rospy.is_shutdown()):
@@ -299,5 +310,4 @@ if __name__ == "__main__":
             if(len(feature.traj) > 1):
                 np.savez(traj_file, *feature.trajs)
                 print("One demonstration finished!!")
-            feature.reset_robot()
             rospy.sleep(0.1)
