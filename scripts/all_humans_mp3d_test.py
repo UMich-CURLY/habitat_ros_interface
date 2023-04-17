@@ -9,6 +9,7 @@
 from habitat.utils.geometry_utils import quaternion_rotate_vector
 from habitat.tasks.utils import cartesian_to_polar
 from habitat_sim.utils import common as utils
+from habitat_sim.utils.common import d3_40_colors_rgb
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 import habitat_sim.nav as habitat_path
 import habitat
@@ -29,7 +30,7 @@ from rospy.numpy_msg import numpy_msg
 from rospy_tutorials.msg import Floats
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist, TransformStamped
-from geometry_msgs.msg import PointStamped, PoseStamped, PoseWithCovarianceStamped
+from geometry_msgs.msg import PointStamped, PoseStamped, PoseWithCovarianceStamped, PoseArray, Pose
 from visualization_msgs.msg import Marker, MarkerArray
 import threading
 import tf
@@ -41,11 +42,10 @@ from IPython import embed
 from nav_msgs.srv import GetPlan
 from get_trajectory import *
 from get_trajectory_rvo import *
-from habitat_sim.utils.common import d3_40_colors_rgb
 
 import tf2_ros
 lock = threading.Lock()
-rospy.init_node("robot_1", anonymous=False)
+rospy.init_node("sim", anonymous=False)
 import argparse
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
@@ -154,37 +154,59 @@ def map_to_base_link(msg, my_env):
     my_env.br.sendTransform((-my_env.initial_state[0][0]+1, -my_env.initial_state[0][1]+1,0.0),
                     tf.transformations.quaternion_from_euler(0, 0, 0.0),
                     rospy.Time.now(),
-                    "decision_frame",
+                    "my_map_frame",
+                    "interim_link"
+    )
+    my_env.br.sendTransform((0.0,0.0,0.0),
+                    tf.transformations.quaternion_from_euler(0, 0, -theta),
+                    rospy.Time.now(),
+                    "interim_link",
                     "base_link"
     )
     poseMsg = PoseStamped()
     poseMsg.header.stamp = rospy.Time.now()
     poseMsg.header.frame_id = "base_link"
-    quat = tf.transformations.quaternion_from_euler(0, 0, theta)
+    quat = tf.transformations.quaternion_from_euler(0, 0, 0.0)
     poseMsg.pose.orientation.x = quat[0]
     poseMsg.pose.orientation.y = quat[1]
     poseMsg.pose.orientation.z = quat[2]
     poseMsg.pose.orientation.w = quat[3]
-    poseMsg.header.stamp = rospy.Time.now()
     poseMsg.pose.position.x = 0.0
     poseMsg.pose.position.y = 0.0
     poseMsg.pose.position.z = 0.0
     my_env._robot_pose.publish(poseMsg)
+
+    ##### Publish other agents 
+    poseArrayMsg = PoseArray()
+    poseArrayMsg.header.frame_id = "my_map_frame"
+    poseArrayMsg.header.stamp = rospy.Time.now()
     follower_pos = my_env.follower.rigid_state.translation
+    theta = my_env.get_object_heading(my_env.follower.transformation)
+    quat = tf.transformations.quaternion_from_euler(0, 0, theta)
     follower_pose_2d = to_grid(my_env.env._sim.pathfinder, follower_pos, my_env.grid_dimensions)
     follower_pose_2d = follower_pose_2d*(0.025*np.ones([1,2]))[0]
-    poseMsg.header.frame_id = "decision_frame"
-    poseMsg.pose.orientation.x = 0.0
-    poseMsg.pose.orientation.y = 0.0
-    poseMsg.pose.orientation.z = 0.0
-    poseMsg.pose.orientation.w = 1.0
-    poseMsg.header.stamp = rospy.Time.now()
-    poseMsg.pose.position.x = my_env.initial_state[1][0]-1
-    poseMsg.pose.position.y = my_env.initial_state[1][1]-1
-    poseMsg.pose.position.z = 0.0
-    my_env._pub_follower.publish(poseMsg)
+    
+    for i in range(len(my_env.initial_state)-1):
+        poseMsg = Pose()
+        if (i==0):
+            theta = my_env.get_object_heading(my_env.leader.transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
+        elif (i==1):
+            theta = my_env.get_object_heading(my_env.follower.transformation) - mn.Rad(np.pi/2-0.97 + np.pi)
+        else:
+            theta = my_env.get_object_heading(my_env.objs[i-2].transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
+        quat = tf.transformations.quaternion_from_euler(0, 0, theta)
+        poseMsg.orientation.x = quat[0]
+        poseMsg.orientation.y = quat[1]
+        poseMsg.orientation.z = quat[2]
+        poseMsg.orientation.w = quat[3]
+        poseMsg.position.x = my_env.initial_state[i+1][0]-1
+        poseMsg.position.y = my_env.initial_state[i+1][1]-1
+        poseMsg.position.z = 0.0
+        poseArrayMsg.poses.append(poseMsg)
+    my_env._pub_all_agents.publish(poseArrayMsg)
+
     goal_marker = Marker()
-    goal_marker.header.frame_id = "decision_frame"
+    goal_marker.header.frame_id = "my_map_frame"
     goal_marker.type = 2
     goal_marker.pose.position.x = my_env.initial_state[0][4]-1
     goal_marker.pose.position.y = my_env.initial_state[0][5]-1
@@ -222,10 +244,10 @@ class sim_env(threading.Thread):
     action_uncertainty_rate = 0.9
     follower = []
     new_goal = False
-    control_frequency = 10
+    control_frequency = 20
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
-    human_control_frequency = 10
+    human_control_frequency = 5
     human_time_step = 1/human_control_frequency
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
@@ -257,41 +279,10 @@ class sim_env(threading.Thread):
         # always assume height equals width
         # self.env._sim.agents[0].move_filter_fn = self.env._sim.step_filter
         agent_state = self.env.sim.get_agent_state(0)
-        # test scne
-        def print_scene_recur(scene, limit_output=10):
-            print(f"House has {len(scene.levels)} levels, {len(scene.regions)} regions and {len(scene.objects)} objects")
-            print(f"House center:{scene.aabb.center} dims:{scene.aabb.sizes}")
-
-            count = 0
-            for level in scene.levels:
-                print(
-                    f"Level id:{level.id}, center:{level.aabb.center},"
-                    f" dims:{level.aabb.sizes}"
-                )
-                for region in level.regions:
-                    print(
-                        f"Region id:{region.id}, category:{region.category.name()},"
-                        f" center:{region.aabb.center}, dims:{region.aabb.sizes}"
-                    )
-                    for obj in region.objects:
-                        print(
-                            f"Object id:{obj.id}, category:{obj.category.name()},"
-                            f" center:{obj.aabb.center}, dims:{obj.aabb.sizes}"
-                        )
-                        count += 1
-                        if count >= limit_output:
-                            return None
-
-        # Print semantic annotation information (id, category, bounding box details)
-        # about levels, regions and objects in a hierarchical fashion
-        scene_test = self.env.sim.semantic_scene
-        print_scene_recur(scene_test)
-
         self.observations = self.env.reset()
-        # print('observations:', self.observations)
-        env_semantic_annotations = self.env.sim.semantic_annotations()
-        instance_id_to_label_id = {int(obj.id.split("_")[-1]): obj.category.index() for obj in env_semantic_annotations.objects}
-        # print('instance id to label id:', instance_id_to_label_id)
+
+        semantic_scene = self.env.sim.semantic_annotations()
+        instance_id_to_label_id = {int(obj.id.split("_")[-1]): obj.category.index() for obj in semantic_scene.objects}
         self.instance_label_mapping = np.array([ instance_id_to_label_id[i] for i in range(len(instance_id_to_label_id)) ])
 
         arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
@@ -333,11 +324,12 @@ class sim_env(threading.Thread):
         # agent_state.position = agent_init_pos
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
-        # self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
+        self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
         self._pub_semantic = rospy.Publisher("~semantic", numpy_msg(Floats), queue_size=1)
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
         self._robot_pose = rospy.Publisher("~robot_pose", PoseStamped, queue_size = 1)
-        self._pub_follower = rospy.Publisher("~follower_pose", PoseStamped, queue_size = 1)
+        # self._pub_follower = rospy.Publisher("~follower_pose", PoseStamped, queue_size = 1)
+        self._pub_all_agents = rospy.Publisher("~agent_poses", PoseArray, queue_size = 1)
         self._pub_goal_marker = rospy.Publisher("~goal", Marker, queue_size = 1)
         
         self.br = tf.TransformBroadcaster()
@@ -373,12 +365,9 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
         ### N has the total number of extra humans, besides the robot and the two followers
-        # self.N = 5
+        self.N = 5
         
-        # self.groups = [[0,1,2], [3], [4,5],[6,7]]
-        self.N = 1
-        
-        self.groups = [[0,1,2], [3]]
+        self.groups = [[0,1,2], [3], [4],[5],[6],[7]]
 
 
         ##### Initiating objects for other humans #####
@@ -415,7 +404,7 @@ class sim_env(threading.Thread):
                 goal_distance = temp_goal_dist
         if (goal_distance<10):
             print("chose another scene maybe!", goal_distance)
-            embed()
+            # embed()
         path.requested_end = agent_goal_pos_3d
         self.final_goals_3d[0,:] = agent_goal_pos_3d
         if(not self.env._sim.pathfinder.find_path(path)):
@@ -520,7 +509,7 @@ class sim_env(threading.Thread):
         self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+initial_pos)
         self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
 
-        #### Add the rest of the people iwth random goal assigned ####
+        #### Add the rest of the people with random goal assigned ####
         self.human_template_ids = []
         self.objs = []
         self.vel_control_objs = []
@@ -617,6 +606,7 @@ class sim_env(threading.Thread):
             initial_pos = [pos*0.025 for pos in initial_pos]
             vel = [(self.initial_pos[0]-initial_pos[0])/self.human_time_step,(self.initial_pos[1]-initial_pos[1])/self.human_time_step]
             self.initial_state[0][2:4] = vel
+            self.initial_pos = initial_pos
         self.agent_update_counter +=1
         lin_vel = self.linear_velocity[2]
         ang_vel = self.angular_velocity[1]
@@ -640,6 +630,10 @@ class sim_env(threading.Thread):
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
         initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
+        a = self.env.sim.robot.base_transformation
+        b = a.transform_point([-0.2,0.0,0.0])
+        point_behind = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
+        point_behind = [pos*0.025 for pos in point_behind]
         self.initial_state[0][0:2] = initial_pos
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         ####  Update Leader state in ESFM 
@@ -647,13 +641,13 @@ class sim_env(threading.Thread):
         current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
         self.initial_state[1][0:2] = current_initial_pos_2d
-        self.initial_state[1][4:6] = initial_pos
+        self.initial_state[1][4:6] = point_behind
         self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
         #### Update Follower state in ESFM
         object_state = self.follower.rigid_state.translation
         current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
         current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        self.initial_state[2][4:6] = initial_pos
+        self.initial_state[2][4:6] = point_behind
         self.initial_state[2][0:2] = current_initial_pos_2d
         self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
         #### Update other humans state in ESFM, sample new goal if reached 
@@ -662,7 +656,7 @@ class sim_env(threading.Thread):
             current_initial_pos_2d = to_grid(self.env._sim.pathfinder, human_state, self.grid_dimensions)
             current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
             self.initial_state[k+3][0:2] = current_initial_pos_2d
-            self.goal_dist[+3] = np.linalg.norm((np.array(self.initial_state[k+3][0:2])-np.array(self.initial_state[k+3][4:6])))
+            self.goal_dist[k+3] = np.linalg.norm((np.array(self.initial_state[k+3][0:2])-np.array(self.initial_state[k+3][4:6])))
         #### Calculate new velocity
         
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
@@ -747,11 +741,11 @@ class sim_env(threading.Thread):
             self.initial_state[k+3][2:4] = [computed_velocity[k+3,0], computed_velocity[k+3,1]]
             
             #### Update to next topogoal if reached the first one 
-            GOAL_THRESHOLD = 0.2
-            if (self.goal_dist[k]<= GOAL_THRESHOLD):
+            GOAL_THRESHOLD = 0.3
+            if (self.goal_dist[k+3]<= GOAL_THRESHOLD):
                 final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[k+1,:], self.grid_dimensions))
                 goal_pos = [pos*0.025 for pos in final_goal_grid]
-                dist = np.linalg(goal_pos - self.initial_state[k+3][4:6])
+                dist = np.linalg.norm(np.array(goal_pos) - np.array(self.initial_state[k+3][4:6]))
                 path = habitat_path.ShortestPath()
                 path.requested_start = np.array(human_state.translation)
                 #### If it isn't a intermediate goal, sample a new goal for the agent 
@@ -761,7 +755,6 @@ class sim_env(threading.Thread):
                     if(not self.env._sim.pathfinder.find_path(path)):
                         continue
                     self.final_goals_3d[k+1,:] = new_goal_pos_3d 
-                    
                 #### Update to next intermediate goal 
                 else:
                     path.requested_end = self.final_goals_3d[k+1,:]
@@ -771,7 +764,7 @@ class sim_env(threading.Thread):
                 goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d, self.grid_dimensions))
                 goal_pos = [pos*0.025 for pos in goal_pos]
                 self.initial_state[k+3][4:6] = goal_pos
-                self.goal_dist[k+3] = np.linalg((np.array(self.initial_state[k+3][0:2])-np.array(self.initial_state[k+3][4:6])))
+                self.goal_dist[k+3] = np.linalg.norm((np.array(self.initial_state[k+3][0:2])-np.array(self.initial_state[k+3][4:6])))
 
 
 
@@ -800,28 +793,17 @@ class sim_env(threading.Thread):
                 )
             )
 
-            print('!!! Semantic Check !!!')
-            # print('semantic observations:', self.observations['semantic'])
             observations_semantic = np.take(self.instance_label_mapping, self.observations['semantic'])
-            # observations_semantic = self.observations['semantic']
-            semantic_img = Image.new("P", (480, 640))
+            semantic_img = Image.new("P", (128, 128))
             semantic_img.putpalette(d3_40_colors_rgb.flatten())
             semantic_img.putdata((observations_semantic.flatten()%40).astype(np.uint8))
             semantic_img = semantic_img.convert("RGBA")
             semantic_img = np.asarray(semantic_img)
-            # semantic_with_res = np.concatenate(
-            #     (
-            #         np.float32(semantic_img[:, :, 0:3].ravel()),
-            #         np.array(
-            #             [self._sensor_resolution["SEMANTIC"], self._sensor_resolution["SEMANTIC"]]
-            #         ),
-            #     )
-            # )
             semantic_with_res = np.concatenate(
                 (
-                    np.float32(semantic_img[:,:,0:3].ravel()),
+                    np.float32(semantic_img[:, :, 0:3].ravel()),
                     np.array(
-                        [480, 640]
+                        [128, 128]
                     ),
                 )
             )
@@ -839,21 +821,10 @@ class sim_env(threading.Thread):
                 )
             )       
 
-            # self._pub_rgb.publish(np.float32(rgb_with_res))
+            self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_semantic.publish(np.float32(semantic_with_res))
             self._pub_depth.publish(np.float32(depth_with_res))
-            
-            #### Update agent velocity 
-            a = self.env._sim.robot.base_transformation
-            b = a.transform_point([0.5,0.0,0.0])
-            d = a.transform_point([0.0,0.0,0.0])
-            c = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
-            e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
-            if(self.angular_velocity[1]!=0.0):
-                vel = (c-e)*(0.5/np.linalg.norm(c-e)*np.ones([1,2]))[0]
-            else:
-                vel = (c-e)*(self.linear_velocity[2]/np.linalg.norm(c-e)*np.ones([1,2]))[0]
-            # vel = (c-e)*(self.linear_velocity[2]/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+
             #### Publish pose and transform
             agent_pos = self.env.sim.robot.base_pos
             start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
@@ -862,7 +833,7 @@ class sim_env(threading.Thread):
             self.initial_state[0][0:2] = initial_pos
             # self.initial_state[0][2:4] = vel
             self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
-            map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
+            map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.get_object_heading(self.env._sim.robot.base_transformation)},self)
             lock.release()
             self._r_sensor.sleep()
             
@@ -903,7 +874,15 @@ class sim_env(threading.Thread):
     def set_dt(self, dt):
         self._dt = dt
       
-        
+    def get_object_heading(self,obj_transform):
+        a = obj_transform
+        b = a.transform_point([0.5,0.0,0.0])
+        d = a.transform_point([0.0,0.0,0.0])
+        c = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
+        e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
+        vel = (c-e)*(0.5/np.linalg.norm(c-e)*np.ones([1,2]))[0]
+        return mn.Rad(np.arctan2(vel[1], vel[0]))
+
     def plan_callback(self,msg):
         print("In plan_callback ", self._global_plan_published)
         # if(self._global_plan_published == False):
@@ -985,7 +964,7 @@ def callback(vel, my_env):
 
 def main():
 
-    my_env = sim_env(env_config_file="configs/tasks/custom_rearrange_mp3d.yaml")
+    my_env = sim_env(env_config_file="configs/tasks/custom_rearrange_test.yml")
     # start the thread that publishes sensor readings
     my_env.start()
 

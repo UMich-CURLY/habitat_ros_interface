@@ -1,4 +1,4 @@
-DATASET:
+ATASET:
   DATA_PATH: ./data/datasets/pointnav/mp3d/v1/test/content/Vvot9Ly1tCj0.json.gz
   SCENES_DIR: ./data/mp3d/
   SPLIT: test
@@ -6,7 +6,6 @@ DATASET:
 ENVIRONMENT:
   MAX_EPISODE_STEPS: 0
 SIMULATOR:
-  SCENE_DATASET: ./data/scene_datasets/mp3d/mp3d.scene_dataset_config.json
   ACTION_SPACE_CONFIG: v0
   AC_FREQ_RATIO: 4
   ADDITIONAL_OBJECT_PATHS:
@@ -84,7 +83,7 @@ SIMULATOR:
   ROBOT_URDF: ./data/robots/hab_fetch/robots/hab_fetch.urdf
   SEED: 100
   SEMANTIC_SENSOR:
-    HEIGHT: 480
+    HEIGHT: 128
     HFOV: 90
     ORIENTATION:
     - 0.0
@@ -95,7 +94,7 @@ SIMULATOR:
     - 1.25
     - 0
     TYPE: HabitatSimSemanticSensor
-    WIDTH: 640
+    WIDTH: 128
   THIRD_RGB_SENSOR:
     HEIGHT: 512
     WIDTH: 512
