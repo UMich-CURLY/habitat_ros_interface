@@ -1,4 +1,4 @@
-ATASET:
+DATASET:
   DATA_PATH: ./data/datasets/pointnav/mp3d/v1/test/content/Vvot9Ly1tCj0.json.gz
   SCENES_DIR: ./data/mp3d/
   SPLIT: test
