@@ -19,4 +19,4 @@ else:
 
 __ = os.system('python ./scripts/get_topdown_map.py --scene '+ scene + ' --mps 0.025')
 # __ = os.system('python ./scripts/follower_and_robot.py --scene '+ scene)
-__ = os.system('python ./scripts/all_humans.py --scene '+ scene)
+__ = os.system('python ./scripts/all_humans_test.py --scene '+ scene)

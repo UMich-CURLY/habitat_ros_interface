@@ -56,7 +56,7 @@ def callback_1(data):
 
 def listener():
     rospy.init_node("gray2ros_depth")
-    rospy.Subscriber("robot_1/depth", numpy_msg(Floats), callback_1)
+    rospy.Subscriber("depth_1", numpy_msg(Floats), callback_1)
     rospy.spin()
 
 

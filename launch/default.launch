@@ -14,7 +14,10 @@
 		<remap from="depth_1" to="sim/depth"/>
 	</node>
 	
-	
+	<node pkg="habitat_interface" type="semantic_ros.py" name="semantic_ros" >
+		<remap from="semantic_1" to="sim/semantic"/>
+	</node>
+
 	<node pkg="habitat_interface" type="rgb_ros.py" name="rgb_ros">
 		<remap from="rgb_1" to="sim/rgb"/>
 	</node>
