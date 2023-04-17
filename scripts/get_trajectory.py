@@ -127,8 +127,6 @@ class social_force():
             if (self.update_number < self.max_counter):
                 self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
                 self.ax.plot(initial_state[j][4], initial_state[j][5], "-x", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
-            print("Initial state is ",initial_state[j])
-            print("Point reaches in this step is ", [x,y])
         if (self.update_number == self.max_counter):
             print("saving the offline plot!!")
             self.fig.savefig("save_stepwise_esfm"+".png", dpi=300)
@@ -136,7 +134,7 @@ class social_force():
         self.update_number+=1
         ### Find out how to update agent positions in this ####
         print("Velocity returned is ", computed_velocity)
-        # print("Agent radius is", s.peds.agent_radius)
+        print("State of the agent is ", self.s.peds.state)
         return np.array(computed_velocity)
     
     def plot_obstacles(self):
