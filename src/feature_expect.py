@@ -203,6 +203,7 @@ class FeatureExpect():
             # print([x, y]) # (1,2) -> (1,1) -> (0,1)
             return [x, y]
         else:
+            embed()
             return None
 
     def get_current_feature(self):
@@ -238,6 +239,7 @@ class FeatureExpect():
             self.robot_pose_rb = [self.robot_pose_rb[0][0], self.robot_pose_rb[1][0]]
 
             index = self.in_which_cell(self.robot_pose_rb)
+            print("Relative robot_pose is ", self.robot_pose_rb, "Index is ", index)
             if(not index in self.trajectory and index):
                 self.trajectory.append(index)
             
