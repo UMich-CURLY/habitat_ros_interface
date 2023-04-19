@@ -128,9 +128,9 @@ class FeatureExpect():
             pose_people_tf[2][3] = people_pose[2]
             self.pose_people_tf = np.append(self.pose_people_tf, np.array([pose_people_tf]), axis=0)
     def goal_callback(self,data):
-        print("Goal received!")
         self.goal = data
         self.received_goal = True
+        print("Goal Received")
 
     # def people_callback(self,data):
 
@@ -214,7 +214,6 @@ class FeatureExpect():
         if (self.received_goal):
             self.distance_feature = self.Distance2goal.get_feature_matrix(self.goal)
             self.current_feature = np.array([self.distance_feature[i] + [0.0] for i in range(len(self.distance_feature))])
-            print("Have a goal feature", self.current_feature)
             self.feature_maps.append(np.array(self.current_feature).T)
 
     def get_expect(self):
@@ -229,7 +228,6 @@ class FeatureExpect():
         index = self.in_which_cell(self.robot_pose_rb)
         percent_temp = 0
         while(index):
-            
             # Robot pose
             R2 = self.get_robot_pose()
             
@@ -305,8 +303,11 @@ if __name__ == "__main__":
             rospy.sleep(0.1)
         feature.get_current_feature()
         np.savez(fm_file, *feature.feature_maps)
+        print("Feature map is ", feature.feature_maps)
+        print("Rospy shutdown", rospy.is_shutdown())
         while(not rospy.is_shutdown()):
             feature.get_expect()
+            print("Traj is ", feature.trajs)
             if(len(feature.traj) > 1):
                 np.savez(traj_file, *feature.trajs)
                 print("One demonstration finished!!")
