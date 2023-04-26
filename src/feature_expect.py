@@ -203,8 +203,13 @@ class FeatureExpect():
             # print([x, y]) # (1,2) -> (1,1) -> (0,1)
             return [x, y]
         else:
-            embed()
             return None
+        
+    def get_local_goal(self):
+        if(not self.received_goal):
+            return None 
+        else:
+            pass
 
     def get_current_feature(self):
         # 
