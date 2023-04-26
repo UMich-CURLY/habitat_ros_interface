@@ -43,7 +43,7 @@ def get_topdown_map(config_paths, map_name):
             env._sim.pathfinder, 0.0, meters_per_pixel=meters_per_pixel
         )
     recolor_map = np.array(
-        [[255, 255, 255], [128, 128, 128], [0, 0, 0]], dtype=np.uint8
+        [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
     )
     hablab_topdown_map = recolor_map[hablab_topdown_map]
     square_map_resolution = 5000
