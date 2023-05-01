@@ -10,7 +10,7 @@ from pyparsing import empty
 from distance2goal import Distance2goal
 # from laser2density import Laser2density
 from social_distance import SocialDistance
-# from traj_predict import TrajPred
+from traj_predict import TrajPred
 import rospy
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray
 import numpy as np
@@ -57,7 +57,7 @@ class FeatureExpect():
         self.goal = PoseStamped()
         self.received_goal = False
         # self.Laser2density = Laser2density(gridsize=gridsize, resolution=resolution)
-        # self.traj_sub = rospy.Subscriber("traj_matrix", numpy_msg(Floats), self.traj_callback,queue_size=100)
+        self.traj_sub = rospy.Subscriber("traj_matrix", numpy_msg(Floats), self.traj_callback,queue_size=100)
         self.SocialDistance = SocialDistance(gridsize=gridsize, resolution=resolution)
 
         ### Replace with esfm
@@ -214,7 +214,7 @@ class FeatureExpect():
         # self.current_feature = np.array([self.distance_feature[i] + self.localcost_feature[i] + self.traj_feature[i] + [0.0] for i in range(len(self.distance_feature))])
         if (self.received_goal):
             self.distance_feature = self.Distance2goal.get_feature_matrix(self.goal)
-            self.current_feature = np.array([self.distance_feature[i] + [0.0] for i in range(len(self.distance_feature))])
+            self.current_feature = np.array([self.distance_feature[i] + self.traj_feature[i] + [0.0] for i in range(len(self.distance_feature))])
             self.feature_maps.append(np.array(self.current_feature).T)
 
     def get_expect(self):
