@@ -1,6 +1,7 @@
 # Planner selection
 # base_global_planner: "rrt_star_global_planner/RRTStarPlanner"
-base_global_planner: "global_planner/GlobalPlanner" 
+# base_global_planner: "global_planner/GlobalPlanner" 
+base_global_planner: "voronoi_planner/VoronoiPlanner" 
 # base_global_planner: "navfn/NavfnROS" 
 base_local_planner: "base_local_planner/TrajectoryPlannerROS"
 
@@ -8,11 +9,11 @@ TrajectoryPlannerROS:
   max_vel_x:  0.5 # 40 #0.12    
   min_vel_x:  -0.1  # -40 #-0.1
   max_vel_theta: 5  #20  #5
-  min_in_place_vel_theta: -3 # 0  #-3
+  min_in_place_vel_theta: -1 # 0  #-3
 
-  acc_lim_theta: 12.5  #1
-  acc_lim_x: 20  #2.5
-  acc_lim_y: 20  #2.5
+  acc_lim_theta: 2.5 #12.5  #1
+  acc_lim_x: 2.5 #20  #2.5
+  acc_lim_y: 2.5 #20  #2.5
 
   holonomic_robot: false
   meter_scoring: true

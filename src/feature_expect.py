@@ -203,8 +203,13 @@ class FeatureExpect():
             # print([x, y]) # (1,2) -> (1,1) -> (0,1)
             return [x, y]
         else:
-            embed()
             return None
+        
+    def get_local_goal(self):
+        if(not self.received_goal):
+            return None 
+        else:
+            pass
 
     def get_current_feature(self):
         # 
@@ -240,15 +245,17 @@ class FeatureExpect():
 
             index = self.in_which_cell(self.robot_pose_rb)
             print("Relative robot_pose is ", self.robot_pose_rb, "Index is ", index)
-            if(not index in self.trajectory and index):
+            distance = np.sqrt((self.robot_pose[0] - self.goal.pose.position.x)**2+(self.robot_pose[1] - self.goal.pose.position.y)**2)
+            if(distance < 0.1 or not index):
+                break
+            if(not index in self.trajectory):
                 self.trajectory.append(index)
             
             # Whether the robot reaches the goal
-            distance = np.sqrt((self.robot_pose[0] - self.goal.pose.position.x)**2+(self.robot_pose[1] - self.goal.pose.position.y)**2)
+            
             # print("distance: ", distance)
             step_list = []
-            if(distance < 0.5):
-                break
+            
             rospy.sleep(0.1)
 
         self.traj = [self.trajectory[i][1]*self.gridsize[1]+self.trajectory[i][0] for i in range(len(self.trajectory))]
@@ -293,7 +300,7 @@ class FeatureExpect():
 if __name__ == "__main__":
         rospy.init_node("Feature_expect",anonymous=False)
         # initpose_pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped, queue_size=1)
-        feature = FeatureExpect(resolution=0.5, gridsize=(31,31))
+        feature = FeatureExpect(resolution=0.1, gridsize=(11,11))
 
         fm_file = "../dataset/fm/fm.npz"
         traj_file = "../dataset/trajs/trajs.npz"

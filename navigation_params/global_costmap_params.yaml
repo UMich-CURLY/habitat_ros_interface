@@ -1,7 +1,7 @@
 global_costmap:
   global_frame: map
   robot_base_frame: base_frame
-  update_frequency: 2.0
+  update_frequency: 0.01
   static_map: true
   map_topic: map # default: "map"
   track_unknown_space: true
