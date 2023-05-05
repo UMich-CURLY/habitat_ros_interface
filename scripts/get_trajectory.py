@@ -13,10 +13,10 @@ import tf
 from habitat.utils.visualizations import maps
 import matplotlib.pyplot as plt
 
-def my_ceil(a, precision=1):
+def my_ceil(a, precision=2):
     return np.true_divide(np.ceil(a * 10**precision), 10**precision)
 
-def my_floor(a, precision=1):
+def my_floor(a, precision=2):
     return np.true_divide(np.floor(a * 10**precision), 10**precision)
 
 class social_force():
