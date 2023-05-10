@@ -68,14 +68,14 @@ SIMULATOR:
     GPU_GPU: false
     PHYSICS_CONFIG_FILE: ./data/default.physics_config.json
   HEAD_DEPTH_SENSOR:
-    HEIGHT: 128
+    HEIGHT: 720
     MAX_DEPTH: 10.0
     MIN_DEPTH: 0.0
     NORMALIZE_DEPTH: true
-    WIDTH: 128
+    WIDTH: 720
   HEAD_RGB_SENSOR:
-    HEIGHT: 128
-    WIDTH: 128
+    HEIGHT: 720
+    WIDTH: 720
   HOLD_THRESH: 0.09
   IK_ARM_URDF: ./data/robots/hab_fetch/robots/fetch_onlyarm.urdf
   ROBOT_TYPE: FetchRobot

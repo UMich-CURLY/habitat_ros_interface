@@ -148,14 +148,14 @@ SIMULATOR:
         START_POSITION: [0, 0, 0]
         START_ROTATION: [0, 0, 0, 1]
     HEAD_RGB_SENSOR:
-        WIDTH: 128
-        HEIGHT: 128
+        WIDTH: 720
+        HEIGHT: 720
     THIRD_RGB_SENSOR:
         WIDTH: 512
         HEIGHT: 512
     HEAD_DEPTH_SENSOR:
-        WIDTH: 128
-        HEIGHT: 128
+        WIDTH: 720
+        HEIGHT: 720
         MIN_DEPTH: 0.0
         MAX_DEPTH: 10.0
         NORMALIZE_DEPTH: True

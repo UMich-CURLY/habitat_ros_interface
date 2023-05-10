@@ -318,6 +318,7 @@ class sim_env(threading.Thread):
         self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
         self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
         self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
+        self._pub_third_rgb = rospy.Publisher("~third_rgb", numpy_msg(Floats), queue_size=1)
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
         self._robot_pose = rospy.Publisher("~robot_pose", PoseStamped, queue_size = 1)
         # self._pub_follower = rospy.Publisher("~follower_pose", PoseStamped, queue_size = 1)
@@ -776,11 +777,19 @@ class sim_env(threading.Thread):
         """
         while not rospy.is_shutdown():
             lock.acquire()
-            rgb_with_res = np.concatenate(
+            third_rgb_with_res = np.concatenate(
                 (
                     np.float32(self.observations["robot_third_rgb"][:,:,0:3].ravel()),
                     np.array(
                         [512,512]
+                    ),
+                )
+            )
+            rgb_with_res = np.concatenate(
+                (
+                    np.float32(self.observations["robot_head_rgb"][:,:,0:3].ravel()),
+                    np.array(
+                        [720,720]
                     ),
                 )
             )
@@ -790,12 +799,13 @@ class sim_env(threading.Thread):
                     np.float32(self.observations["robot_head_depth"].ravel() ),
                     np.array(
                         [
-                            128,
-                            128
+                            720,
+                            720
                         ]
                     ),
                 )
             )       
+            self._pub_third_rgb.publish(np.float32(third_rgb_with_res))
             self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_depth.publish(np.float32(depth_with_res))
 
