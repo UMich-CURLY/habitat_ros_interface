@@ -15,6 +15,7 @@ DEPTH_IMG_WIDTH = 720
 DEPTH_IMG_HEIGHT = 720
 
 pub_1 = rospy.Publisher("robot_1_depth", Image, queue_size=10)
+pub_2 = rospy.Publisher("robot_1_depth_mirrored", Image, queue_size=10)
 camera_info_pub_1 = rospy.Publisher("robot_1_camera_info_topic", CameraInfo, queue_size=0)
 
 
@@ -35,7 +36,18 @@ def callback_1(data):
     image_message = CvBridge().cv2_to_imgmsg(img, encoding="passthrough")
     image_message.header = h
     pub_1.publish(image_message)
-
+    new_image = img_raveled.copy()
+    
+    for i in range(img_size[0]):
+        temp_img = img_raveled[i*img_size[1]:(i+1)*img_size[1]].copy()
+        print(temp_img.shape)
+        temp_img = temp_img[::-1]
+        
+        new_image[i*img_size[1]:(i+1)*img_size[1]] = temp_img
+    img = np.float32(np.reshape(new_image, (img_size[0], img_size[1])))
+    image_message = CvBridge().cv2_to_imgmsg(img, encoding="passthrough")
+    image_message.header = h
+    pub_2.publish(image_message)
     camera_info_msg = CameraInfo()
     camera_info_msg.header = h
     fx, fy = DEPTH_IMG_WIDTH/2, DEPTH_IMG_HEIGHT/2

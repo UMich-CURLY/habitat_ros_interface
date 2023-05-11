@@ -20,6 +20,7 @@ RGB_IMG_HEIGHT = 720
 rospy.init_node("nprgb2ros_rgb",anonymous=False)
 
 pub_1 = rospy.Publisher("robot_1_rgb", Image, queue_size=10)
+pub_2 = rospy.Publisher("robot_1_rgb_mirrored", Image, queue_size=10)
 # camera_info_pub_1 = rospy.Publisher("robot_1_camera_info_topic", CameraInfo, queue_size=0)
 
 def callback_1(data):
@@ -33,7 +34,18 @@ def callback_1(data):
     image_message = CvBridge().cv2_to_imgmsg(img, encoding="rgb8")
     image_message.header = h
     pub_1.publish(image_message)
+    new_image = img_raveled.copy()
     
+    for i in range(img_size[0]):
+        temp_img = img_raveled[i*img_size[1]*3:(i+1)*img_size[1]*3].copy()
+        print(temp_img.shape)
+        temp_img = temp_img[::-1]
+        
+        new_image[i*img_size[1]*3:(i+1)*img_size[1]*3] = temp_img
+    img = (np.reshape(new_image, (img_size[0], img_size[1], 3))).astype(np.uint8)
+    image_message = CvBridge().cv2_to_imgmsg(img, encoding="rgb8")
+    image_message.header = h
+    pub_2.publish(image_message)
     camera_info_msg = CameraInfo()
     camera_info_msg.header = h
     fx, fy = RGB_IMG_WIDTH/2, RGB_IMG_HEIGHT/2
