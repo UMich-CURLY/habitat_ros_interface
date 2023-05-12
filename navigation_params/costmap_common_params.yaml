@@ -3,7 +3,7 @@
 
 obstacle_range: 0.8
 raytrace_range: 0.8
-
+# observation_persistence: 0.0 
 robot_radius: 0.1
 
 inflation_radius: 0.2
