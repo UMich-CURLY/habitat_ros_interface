@@ -1,6 +1,0 @@
-image: resolution_17DRP5sb8fy_0.025.pgm
-resolution: 0.025
-origin: [-1,-7.275, 0.000000]
-negate: 0
-occupied_thresh: 0.65
-free_thresh: 0.196

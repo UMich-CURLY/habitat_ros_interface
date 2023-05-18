@@ -23,7 +23,7 @@ def example():
 
     with habitat.Env(
         config=habitat.get_config(
-            "configs/tasks/rearrange/play.yaml"
+            "configs/tasks/rearrange/nav_to_obj.yaml"
         )
     ) as env:
         print("Environment creation successful")
@@ -46,7 +46,7 @@ def example():
         env.episodes[0].markers = []
         env.episodes[0].ao_states = {}
         env.episodes[0].scene_id = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/"+scene+"/"+scene+".glb"
-        env.episodes[0].scene_dataset_config = "/home/catkin_ws/src/habitat_ros_interface/data/mp3d/mp3dCAD.scene_dataset_config.json"
+        env.episodes[0].scene_dataset_config = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/mp3d.scene_dataset_config.json"
         env.episodes[0].start_position = [-2.093175119872487,-1.2777875958067]
         # env.episodes[0].targets = []
         rearrange_dataset = RearrangeDatasetV0()

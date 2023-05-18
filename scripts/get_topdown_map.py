@@ -37,10 +37,11 @@ def get_topdown_map(config_paths, map_name):
     )
     env = habitat.Env(config=config, dataset=dataset)
     env.reset()
+    
 
     
-    hablab_topdown_map = maps.get_topdown_map(
-            env._sim.pathfinder, 0.0, meters_per_pixel=meters_per_pixel
+    hablab_topdown_map = maps.get_topdown_map_from_sim(
+            env._sim, map_resolution=1024
         )
     recolor_map = np.array(
         [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
