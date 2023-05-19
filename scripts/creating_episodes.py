@@ -15,13 +15,17 @@ import tqdm
 import habitat
 import habitat_sim
 from habitat.datasets.pointnav.pointnav_generator import generate_pointnav_episode
-
+import argparse
+PARSER = argparse.ArgumentParser(description=None)
+PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
+ARGS = PARSER.parse_args()
+scene = ARGS.scene
 num_episodes_per_scene = 1
 
-def _generate_fn(scene):
+def _generate_fn():
     cfg = habitat.get_config()
     cfg.defrost()
-    cfg.SIMULATOR.SCENE = scene
+    cfg.SIMULATOR.SCENE = "data/scene_datasets/mp3d/"+scene+"/"+scene+".glb"
     cfg.SIMULATOR.AGENT_0.SENSORS = []
     cfg.freeze()
 
@@ -33,13 +37,13 @@ def _generate_fn(scene):
             sim, num_episodes_per_scene, is_gen_shortest_path=False
         )
     )
-    count_episodes = 50;
+    count_episodes = 0
     
     for ep in dset.episodes:
-        ep.scene_id = "data/scene_datasets/mp3d/Vt2qJdWjCF2/Vt2qJdWjCF2.glb"
+        ep.scene_id = "data/scene_datasets/mp3d/"+scene+"/"+scene+".glb"
     print(dset.episodes)
     scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
-    out_file = f"./data/datasets/pointnav/mp3d/v1/test/content/Vt2qJdWjCF2" + str(count_episodes)+".json.gz"
+    out_file = f"./data/datasets/pointnav/mp3d/v1/test/content/"+scene + str(count_episodes)+".json.gz"
     os.makedirs(osp.dirname(out_file), exist_ok=True)
     with gzip.open(out_file, "wt") as f:
         f.write(dset.to_json())
@@ -54,4 +58,4 @@ def _generate_fn(scene):
 #     json.dump(dict(episodes=[]), f)
 
 if __name__ == "__main__":
-	_generate_fn("data/scene_datasets/mp3d/Vt2qJdWjCF2/Vt2qJdWjCF2.glb")
+	_generate_fn()

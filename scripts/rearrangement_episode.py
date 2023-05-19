@@ -23,7 +23,7 @@ def example():
 
     with habitat.Env(
         config=habitat.get_config(
-            "configs/tasks/rearrange/nav_to_obj.yaml"
+            "configs/tasks/rearrange/play.yaml"
         )
     ) as env:
         print("Environment creation successful")
@@ -51,7 +51,7 @@ def example():
         # env.episodes[0].targets = []
         rearrange_dataset = RearrangeDatasetV0()
         rearrange_dataset.episodes = [env.episodes[0]]
-        out_file = f"/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz"
+        out_file = f"/home/catkin_ws/src/habitat_ros_interface/data/datasets/rearrange/mp3d/v1/test/content/"+scene+"0.json.gz"
         os.makedirs(osp.dirname(out_file), exist_ok=True)
         with gzip.open(out_file, "wt") as f:
             f.write(rearrange_dataset.to_json())

@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-
-# Copyright (c) Facebook, Inc. and its affiliates.
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-
-#This script geneartes a ros/rviz compatible map based on the specified Habitat scene's top-down map
-
 import os
 
 import imageio
@@ -14,10 +6,9 @@ import yaml
 import habitat
 from habitat.tasks.nav.nav import NavigationEpisode, NavigationGoal
 from habitat.utils.visualizations import maps
-from IPython import embed
+# from habitat.utils.visualizations.maps import COORDINATE_MIN, COORDINATE_MAX
 from typing import TYPE_CHECKING, Union, cast
 
-# from habitat.utils.visualizations.maps import COORDINATE_MIN, COORDINATE_MAX
 import argparse
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
@@ -39,11 +30,10 @@ def get_topdown_map(config_paths, map_name):
     )
     env = habitat.Env(config=config, dataset=dataset)
     env.reset()
-    
 
-    
+    meters_per_pixel =0.025
     hablab_topdown_map = maps.get_topdown_map_from_sim(
-            cast("HabitatSim", env.sim), meters_per_pixel = meters_per_pixel
+            cast("HabitatSim", env.sim), meters_per_pixel= meters_per_pixel
         )
     recolor_map = np.array(
         [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
@@ -52,15 +42,12 @@ def get_topdown_map(config_paths, map_name):
     square_map_resolution = 5000
     map_resolution = [5000,5000]
     top_down_map = hablab_topdown_map
-    grid_dimensions = (top_down_map.shape[0]*meters_per_pixel, top_down_map.shape[1]*meters_per_pixel)
-    
-    # top_down_map = maps.get_topdown_map(pathfinder = env._sim.pathfinder, map_resolution=(square_map_resolution,square_map_resolution), height = 0.0)
 
-    # # Image containing 0 if occupied, 1 if unoccupied, and 2 if border (if
-    # # the flag is set)
-    # top_down_map[np.where(top_down_map == 0)] = 125
-    # top_down_map[np.where(top_down_map == 1)] = 255
-    # top_down_map[np.where(top_down_map == 2)] = 0
+    # Image containing 0 if occupied, 1 if unoccupied, and 2 if border (if
+    # the flag is set)
+    top_down_map[np.where(top_down_map == 0)] = 125
+    top_down_map[np.where(top_down_map == 1)] = 255
+    top_down_map[np.where(top_down_map == 2)] = 0
     imageio.imsave(os.path.join(MAP_DIR, map_name + ".pgm"), hablab_topdown_map)
     print("writing Yaml file! ")
     complete_name = os.path.join(MAP_DIR, map_name + ".yaml")
@@ -68,24 +55,25 @@ def get_topdown_map(config_paths, map_name):
 
     f.write("image: " + map_name + ".pgm\n")
     f.write("resolution: " + str(meters_per_pixel) + "\n")
-    f.write("origin: [" + str(-1) + "," + str(-grid_dimensions[0]+1) + ", 0.000000]\n")
+    f.write("origin: [" + str(-1) + "," + str(-1) + ", 0.000000]\n")
     f.write("negate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.196")
     f.close()
 
 
 def main():
-    config = {}
-    with open("configs/tasks/nav_to_obj_copy.yml",'r') as file:
+    with open("configs/tasks/pointnav_rgbd.yaml",'r') as file:
         # The FullLoader parameter handles the conversion from YAML
         # scalar values to Python the dictionary format
         config = yaml.load(file, Loader=yaml.FullLoader)
-        config['DATASET']['DATA_PATH'] = "./data/datasets/rearrange/mp3d/v1/test/content/"+scene+"0.json.gz"
-    with open("configs/tasks/custom_rearrange.yml",'w') as file:
+        config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz"
+    with open("configs/tasks/pointnav_rgbd.yaml",'w') as file:
         print("Replacing the data config to the new scene ", scene)
         documents = yaml.dump(config, file)
     #first parameter is config path, second parameter is map name
-    # if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
-    #     get_topdown_map("configs/tasks/custom_rearrange.yml", "resolution_"+scene+"_"+str(meters_per_pixel))
+    if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
+        get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_"+scene+"_"+str(meters_per_pixel))
+
+
 
 if __name__ == "__main__":
     main()
