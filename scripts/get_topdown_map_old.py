@@ -42,7 +42,7 @@ def get_topdown_map(config_paths, map_name):
     square_map_resolution = 5000
     map_resolution = [5000,5000]
     top_down_map = hablab_topdown_map
-
+    grid_dimensions = (top_down_map.shape[0]*meters_per_pixel, top_down_map.shape[1]*meters_per_pixel)
     # Image containing 0 if occupied, 1 if unoccupied, and 2 if border (if
     # the flag is set)
     top_down_map[np.where(top_down_map == 0)] = 125
@@ -55,7 +55,7 @@ def get_topdown_map(config_paths, map_name):
 
     f.write("image: " + map_name + ".pgm\n")
     f.write("resolution: " + str(meters_per_pixel) + "\n")
-    f.write("origin: [" + str(-1) + "," + str(-1) + ", 0.000000]\n")
+    f.write("origin: [" + str(-1) + "," + str(-grid_dimensions[0]+1) + ", 0.000000]\n")
     f.write("negate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.196")
     f.close()
 
