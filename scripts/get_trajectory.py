@@ -36,12 +36,14 @@ class social_force():
             config_file=Path(__file__).resolve().parent.joinpath("/Py_Social_ROS/examples/example.toml"),
         )
         self.fig, self.ax = plt.subplots()
-        self.plot_obstacles()
+        self.save_plot = False
+        if (self.save_plot):
+            self.plot_obstacles()
         self.max_counter = int(20/my_env.human_time_step)
         self.update_number = 0
         self.dt = my_env.human_time_step
         self.s.peds.step_width = 0.5*my_env.human_time_step
-
+        
         
     def load_obstacles(self, env):
         # Add scenes objects to ORCA simulator as obstacles
@@ -116,18 +118,19 @@ class social_force():
         for i in range(len(initial_state)):
             self.s.peds.state[i,0:6] = initial_state[i][0:6]
         self.s.step(1)
-        colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))
-        alpha = np.linspace(0.5,1,self.max_counter+1)
+        if (self.save_plot):
+            colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))
+            alpha = np.linspace(0.5,1,self.max_counter+1)
         computed_velocity=[]
         for j in range(len(initial_state)):
             [x,y] = self.s.peds.state[j,0:2]
             velx = (x - initial_state[j][0])/self.dt
             vely = (y - initial_state[j][1])/self.dt
             computed_velocity.append([velx,vely])
-            if (self.update_number < self.max_counter):
+            if (self.update_number < self.max_counter and self.save_plot):
                 self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
                 self.ax.plot(initial_state[j][4], initial_state[j][5], "-x", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
-        if (self.update_number == self.max_counter):
+        if (self.update_number == self.max_counter and self.save_plot):
             print("saving the offline plot!!")
             self.fig.savefig("save_stepwise_esfm"+".png", dpi=300)
             plt.close(self.fig)

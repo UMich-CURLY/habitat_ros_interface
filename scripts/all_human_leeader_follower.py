@@ -179,20 +179,20 @@ def map_to_base_link(msg, my_env):
     poseArrayMsg = PoseArray()
     poseArrayMsg.header.frame_id = "my_map_frame"
     poseArrayMsg.header.stamp = rospy.Time.now()
-    # follower_pos = my_env.follower.rigid_state.translation
-    # theta = my_env.get_object_heading(my_env.follower.transformation)
-    # quat = tf.transformations.quaternion_from_euler(0, 0, theta)
-    # follower_pose_2d = to_grid(my_env.env._sim.pathfinder, follower_pos, my_env.grid_dimensions)
-    # follower_pose_2d = follower_pose_2d*(0.025*np.ones([1,2]))[0]
+    follower_pos = my_env.follower.rigid_state.translation
+    theta = my_env.get_object_heading(my_env.follower.transformation)
+    quat = tf.transformations.quaternion_from_euler(0, 0, theta)
+    follower_pose_2d = to_grid(my_env.env._sim.pathfinder, follower_pos, my_env.grid_dimensions)
+    follower_pose_2d = follower_pose_2d*(0.025*np.ones([1,2]))[0]
     
     for i in range(len(my_env.initial_state)-1):
         poseMsg = Pose()
-        # if (i==0):
-        #     theta = my_env.get_object_heading(my_env.leader.transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
-        # elif (i==1):
-        #     theta = my_env.get_object_heading(my_env.follower.transformation) - mn.Rad(np.pi/2-0.97 + np.pi)
-        # else:
-        theta = my_env.get_object_heading(my_env.objs[i].transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
+        if (i==0):
+            theta = my_env.get_object_heading(my_env.leader.transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
+        elif (i==1):
+            theta = my_env.get_object_heading(my_env.follower.transformation) - mn.Rad(np.pi/2-0.97 + np.pi)
+        else:
+            theta = my_env.get_object_heading(my_env.objs[i-2].transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
         quat = tf.transformations.quaternion_from_euler(0, 0, theta)
         poseMsg.orientation.x = quat[0]
         poseMsg.orientation.y = quat[1]
@@ -358,9 +358,9 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
         ### N has the total number of extra humans, besides the robot and the two followers
-        self.N = 15
+        self.N = 5
         
-        self.groups = [[0], [1], [2], [3], [4], [5], [6], [7], [8], [9], [10], [11], [12], [13], [14], [15]]
+        self.groups = [[0,1,2], [3], [4],[5],[6],[7]]
 
 
         ##### Initiating objects for other humans #####
@@ -374,7 +374,7 @@ class sim_env(threading.Thread):
         humans_initial_velocity = []
         ##### Final 3d goals for the agent and the extra agents, the leader and followers just follow the agent 
         self.final_goals_3d = np.zeros([self.N+1,3])
-        self.goal_dist = np.zeros(self.N+1)
+        self.goal_dist = np.zeros(self.N+3)
 
 
         #### Initiating robot in the esfm state ####
@@ -430,77 +430,77 @@ class sim_env(threading.Thread):
         self.initial_state.append(initial_pos+agents_initial_velocity+goal_pos)
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         ##### Human 1 being initiated #####
-        # human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
-        # self.leader_id = human_template_id
-        # file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
-        # # self.objs.append(obj)
+        human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
+        self.leader_id = human_template_id
+        file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
+        # self.objs.append(obj)
         
-        # # obj_template_handle = './scripts/humantwo.object_config.json'
-        # # obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
-        # # print(obj_template)
-        # # file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
-        # # print(file_obj)
-        # file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
-        # self.leader = file_obj
-        # orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
-        # orientation_y = (np.pi/2-0.97)*180/np.pi #+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
-        # orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
-        # rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
-        # rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
-        # rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
-        # object_orientation2 = rotation_z * rotation_y * rotation_x
-        # leader_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos, 10)
-        # leader_offset = leader_pos_3d - agent_state.position
-        # leader_offset[1] += 1.0
-        # set_object_state_from_agent(self.env._sim, self.leader, np.array(leader_offset), orientation = object_orientation2)
-        # self.leader_velocity_control = self.leader.velocity_control
-        # self.leader_velocity_control.controlling_lin_vel = True
-        # self.leader_velocity_control.controlling_ang_vel = True
-        # self.leader_velocity_control.ang_vel_is_local = False
-        # self.leader_velocity_control.lin_vel_is_local = False
-        # self.leader_velocity_control.linear_velocity = np.array([0.0,0.0,0.0])
-        # self.leader_velocity_control.angular_velocity = np.array([0.0,0.0,0.0])
-        # object_state = self.leader.rigid_state.translation
-        # current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
-        # current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        # self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+initial_pos)
-        # self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
-        # ##### Human 2 being initiated #####
-        # human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
-        # self.follower_id = human_template_id
-        # file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
-        # # self.objs.append(obj)
+        # obj_template_handle = './scripts/humantwo.object_config.json'
+        # obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
+        # print(obj_template)
+        # file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
+        # print(file_obj)
+        file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
+        self.leader = file_obj
+        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = (np.pi/2-0.97)*180/np.pi #+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
+        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+        object_orientation2 = rotation_z * rotation_y * rotation_x
+        leader_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos, 2)
+        leader_offset = leader_pos_3d - agent_state.position
+        leader_offset[1] += 1.0
+        set_object_state_from_agent(self.env._sim, self.leader, np.array(leader_offset), orientation = object_orientation2)
+        self.leader_velocity_control = self.leader.velocity_control
+        self.leader_velocity_control.controlling_lin_vel = True
+        self.leader_velocity_control.controlling_ang_vel = True
+        self.leader_velocity_control.ang_vel_is_local = False
+        self.leader_velocity_control.lin_vel_is_local = False
+        self.leader_velocity_control.linear_velocity = np.array([0.0,0.0,0.0])
+        self.leader_velocity_control.angular_velocity = np.array([0.0,0.0,0.0])
+        object_state = self.leader.rigid_state.translation
+        current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
+        current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
+        self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+initial_pos)
+        self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
+        ##### Human 2 being initiated #####
+        human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
+        self.follower_id = human_template_id
+        file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
+        # self.objs.append(obj)
         
-        # # obj_template_handle = './scripts/humantwo.object_config.json'
-        # # obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
-        # # print(obj_template)
-        # # file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
-        # # print(file_obj)
-        # file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
-        # self.follower = file_obj
-        # orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
-        # orientation_y = (np.pi/2-0.97)*180/np.pi #+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
-        # orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
-        # rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
-        # rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
-        # rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
-        # object_orientation2 = rotation_z * rotation_y * rotation_x
-        # follower_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos, 10)
-        # follower_offset = follower_pos_3d - agent_state.position
-        # follower_offset[1] += 1.0
-        # set_object_state_from_agent(self.env._sim, self.follower, np.array(follower_offset), orientation = object_orientation2)
-        # self.follower_velocity_control = self.follower.velocity_control
-        # self.follower_velocity_control.controlling_lin_vel = True
-        # self.follower_velocity_control.controlling_ang_vel = True
-        # self.follower_velocity_control.ang_vel_is_local = False
-        # self.follower_velocity_control.lin_vel_is_local = False
-        # self.follower_velocity_control.linear_velocity = np.array([0.0,0.0,0.0])
-        # self.follower_velocity_control.angular_velocity = np.array([0.0,0.0,0.0])
-        # object_state = self.follower.rigid_state.translation
-        # current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
-        # current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        # self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+initial_pos)
-        # self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
+        # obj_template_handle = './scripts/humantwo.object_config.json'
+        # obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
+        # print(obj_template)
+        # file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
+        # print(file_obj)
+        file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
+        self.follower = file_obj
+        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = (np.pi/2-0.97)*180/np.pi #+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
+        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+        object_orientation2 = rotation_z * rotation_y * rotation_x
+        follower_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos, 2)
+        follower_offset = follower_pos_3d - agent_state.position
+        follower_offset[1] += 1.0
+        set_object_state_from_agent(self.env._sim, self.follower, np.array(follower_offset), orientation = object_orientation2)
+        self.follower_velocity_control = self.follower.velocity_control
+        self.follower_velocity_control.controlling_lin_vel = True
+        self.follower_velocity_control.controlling_ang_vel = True
+        self.follower_velocity_control.ang_vel_is_local = False
+        self.follower_velocity_control.lin_vel_is_local = False
+        self.follower_velocity_control.linear_velocity = np.array([0.0,0.0,0.0])
+        self.follower_velocity_control.angular_velocity = np.array([0.0,0.0,0.0])
+        object_state = self.follower.rigid_state.translation
+        current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
+        current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
+        self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+initial_pos)
+        self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
 
         #### Add the rest of the people with random goal assigned ####
         self.human_template_ids = []
@@ -512,6 +512,7 @@ class sim_env(threading.Thread):
             self.human_template_ids.append(human_template_id)
             file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
             # self.objs.append(obj)
+            
             # obj_template_handle = './scripts/humantwo.object_config.json'
             # obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
             # print(obj_template)
@@ -560,7 +561,7 @@ class sim_env(threading.Thread):
             
             self.vel_control_objs[k].linear_velocity = np.array([0.0,0.0,0.0])
             self.vel_control_objs[k].angular_velocity = np.array([0.0,0.0,0.0])
-            self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
+            self.goal_dist[k+3] = np.linalg.norm((np.array(self.initial_state[k+3][0:2])-np.array(self.initial_state[k+3][4:6])))
         
         if USE_RVO:
             self.sfm = ped_rvo(self, map_path = "./maps/resolution_"+scene+"_0.025.pgm", resolution = 0.025)
@@ -629,79 +630,79 @@ class sim_env(threading.Thread):
         self.initial_state[0][0:2] = initial_pos
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
         ####  Update Leader state in ESFM 
-        # object_state = self.leader.rigid_state.translation
-        # current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
-        # current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        # self.initial_state[1][0:2] = current_initial_pos_2d
-        # self.initial_state[1][4:6] = point_behind
-        # self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
-        # #### Update Follower state in ESFM
-        # object_state = self.follower.rigid_state.translation
-        # current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
-        # current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        # self.initial_state[2][4:6] = point_behind
-        # self.initial_state[2][0:2] = current_initial_pos_2d
-        # self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
+        object_state = self.leader.rigid_state.translation
+        current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
+        current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
+        self.initial_state[1][0:2] = current_initial_pos_2d
+        self.initial_state[1][4:6] = point_behind
+        self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
+        #### Update Follower state in ESFM
+        object_state = self.follower.rigid_state.translation
+        current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
+        current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
+        self.initial_state[2][4:6] = point_behind
+        self.initial_state[2][0:2] = current_initial_pos_2d
+        self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
         #### Update other humans state in ESFM, sample new goal if reached 
         for k in range(self.N):
             human_state = self.objs[k].rigid_state.translation
             current_initial_pos_2d = to_grid(self.env._sim.pathfinder, human_state, self.grid_dimensions)
             current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-            self.initial_state[k+1][0:2] = current_initial_pos_2d
-            self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
+            self.initial_state[k+3][0:2] = current_initial_pos_2d
+            self.goal_dist[k+3] = np.linalg.norm((np.array(self.initial_state[k+3][0:2])-np.array(self.initial_state[k+3][4:6])))
         #### Calculate new velocity
         
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
         
-        # #### Set new velocity for the follower
-        # human_state = self.follower.rigid_state
-        # computed_velocity[2,:] = [computed_velocity[2,0], computed_velocity[2,1]]
-        # next_vel_control = mn.Vector3(computed_velocity[2,0], computed_velocity[2,1], 0.0)
-        # diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
-        # diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
-        # angle= tf.transformations.euler_from_quaternion(diff_list)
-        # orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
-        # orientation_y = (np.pi/2-0.97)*180/np.pi+angle[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
-        # orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
-        # rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
-        # rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
-        # rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
-        # object_orientation2 = rotation_z * rotation_y * rotation_x
-        # agent_state = self.env._sim.get_agent_state(0)
-        # if(not np.isnan(angle).any()):
-        #     set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-        #     # if(self.goal_dist[1]>self.goal_dist[0]):
-        #     self.follower_velocity_control.linear_velocity = [computed_velocity[2,0], 0.0,  computed_velocity[2,1]]
-        #     print("setting linear velocity for follower")
-        #     # else:
-        #         # self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
-        # else:
-        #     self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
-        #     self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
-        #     computed_velocity[2,:] = [computed_velocity[2,0], computed_velocity[2,1]]
+        #### Set new velocity for the follower
+        human_state = self.follower.rigid_state
+        computed_velocity[2,:] = [computed_velocity[2,0], computed_velocity[2,1]]
+        next_vel_control = mn.Vector3(computed_velocity[2,0], computed_velocity[2,1], 0.0)
+        diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
+        diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
+        angle= tf.transformations.euler_from_quaternion(diff_list)
+        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = (np.pi/2-0.97)*180/np.pi+angle[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
+        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+        object_orientation2 = rotation_z * rotation_y * rotation_x
+        agent_state = self.env._sim.get_agent_state(0)
+        if(not np.isnan(angle).any()):
+            set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
+            # if(self.goal_dist[1]>self.goal_dist[0]):
+            self.follower_velocity_control.linear_velocity = [computed_velocity[2,0], 0.0,  computed_velocity[2,1]]
+            print("setting linear velocity for follower")
+            # else:
+                # self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
+        else:
+            self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
+            self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
+            computed_velocity[2,:] = [computed_velocity[2,0], computed_velocity[2,1]]
 
-        # #### Setting leader velocity ####
-        # human_state = self.leader.rigid_state
-        # next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
-        # diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
-        # diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
-        # angle= tf.transformations.euler_from_quaternion(diff_list)
-        # orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
-        # orientation_y = (np.pi/2-0.97)*180/np.pi+angle[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
-        # orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
-        # rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
-        # rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
-        # rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
-        # object_orientation2 = rotation_z * rotation_y * rotation_x
-        # agent_state = self.env._sim.get_agent_state(0)
-        # if(not np.isnan(angle).any()):
-        #     set_object_state_from_agent(self.env._sim, self.leader, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-        #     self.leader_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
-        #     print("setting linear velocity for leader")
-        # else:
-        #     self.leader_velocity_control.linear_velocity = [0.0,0.0,0.0]
-        #     self.leader_velocity_control.angular_velocity = [0.0,0.0,0.0]
-        #     computed_velocity[1,:] = [computed_velocity[1,0], computed_velocity[1,1]]
+        #### Setting leader velocity ####
+        human_state = self.leader.rigid_state
+        next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
+        diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
+        diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
+        angle= tf.transformations.euler_from_quaternion(diff_list)
+        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = (np.pi/2-0.97)*180/np.pi+angle[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
+        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+        object_orientation2 = rotation_z * rotation_y * rotation_x
+        agent_state = self.env._sim.get_agent_state(0)
+        if(not np.isnan(angle).any()):
+            set_object_state_from_agent(self.env._sim, self.leader, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
+            self.leader_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
+            print("setting linear velocity for leader")
+        else:
+            self.leader_velocity_control.linear_velocity = [0.0,0.0,0.0]
+            self.leader_velocity_control.angular_velocity = [0.0,0.0,0.0]
+            computed_velocity[1,:] = [computed_velocity[1,0], computed_velocity[1,1]]
         # print(computed_velocity, self.follower_velocity_control.linear_velocity)
         
         self.initial_state[1][2:4] = [computed_velocity[1,0], computed_velocity[1,1]]
@@ -710,7 +711,7 @@ class sim_env(threading.Thread):
         #### Setting velocity for the other humans 
         for k in range(self.N):
             human_state = self.objs[k].rigid_state
-            next_vel_control = mn.Vector3(computed_velocity[k+1,0], computed_velocity[k+1,1], 0.0)
+            next_vel_control = mn.Vector3(computed_velocity[k+3,0], computed_velocity[k+3,1], 0.0)
             diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
             diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
             angle= tf.transformations.euler_from_quaternion(diff_list)
@@ -724,20 +725,20 @@ class sim_env(threading.Thread):
             agent_state = self.env._sim.get_agent_state(0)
             if(not np.isnan(angle).any()):
                 set_object_state_from_agent(self.env._sim, self.objs[k], offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-                self.vel_control_objs[k].linear_velocity = [computed_velocity[k+1,0], 0.0,  computed_velocity[k+1,1]]
+                self.vel_control_objs[k].linear_velocity = [computed_velocity[k+3,0], 0.0,  computed_velocity[k+3,1]]
                 print("setting linear velocity for extra agent")
             else:
-                self.vel_control_objs[k].linear_velocity = [0.0,0.0,0.0]
-                self.vel_control_objs[k].angular_velocity = [0.0,0.0,0.0]
+                self.leader_velocity_control.linear_velocity = [0.0,0.0,0.0]
+                self.leader_velocity_control.angular_velocity = [0.0,0.0,0.0]
             # print(computed_velocity, self.follower_velocity_control.linear_velocity)
-            self.initial_state[k+1][2:4] = [computed_velocity[k+1,0], computed_velocity[k+1,1]]
+            self.initial_state[k+3][2:4] = [computed_velocity[k+3,0], computed_velocity[k+3,1]]
             
             #### Update to next topogoal if reached the first one 
             GOAL_THRESHOLD = 0.3
-            if (self.goal_dist[k+1]<= GOAL_THRESHOLD):
+            if (self.goal_dist[k+3]<= GOAL_THRESHOLD):
                 final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[k+1,:], self.grid_dimensions))
                 goal_pos = [pos*0.025 for pos in final_goal_grid]
-                dist = np.linalg.norm(np.array(goal_pos) - np.array(self.initial_state[k+1][4:6]))
+                dist = np.linalg.norm(np.array(goal_pos) - np.array(self.initial_state[k+3][4:6]))
                 path = habitat_path.ShortestPath()
                 path.requested_start = np.array(human_state.translation)
                 #### If it isn't a intermediate goal, sample a new goal for the agent 
@@ -755,8 +756,8 @@ class sim_env(threading.Thread):
                 humans_goal_pos_3d = path.points[1]
                 goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d, self.grid_dimensions))
                 goal_pos = [pos*0.025 for pos in goal_pos]
-                self.initial_state[k+1][4:6] = goal_pos
-                self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
+                self.initial_state[k+3][4:6] = goal_pos
+                self.goal_dist[k+3] = np.linalg.norm((np.array(self.initial_state[k+3][0:2])-np.array(self.initial_state[k+3][4:6])))
 
 
 
