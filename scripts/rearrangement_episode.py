@@ -16,8 +16,11 @@ import multiprocessing
 import argparse
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
+PARSER.add_argument('-d', '--dataset', default="mp3d", type=str, help='dataset')
+
 ARGS = PARSER.parse_args()
 scene = ARGS.scene
+dataset = ARGS.dataset
 def example():
     # Note: Use with for the example testing, doesn't need to be like this on the README
 
@@ -45,13 +48,19 @@ def example():
         # # env.episodes[0].art_objs = []
         env.episodes[0].markers = []
         env.episodes[0].ao_states = {}
-        env.episodes[0].scene_id = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/"+scene+"/"+scene+".glb"
-        env.episodes[0].scene_dataset_config = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/mp3d.scene_dataset_config.json"
+        if (dataset == "mp3d"):
+            env.episodes[0].scene_id = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/gibson/"+scene+"/"+scene+".glb"
+            env.episodes[0].scene_dataset_config = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/mp3d.scene_dataset_config.json"
+            out_file = f"/home/catkin_ws/src/habitat_ros_interface/data/datasets/rearrange/mp3d/v1/test/content/"+scene+"0.json.gz"
+        elif (dataset == "gibson"):
+            env.episodes[0].scene_id = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/gibson/"+scene+".glb"
+            # env.episodes[0].scene_dataset_config = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/mp3d.scene_dataset_config.json"
+            out_file = f"/home/catkin_ws/src/habitat_ros_interface/data/datasets/rearrange/gibson/v1/test/content/"+scene+"0.json.gz"        
         env.episodes[0].start_position = [-2.093175119872487,-1.2777875958067]
         # env.episodes[0].targets = []
         rearrange_dataset = RearrangeDatasetV0()
         rearrange_dataset.episodes = [env.episodes[0]]
-        out_file = f"/home/catkin_ws/src/habitat_ros_interface/data/datasets/rearrange/mp3d/v1/test/content/"+scene+"0.json.gz"
+        
         os.makedirs(osp.dirname(out_file), exist_ok=True)
         with gzip.open(out_file, "wt") as f:
             f.write(rearrange_dataset.to_json())

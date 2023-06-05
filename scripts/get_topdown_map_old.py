@@ -13,10 +13,12 @@ import argparse
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 PARSER.add_argument('-mps', '--mps', default=0.025, type=float, help='mps')
+PARSER.add_argument('-d', '--dataset', default="mp3d", type=str, help='dataset')
 
 ARGS = PARSER.parse_args()
 scene = ARGS.scene
 meters_per_pixel = ARGS.mps
+dataset = ARGS.dataset
 MAP_DIR = "/home/catkin_ws/src/habitat_ros_interface/maps"
 if not os.path.exists(MAP_DIR):
     print("Didi not find maps directory")
@@ -65,7 +67,10 @@ def main():
         # The FullLoader parameter handles the conversion from YAML
         # scalar values to Python the dictionary format
         config = yaml.load(file, Loader=yaml.FullLoader)
-        config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz"
+        if (dataset == "mp3d"):
+            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz"
+        elif (dataset == "gibson"):
+            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/gibson/v1/test/content/"+scene+"0.json.gz"
     with open("configs/tasks/pointnav_rgbd.yaml",'w') as file:
         print("Replacing the data config to the new scene ", scene)
         documents = yaml.dump(config, file)

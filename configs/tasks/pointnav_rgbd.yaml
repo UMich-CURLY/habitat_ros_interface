@@ -1,5 +1,5 @@
 DATASET:
-  DATA_PATH: ./data/datasets/pointnav/mp3d/v1/test/content/E9uDoFAP3SH0.json.gz
+  DATA_PATH: ./data/datasets/pointnav/gibson/v1/test/content/Aloha0.json.gz
   SCENES_DIR: data/scene_datasets/
   SPLIT: test
   TYPE: PointNav-v1
