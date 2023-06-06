@@ -56,6 +56,10 @@ def example():
             env.episodes[0].scene_id = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/gibson/"+scene+".glb"
             # env.episodes[0].scene_dataset_config = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/mp3d.scene_dataset_config.json"
             out_file = f"/home/catkin_ws/src/habitat_ros_interface/data/datasets/rearrange/gibson/v1/test/content/"+scene+"0.json.gz"        
+        elif (dataset == "habitat"):
+            env.episodes[0].scene_id = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/habitat-test-scenes/"+scene+".glb"
+            # env.episodes[0].scene_dataset_config = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/mp3d.scene_dataset_config.json"
+            out_file = f"/home/catkin_ws/src/habitat_ros_interface/data/datasets/rearrange/habitat-test-scenes/v1/test/content/"+scene+"0.json.gz"        
         env.episodes[0].start_position = [-2.093175119872487,-1.2777875958067]
         # env.episodes[0].targets = []
         rearrange_dataset = RearrangeDatasetV0()

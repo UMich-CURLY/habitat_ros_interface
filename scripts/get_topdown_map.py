@@ -85,6 +85,8 @@ def main():
             config['DATASET']['DATA_PATH'] = "./data/datasets/rearrange/mp3d/v1/test/content/"+scene+"0.json.gz"
         elif (dataset == "gibson"):
             config['DATASET']['DATA_PATH'] = "./data/datasets/rearrange/gibson/v1/test/content/"+scene+"0.json.gz"
+        elif (dataset == "habitat"):
+            config['DATASET']['DATA_PATH'] = "./data/datasets/rearrange/habitat-test-scenes/v1/test/content/"+scene+"0.json.gz"
     with open("configs/tasks/custom_rearrange.yml",'w') as file:
         print("Replacing the data config to the new scene ", scene)
         documents = yaml.dump(config, file)

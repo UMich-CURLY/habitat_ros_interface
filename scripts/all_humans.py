@@ -284,10 +284,14 @@ class sim_env(threading.Thread):
         temp_position = self.env._sim.pathfinder.get_random_navigable_point()
         island_radius = 2.0
         temp_island_radius = 2.0
+        while (temp_position[1] >1.0 or temp_position[1] < -1.0):
+            temp_position = self.env._sim.pathfinder.get_random_navigable_point()
         for i in range(50):
             new_temp_position = self.env._sim.pathfinder.get_random_navigable_point()
             [y,x] = np.array(to_grid(self.env._sim.pathfinder, new_temp_position, self.grid_dimensions))
             if top_down_map[x][y] == 0:
+                continue
+            if new_temp_position[1] >1.0 or new_temp_position[1] < -1.0:
                 continue
             temp_island_radius = self.env._sim.pathfinder.island_radius(new_temp_position)
             if island_radius < temp_island_radius:
@@ -297,7 +301,6 @@ class sim_env(threading.Thread):
         if island_radius<5.0:
             print("Island radius is ", island_radius)
             embed()
-        
         agent_state.position = temp_position
         self.lr = self.env._sim.get_debug_line_render()
         self.lr.set_line_width(3)
@@ -704,8 +707,8 @@ class sim_env(threading.Thread):
         #     computed_velocity[1,:] = [computed_velocity[1,0], computed_velocity[1,1]]
         # print(computed_velocity, self.follower_velocity_control.linear_velocity)
         
-        self.initial_state[1][2:4] = [computed_velocity[1,0], computed_velocity[1,1]]
-        self.initial_state[2][2:4] = [computed_velocity[2,0], computed_velocity[2,1]]
+        # self.initial_state[1][2:4] = [computed_velocity[1,0], computed_velocity[1,1]]
+        # self.initial_state[2][2:4] = [computed_velocity[2,0], computed_velocity[2,1]]
 
         #### Setting velocity for the other humans 
         for k in range(self.N):
@@ -733,7 +736,7 @@ class sim_env(threading.Thread):
             self.initial_state[k+1][2:4] = [computed_velocity[k+1,0], computed_velocity[k+1,1]]
             
             #### Update to next topogoal if reached the first one 
-            GOAL_THRESHOLD = 0.3
+            GOAL_THRESHOLD = 0.5
             if (self.goal_dist[k+1]<= GOAL_THRESHOLD):
                 final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[k+1,:], self.grid_dimensions))
                 goal_pos = [pos*0.025 for pos in final_goal_grid]

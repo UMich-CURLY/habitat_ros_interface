@@ -32,6 +32,8 @@ def _generate_fn():
         cfg.SIMULATOR.SCENE = "data/scene_datasets/mp3d/"+scene+"/"+scene+".glb"
     elif(dataset == "gibson"):
         cfg.SIMULATOR.SCENE = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/gibson/"+scene+".glb"
+    elif (dataset == "habitat"):
+        cfg.SIMULATOR.SCENE = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/habitat-test-scenes/"+scene+".glb"
     else:
         print("No dataset found")
         exit(0)
@@ -62,6 +64,15 @@ def _generate_fn():
         print(dset.episodes)
         scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
         out_file = f"./data/datasets/pointnav/gibson/v1/test/content/"+scene + str(count_episodes)+".json.gz"
+        os.makedirs(osp.dirname(out_file), exist_ok=True)
+        with gzip.open(out_file, "wt") as f:
+            f.write(dset.to_json())
+    if (dataset == "habitat"):
+        for ep in dset.episodes:
+            ep.scene_id = "data/scene_datasets/habitat-test-scenes/"+scene+".glb"
+        print(dset.episodes)
+        scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
+        out_file = f"./data/datasets/pointnav/habitat-test-scenes/v1/test/content/"+scene + str(count_episodes)+".json.gz"
         os.makedirs(osp.dirname(out_file), exist_ok=True)
         with gzip.open(out_file, "wt") as f:
             f.write(dset.to_json())

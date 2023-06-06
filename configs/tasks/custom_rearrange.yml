@@ -1,5 +1,5 @@
 DATASET:
-  DATA_PATH: ./data/datasets/rearrange/gibson/v1/test/content/Aloha0.json.gz
+  DATA_PATH: ./data/datasets/rearrange/habitat-test-scenes/v1/test/content/skokloster-castle0.json.gz
   SCENES_DIR: ./data/mp3d/
   SPLIT: test
   TYPE: RearrangeDataset-v0
