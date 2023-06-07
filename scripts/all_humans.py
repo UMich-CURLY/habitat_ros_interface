@@ -41,7 +41,7 @@ from IPython import embed
 from nav_msgs.srv import GetPlan
 from get_trajectory import *
 from get_trajectory_rvo import *
-
+import geometry_msgs
 import tf2_ros
 lock = threading.Lock()
 rospy.init_node("sim", anonymous=False)
@@ -147,81 +147,7 @@ def set_object_state_from_agent(
     obj.translation = ob_translation
     obj.rotation = orientation
 
-def map_to_base_link(msg, my_env):
-    grid_x,grid_y = my_env.grid_dimensions
-    theta = msg['theta']
-    my_env.br.sendTransform((-my_env.initial_state[0][0]+1, -my_env.initial_state[0][1]+1,0.0),
-                    tf.transformations.quaternion_from_euler(0, 0, 0.0),
-                    rospy.Time.now(),
-                    "my_map_frame",
-                    "interim_link"
-    )
-    my_env.br.sendTransform((0.0,0.0,0.0),
-                    tf.transformations.quaternion_from_euler(0, 0, -theta),
-                    rospy.Time.now(),
-                    "interim_link",
-                    "base_link"
-    )
-    poseMsg = PoseStamped()
-    poseMsg.header.stamp = rospy.Time.now()
-    poseMsg.header.frame_id = "base_link"
-    quat = tf.transformations.quaternion_from_euler(0, 0, 0.0)
-    poseMsg.pose.orientation.x = quat[0]
-    poseMsg.pose.orientation.y = quat[1]
-    poseMsg.pose.orientation.z = quat[2]
-    poseMsg.pose.orientation.w = quat[3]
-    poseMsg.pose.position.x = 0.0
-    poseMsg.pose.position.y = 0.0
-    poseMsg.pose.position.z = 0.0
-    my_env._robot_pose.publish(poseMsg)
 
-    ##### Publish other agents 
-    poseArrayMsg = PoseArray()
-    poseArrayMsg.header.frame_id = "my_map_frame"
-    poseArrayMsg.header.stamp = rospy.Time.now()
-    # follower_pos = my_env.follower.rigid_state.translation
-    # theta = my_env.get_object_heading(my_env.follower.transformation)
-    # quat = tf.transformations.quaternion_from_euler(0, 0, theta)
-    # follower_pose_2d = to_grid(my_env.env._sim.pathfinder, follower_pos, my_env.grid_dimensions)
-    # follower_pose_2d = follower_pose_2d*(0.025*np.ones([1,2]))[0]
-    
-    for i in range(len(my_env.initial_state)-1):
-        poseMsg = Pose()
-        # if (i==0):
-        #     theta = my_env.get_object_heading(my_env.leader.transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
-        # elif (i==1):
-        #     theta = my_env.get_object_heading(my_env.follower.transformation) - mn.Rad(np.pi/2-0.97 + np.pi)
-        # else:
-        theta = my_env.get_object_heading(my_env.objs[i].transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
-        quat = tf.transformations.quaternion_from_euler(0, 0, theta)
-        poseMsg.orientation.x = quat[0]
-        poseMsg.orientation.y = quat[1]
-        poseMsg.orientation.z = quat[2]
-        poseMsg.orientation.w = quat[3]
-        poseMsg.position.x = my_env.initial_state[i+1][0]-1
-        poseMsg.position.y = my_env.initial_state[i+1][1]-1
-        poseMsg.position.z = 0.0
-        poseArrayMsg.poses.append(poseMsg)
-    my_env._pub_all_agents.publish(poseArrayMsg)
-
-    goal_marker = Marker()
-    goal_marker.header.frame_id = "my_map_frame"
-    goal_marker.type = 2
-    goal_marker.pose.position.x = my_env.initial_state[0][4]-1
-    goal_marker.pose.position.y = my_env.initial_state[0][5]-1
-    goal_marker.pose.position.z = 0.0
-    goal_marker.pose.orientation.x = 0.0
-    goal_marker.pose.orientation.y = 0.0
-    goal_marker.pose.orientation.z = 0.0
-    goal_marker.pose.orientation.w = 1.0
-    goal_marker.scale.x = 0.5
-    goal_marker.scale.y = 0.5
-    goal_marker.scale.z = 0.5
-    goal_marker.color.a = 1.0 
-    goal_marker.color.r = 0.0
-    goal_marker.color.g = 1.0
-    goal_marker.color.b = 0.0
-    my_env._pub_goal_marker.publish(goal_marker)
 
 class sim_env(threading.Thread):
     _x_axis = 0
@@ -329,6 +255,7 @@ class sim_env(threading.Thread):
         self._pub_goal_marker = rospy.Publisher("~goal", Marker, queue_size = 1)
         
         self.br = tf.TransformBroadcaster()
+        self.br_tf_2 = tf2_ros.TransformBroadcaster()
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
         rospy.Subscriber("~plan_3d", numpy_msg(Floats),self.plan_callback, queue_size=1)
         rospy.Subscriber("/rtabmap/goal_reached", Bool,self.update_goal_status, queue_size=1)
@@ -575,7 +502,7 @@ class sim_env(threading.Thread):
         # self.initial_state.append(robot_pos_in_2d+humans_initial_velocity[0]+humans_goal_pos_2d[2])
         # self.groups.append([self.N])
         agent_state = self.env.sim.get_agent_state(0)
-        map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot}, self)
+        self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot})
         self.initial_pos = initial_pos
         print("created habitat_plant succsefully")
 
@@ -819,7 +746,7 @@ class sim_env(threading.Thread):
             self.initial_state[0][0:2] = initial_pos
             # self.initial_state[0][2:4] = vel
             self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
-            map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.get_object_heading(self.env._sim.robot.base_transformation)},self)
+            self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.get_object_heading(self.env._sim.robot.base_transformation)})
             lock.release()
             self._r_sensor.sleep()
             
@@ -937,6 +864,113 @@ class sim_env(threading.Thread):
             self.current_goal = self._nodes[self._current_episode+1]
             self._current_episode = self._current_episode+1
             self.new_goal=True
+    def map_to_base_link(self, msg):
+        grid_x,grid_y = self.grid_dimensions
+        theta = msg['theta']
+        use_tf_2 = True
+        if (not use_tf_2):
+            self.br.sendTransform((-self.initial_state[0][0]+1, -self.initial_state[0][1]+1,0.0),
+                            tf.transformations.quaternion_from_euler(0, 0, 0.0),
+                            rospy.Time(0),
+                            "my_map_frame",
+                            "interim_link"
+            )
+            self.br.sendTransform((0.0,0.0,0.0),
+                            tf.transformations.quaternion_from_euler(0, 0, -theta),
+                            rospy.Time(0),
+                            "interim_link",
+                            "base_link"
+            )
+        else:
+            t = geometry_msgs.msg.TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = "interim_link"
+            t.child_frame_id = "my_map_frame"
+            t.transform.translation.x = -self.initial_state[0][0]+1
+            t.transform.translation.y = -self.initial_state[0][1]+1
+            t.transform.translation.z = 0.0
+            q = tf.transformations.quaternion_from_euler(0, 0, 0.0)
+            t.transform.rotation.x = q[0]
+            t.transform.rotation.y = q[1]
+            t.transform.rotation.z = q[2]
+            t.transform.rotation.w = q[3]
+            self.br_tf_2.sendTransform(t)
+
+            t = geometry_msgs.msg.TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = "base_link"
+            t.child_frame_id = "interim_link"
+            t.transform.translation.x = 0.0
+            t.transform.translation.y = 0.0
+            t.transform.translation.z = 0.0
+            q = tf.transformations.quaternion_from_euler(0, 0, -theta)
+            t.transform.rotation.x = q[0]
+            t.transform.rotation.y = q[1]
+            t.transform.rotation.z = q[2]
+            t.transform.rotation.w = q[3]
+
+            self.br_tf_2.sendTransform(t)
+
+        poseMsg = PoseStamped()
+        poseMsg.header.stamp = rospy.Time.now()
+        poseMsg.header.frame_id = "base_link"
+        quat = tf.transformations.quaternion_from_euler(0, 0, 0.0)
+        poseMsg.pose.orientation.x = quat[0]
+        poseMsg.pose.orientation.y = quat[1]
+        poseMsg.pose.orientation.z = quat[2]
+        poseMsg.pose.orientation.w = quat[3]
+        poseMsg.pose.position.x = 0.0
+        poseMsg.pose.position.y = 0.0
+        poseMsg.pose.position.z = 0.0
+        self._robot_pose.publish(poseMsg)
+
+        ##### Publish other agents 
+        poseArrayMsg = PoseArray()
+        poseArrayMsg.header.frame_id = "my_map_frame"
+        poseArrayMsg.header.stamp = rospy.Time.now()
+        # follower_pos = my_env.follower.rigid_state.translation
+        # theta = my_env.get_object_heading(my_env.follower.transformation)
+        # quat = tf.transformations.quaternion_from_euler(0, 0, theta)
+        # follower_pose_2d = to_grid(my_env.env._sim.pathfinder, follower_pos, my_env.grid_dimensions)
+        # follower_pose_2d = follower_pose_2d*(0.025*np.ones([1,2]))[0]
+        
+        for i in range(len(self.initial_state)-1):
+            poseMsg = Pose()
+            # if (i==0):
+            #     theta = my_env.get_object_heading(my_env.leader.transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
+            # elif (i==1):
+            #     theta = my_env.get_object_heading(my_env.follower.transformation) - mn.Rad(np.pi/2-0.97 + np.pi)
+            # else:
+            theta = self.get_object_heading(self.objs[i].transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
+            quat = tf.transformations.quaternion_from_euler(0, 0, theta)
+            poseMsg.orientation.x = quat[0]
+            poseMsg.orientation.y = quat[1]
+            poseMsg.orientation.z = quat[2]
+            poseMsg.orientation.w = quat[3]
+            poseMsg.position.x = self.initial_state[i+1][0]-1
+            poseMsg.position.y = self.initial_state[i+1][1]-1
+            poseMsg.position.z = 0.0
+            poseArrayMsg.poses.append(poseMsg)
+        self._pub_all_agents.publish(poseArrayMsg)
+
+        goal_marker = Marker()
+        goal_marker.header.frame_id = "my_map_frame"
+        goal_marker.type = 2
+        goal_marker.pose.position.x = self.initial_state[0][4]-1
+        goal_marker.pose.position.y = self.initial_state[0][5]-1
+        goal_marker.pose.position.z = 0.0
+        goal_marker.pose.orientation.x = 0.0
+        goal_marker.pose.orientation.y = 0.0
+        goal_marker.pose.orientation.z = 0.0
+        goal_marker.pose.orientation.w = 1.0
+        goal_marker.scale.x = 0.5
+        goal_marker.scale.y = 0.5
+        goal_marker.scale.z = 0.5
+        goal_marker.color.a = 1.0 
+        goal_marker.color.r = 0.0
+        goal_marker.color.g = 1.0
+        goal_marker.color.b = 0.0
+        self._pub_goal_marker.publish(goal_marker)
 
 def callback(vel, my_env):
     #### Robot Control ####
