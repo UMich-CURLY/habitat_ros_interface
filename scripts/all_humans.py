@@ -908,7 +908,7 @@ class sim_env(threading.Thread):
             t.transform.rotation.y = q[1]
             t.transform.rotation.z = q[2]
             t.transform.rotation.w = q[3]
-
+            print("Time published is ", t.header.stamp)
             self.br_tf_2.sendTransform(t)
 
         poseMsg = PoseStamped()
