@@ -135,6 +135,7 @@ def draw_axes(sim, translation, axis_len=1.0):
     lr.draw_transformed_line(translation, mn.Vector3(axis_len, 0, 0), red)
     lr.draw_transformed_line(translation, mn.Vector3(0, axis_len, 0), green)
     lr.draw_transformed_line(translation, mn.Vector3(0, 0, axis_len), blue)
+    
 # Set an object transform relative to the agent state
 def set_object_state_from_agent(
     sim,
@@ -192,6 +193,7 @@ class sim_env(threading.Thread):
         ##### Checking the git branch stuff
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
+        embed()
         self.env = habitat.Env(config=habitat.get_config(self.env_config_file))
         self.env._sim.robot.params.arm_init_params = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         floor_y = 0.0
@@ -288,9 +290,9 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
         ### N has the total number of extra humans, besides the robot and the two followers
-        self.N = 15
+        self.N = 0
         
-        self.groups = [[0], [1], [2], [3], [4], [5], [6], [7], [8], [9], [10], [11], [12], [13], [14], [15]]
+        self.groups = []
 
 
         ##### Initiating objects for other humans #####
@@ -908,7 +910,6 @@ class sim_env(threading.Thread):
             t.transform.rotation.y = q[1]
             t.transform.rotation.z = q[2]
             t.transform.rotation.w = q[3]
-            print("Time published is ", t.header.stamp)
             self.br_tf_2.sendTransform(t)
 
         poseMsg = PoseStamped()

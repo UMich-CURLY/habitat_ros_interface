@@ -81,7 +81,7 @@ def main():
         # The FullLoader parameter handles the conversion from YAML
         # scalar values to Python the dictionary format
         config = yaml.load(file, Loader=yaml.FullLoader)
-        if (dataset == "mo3d"):
+        if (dataset == "mp3d"):
             config['DATASET']['DATA_PATH'] = "./data/datasets/rearrange/mp3d/v1/test/content/"+scene+"0.json.gz"
         elif (dataset == "gibson"):
             config['DATASET']['DATA_PATH'] = "./data/datasets/rearrange/gibson/v1/test/content/"+scene+"0.json.gz"

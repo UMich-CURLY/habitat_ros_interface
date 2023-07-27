@@ -49,7 +49,7 @@ def example():
         env.episodes[0].markers = []
         env.episodes[0].ao_states = {}
         if (dataset == "mp3d"):
-            env.episodes[0].scene_id = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/gibson/"+scene+"/"+scene+".glb"
+            env.episodes[0].scene_id = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/"+scene+"/"+scene+".glb"
             env.episodes[0].scene_dataset_config = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/mp3d.scene_dataset_config.json"
             out_file = f"/home/catkin_ws/src/habitat_ros_interface/data/datasets/rearrange/mp3d/v1/test/content/"+scene+"0.json.gz"
         elif (dataset == "gibson"):
