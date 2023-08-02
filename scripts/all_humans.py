@@ -1,4 +1,4 @@
- #!/usr/bin/env python3
+#!/usr/bin/env python3
 
 # Copyright (c) Facebook, Inc. and its affiliates.
 # This source code is licensed under the MIT license found in the
@@ -170,7 +170,7 @@ class sim_env(threading.Thread):
     action_uncertainty_rate = 0.9
     follower = []
     new_goal = False
-    control_frequency = 20
+    control_frequency = 40
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
     human_control_frequency = 5
@@ -193,7 +193,6 @@ class sim_env(threading.Thread):
         ##### Checking the git branch stuff
         threading.Thread.__init__(self)
         self.env_config_file = env_config_file
-        embed()
         self.env = habitat.Env(config=habitat.get_config(self.env_config_file))
         self.env._sim.robot.params.arm_init_params = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         floor_y = 0.0
