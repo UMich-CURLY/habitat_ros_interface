@@ -18,7 +18,6 @@ pub_1 = rospy.Publisher("robot_1_depth", Image, queue_size=10)
 pub_2 = rospy.Publisher("robot_1_depth_mirrored", Image, queue_size=10)
 camera_info_pub_1 = rospy.Publisher("robot_1_camera_info_topic", CameraInfo, queue_size=0)
 
-
 def callback_1(data):
     print(rospy.get_name(), "I heard %s" % str(data.data))
 
