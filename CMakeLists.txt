@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -59,7 +60,10 @@ catkin_python_setup()
 #   Service1.srv
 #   Service2.srv
 # )
-
+add_service_files(
+  FILES
+  sdf_grid.srv
+)
 ## Generate actions in the 'action' folder
 # add_action_files(
 #   FILES

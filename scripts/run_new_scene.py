@@ -24,6 +24,7 @@ else:
     
 __ = os.system('python ./scripts/get_topdown_map_old.py --scene '+ scene + ' --mps 0.025 --dataset ' + dataset)
 __ = os.system('python ./maps/get_outline.py --scene '+ scene)
+__ = os.system('python ./scripts/get_sdf.py --scene '+ scene)
 
 # __ = os.system('python ./scripts/get_topdown_map_old.py --scene '+ scene + ' --mps 0.025')
 __ = os.system('python ./scripts/get_topdown_map.py --scene '+ scene + ' --mps 0.025 --dataset ' + dataset)

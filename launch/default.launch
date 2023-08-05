@@ -21,6 +21,8 @@
 	<node pkg="habitat_interface" type="third_rgb_ros.py" name="third_rgb_ros">
 		<remap from="third_rgb_1" to="sim/third_rgb"/>
 	</node>
+	<node pkg="habitat_interface" type="get_sdf_grid.py" name="get_sdf_grid">
+	</node>
 	<arg name="scene" default="17DRP5sb8fy"/>
     <arg name="map_file" default="$(find habitat_interface)/maps/resolution_$(arg scene)_0.025.yaml"/>
 
