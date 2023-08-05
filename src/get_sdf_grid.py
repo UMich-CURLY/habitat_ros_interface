@@ -9,13 +9,13 @@ from IPython import embed
 import argparse
 import sys
 import os
-sys.path.append(os.path.abspath('/home/catkin_ws/src/habitat_ros_interface/srv'))
-import sdf_grid.srv
+sys.path.append(os.path.abspath('/home/catkin_ws/src/habitat_ros_interface'))
+from srv import sdf_grid
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 ARGS = PARSER.parse_args()
 scene = ARGS.scene
-dist_map_file = "./maps/sdf_resolution_"+scene+"_0.025.pgm"
+dist_map_file = "/home/catkin_ws/src/habitat_ros_interface/maps/sdf_resolution_"+scene+"_0.025.pgm"
 img = cv.imread(dist_map_file)
 
 def get_grid(req):
