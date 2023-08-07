@@ -9,12 +9,15 @@ from IPython import embed
 import argparse
 import sys
 import os
-sys.path.append(os.path.abspath('/home/catkin_ws/src/habitat_ros_interface'))
-from srv import sdf_grid
+# sys.path.append(os.path.abspath('/home/catkin_ws/src'))
+from habitat_ros_interface.srv import sdf_grid
+print("Path is", sys.path)
+rospy.init_node('get_sdf_grid_server')   
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 ARGS = PARSER.parse_args()
 scene = ARGS.scene
+scene = rospy.get_param('/get_sdf_grid/scene')
 dist_map_file = "/home/catkin_ws/src/habitat_ros_interface/maps/sdf_resolution_"+scene+"_0.025.pgm"
 img = cv.imread(dist_map_file)
 
@@ -23,6 +26,5 @@ def get_grid(req):
     return img[grid_x,grid_y]
 
 if __name__ == "__main__":
-    rospy.init_node('get_sdf_grid_server')   
     s = rospy.Service('get_sdf_grid', sdf_grid, get_grid)
     rospy.spin()

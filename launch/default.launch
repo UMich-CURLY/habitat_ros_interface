@@ -10,21 +10,22 @@
     </node> -->
 
 
-	<node pkg="habitat_interface" type="depth_ros.py" name="depth_ros" >
+	<node pkg="habitat_ros_interface" type="depth_ros.py" name="depth_ros" >
 		<remap from="depth_1" to="sim/depth"/>
 	</node>
 	
 	
-	<node pkg="habitat_interface" type="rgb_ros.py" name="rgb_ros">
+	<node pkg="habitat_ros_interface" type="rgb_ros.py" name="rgb_ros">
 		<remap from="rgb_1" to="sim/rgb"/>
 	</node>
-	<node pkg="habitat_interface" type="third_rgb_ros.py" name="third_rgb_ros">
+	<node pkg="habitat_ros_interface" type="third_rgb_ros.py" name="third_rgb_ros">
 		<remap from="third_rgb_1" to="sim/third_rgb"/>
 	</node>
-	<node pkg="habitat_interface" type="get_sdf_grid.py" name="get_sdf_grid">
-	</node>
+	<!-- <node pkg="habitat_ros_interface" type="get_sdf_grid.py" name="get_sdf_grid" output="screen">
+		<param name = "scene" value = "$(arg scene)" />
+	</node> -->
 	<arg name="scene" default="17DRP5sb8fy"/>
-    <arg name="map_file" default="$(find habitat_interface)/maps/resolution_$(arg scene)_0.025.yaml"/>
+    <arg name="map_file" default="$(find habitat_ros_interface)/maps/resolution_$(arg scene)_0.025.yaml"/>
 
   <!-- Run the map server -->
     <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />

@@ -3,7 +3,6 @@ import cv2 as cv
 from matplotlib import pyplot as plt
 from IPython import embed
 import argparse
-import sdf_grid.srv from srv
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 ARGS = PARSER.parse_args()
