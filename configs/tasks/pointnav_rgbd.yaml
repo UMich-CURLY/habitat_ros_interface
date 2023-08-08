@@ -1,5 +1,5 @@
 DATASET:
-  DATA_PATH: ./data/datasets/pointnav/mp3d/v1/test/content/Vvot9Ly1tCj0.json.gz
+  DATA_PATH: ./data/datasets/pointnav/mp3d/v1/test/content/D7N2EKCX4Sj0.json.gz
   SCENES_DIR: data/scene_datasets/
   SPLIT: test
   TYPE: PointNav-v1

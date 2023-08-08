@@ -30,7 +30,7 @@ meters_per_pixel = ARGS.mps
 dataset = ARGS.dataset
 MAP_DIR = "/home/catkin_ws/src/habitat_ros_interface/maps"
 if not os.path.exists(MAP_DIR):
-    print("Didi not find maps directory")
+    print("Did not find maps directory")
     os.makedirs(MAP_DIR)
 
 def get_topdown_map(config_paths, map_name):
