@@ -17,7 +17,7 @@ with open(map_yaml_file,'r') as file:
 dist_map_file = "./maps/sdf_resolution_"+scene+"_0.025.pgm"
 old_config["image"] = "sdf_"+old_config["image"]
 new_yaml_file = dist_map_file[:-3]+"yaml"
-with open(new_yaml_file,'w+') as file:
+with open(new_yaml_file,'w+') as file: 
     yaml.dump(old_config, file)
 img = cv.imread(map_file)
 assert img is not None, "file could not be read, check with os.path.exists()"

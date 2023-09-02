@@ -170,7 +170,7 @@ class sim_env(threading.Thread):
     action_uncertainty_rate = 0.9
     follower = []
     new_goal = False
-    control_frequency = 40
+    control_frequency = 20
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
     human_control_frequency = 5
@@ -289,9 +289,9 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
         ### N has the total number of extra humans, besides the robot and the two followers
-        self.N = 0
+        self.N = 10
         
-        self.groups = []
+        self.groups = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9],[10]]
 
 
         ##### Initiating objects for other humans #####
