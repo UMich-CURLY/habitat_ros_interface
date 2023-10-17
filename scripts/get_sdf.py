@@ -33,3 +33,26 @@ sure_bg = cv.dilate(opening,kernel,iterations=3)
 # Finding sure foreground area
 dist_transform = cv.distanceTransform(opening,cv.DIST_L2,5)
 cv.imwrite(dist_map_file,dist_transform)
+
+
+a = np.where(dist_transform <18, dist_transform, 0)
+b = np.where(a >5, a, 0)
+d = np.where(b!=0)
+candidate_indices = []
+x_window = 20
+y_window = 20
+for i in range(d[0].shape[0]):
+    x_index = d[0][i]
+    y_index = d[1][i]
+    right_max = np.max(dist_transform[x_index:x_index+x_window, y_index:y_index+y_window])
+    left_max = np.max(dist_transform[x_index-x_window:x_index, y_index-y_window:y_index])
+    if (right_max > 20 and right_max >20):
+        candidate_indices.append([d[0][i], d[1][i]])
+        candidate_indices.append([d[0][i]+x_window, d[1][i]+y_window])
+candidate_indices = np.array(candidate_indices)
+x = np.array(candidate_indices[:,0])
+y = np.array(candidate_indices[:,1])
+candidate_indices = (x,y)
+fig = np.zeros(dist_transform.shape)
+gray[candidate_indices] = 0
+cv.imwrite("trying.pgm", gray)
