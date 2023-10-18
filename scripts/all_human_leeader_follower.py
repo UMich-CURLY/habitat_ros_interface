@@ -20,7 +20,7 @@ import habitat_sim
 import numpy as np
 import time
 import random
-# import cv2
+import cv2
 import sys
 sys.path.append("/root/miniconda3/envs/robostackenv/lib/python3.9/site-packages")
 sys.path.append("/opt/conda/envs/robostackenv/lib/python3.9/site-packages")
@@ -698,7 +698,7 @@ class sim_env(threading.Thread):
         if(not np.isnan(angle).any()):
             set_object_state_from_agent(self.env._sim, self.leader, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
             self.leader_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
-            print("setting linear velocity for leader")
+            # print("setting linear velocity for leader")
         else:
             self.leader_velocity_control.linear_velocity = [0.0,0.0,0.0]
             self.leader_velocity_control.angular_velocity = [0.0,0.0,0.0]
@@ -726,7 +726,7 @@ class sim_env(threading.Thread):
             if(not np.isnan(angle).any()):
                 set_object_state_from_agent(self.env._sim, self.objs[k], offset= human_state.translation - agent_state.position, orientation = object_orientation2)
                 self.vel_control_objs[k].linear_velocity = [computed_velocity[k+3,0], 0.0,  computed_velocity[k+3,1]]
-                print("setting linear velocity for extra agent")
+                # print("setting linear velocity for extra agent")
             else:
                 self.leader_velocity_control.linear_velocity = [0.0,0.0,0.0]
                 self.leader_velocity_control.angular_velocity = [0.0,0.0,0.0]
@@ -804,7 +804,9 @@ class sim_env(threading.Thread):
                         ]
                     ),
                 )
-            )       
+            )   
+            # cv2.imwrite("semantic_image.png", self.observations["semantic"])  
+            embed()
             self._pub_third_rgb.publish(np.float32(third_rgb_with_res))
             self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_depth.publish(np.float32(depth_with_res))

@@ -136,8 +136,8 @@ class social_force():
             plt.close(self.fig)
         self.update_number+=1
         ### Find out how to update agent positions in this ####
-        print("Velocity returned is ", computed_velocity)
-        print("State of the agent is ", self.s.peds.state)
+        # print("Velocity returned is ", computed_velocity)
+        # print("State of the agent is ", self.s.peds.state)
         return np.array(computed_velocity)
     
     def plot_obstacles(self):

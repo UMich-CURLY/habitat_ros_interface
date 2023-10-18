@@ -22,6 +22,7 @@ SIMULATOR:
     - ARM_RGB_SENSOR
     - ARM_DEPTH_SENSOR
     - THIRD_RGB_SENSOR
+    - EQUIRECT_SEMANTIC_SENSOR
     START_POSITION:
     - 0
     - 0
@@ -54,11 +55,15 @@ SIMULATOR:
     HEIGHT: 128
     WIDTH: 128
   AUTO_SLEEP: true
-  CONCUR_RENDER: true
+  CONCUR_RENDER: false
   CTRL_FREQ: 120.0
   DEBUG_RENDER: false
   DEBUG_RENDER_GOAL: true
   DEFAULT_AGENT_ID: 0
+  EQUIRECT_SEMANTIC_SENSOR:
+    HEIGHT: 128
+    TYPE: HabitatSimEquirectangularSemanticSensor
+    WIDTH: 128
   FORWARD_STEP_SIZE: 0.25
   GRASP_IMPULSE: 1000.0
   HABITAT_SIM_V0:
@@ -81,19 +86,6 @@ SIMULATOR:
   ROBOT_TYPE: FetchRobot
   ROBOT_URDF: ./data/robots/hab_fetch/robots/hab_fetch.urdf
   SEED: 100
-  SEMANTIC_SENSOR:
-    HEIGHT: 480
-    HFOV: 90
-    ORIENTATION:
-    - 0.0
-    - 0.0
-    - 0.0
-    POSITION:
-    - 0
-    - 1.25
-    - 0
-    TYPE: HabitatSimSemanticSensor
-    WIDTH: 640
   THIRD_RGB_SENSOR:
     HEIGHT: 512
     WIDTH: 512
