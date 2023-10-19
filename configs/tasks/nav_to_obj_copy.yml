@@ -144,7 +144,7 @@ SIMULATOR:
         HEIGHT: 1.5
         IS_SET_START_STATE: False
         RADIUS: 0.3
-        SENSORS: ['HEAD_RGB_SENSOR', 'HEAD_DEPTH_SENSOR', 'ARM_RGB_SENSOR', 'ARM_DEPTH_SENSOR', 'THIRD_RGB_SENSOR', 'EQUIRECT_SEMANTIC_SENSOR']
+        SENSORS: ['HEAD_RGB_SENSOR', 'HEAD_DEPTH_SENSOR', 'ARM_RGB_SENSOR', 'ARM_DEPTH_SENSOR', 'THIRD_RGB_SENSOR', 'SEMANTIC_SENSOR']
         START_POSITION: [0, 0, 0]
         START_ROTATION: [0, 0, 0, 1]
     HEAD_RGB_SENSOR:
@@ -153,6 +153,8 @@ SIMULATOR:
     THIRD_RGB_SENSOR:
         WIDTH: 512
         HEIGHT: 512
+        ORIENTATION: [1.519,0.0, 0.0]
+        POSITION: [0, 10.25, 0]
     HEAD_DEPTH_SENSOR:
         WIDTH: 720
         HEIGHT: 720
@@ -183,13 +185,14 @@ SIMULATOR:
     ROBOT_TYPE: "FetchRobot"
     IK_ARM_URDF: ./data/robots/hab_fetch/robots/fetch_onlyarm.urdf
     SEED: 100
-    EQUIRECT_SEMANTIC_SENSOR:
-        HEIGHT: 128
-        # HFOV: 90
-        # ORIENTATION: [0.0, 0.0, 0.0]
-        # POSITION: [0, 1.25, 0]
-        TYPE: HabitatSimEquirectangularSemanticSensor
-        WIDTH: 128
+    SEMANTIC_SENSOR:
+        HEIGHT: 720
+        HFOV: 90
+        ORIENTATION: [-1.519, 0.0, 0.0]
+        POSITION: [0, 3.25, 0]
+        TYPE: HabitatSimSemanticSensor
+        SENSOR_SUBTYPE: "ORTHOGRAPHIC"
+        WIDTH: 720
     TILT_ANGLE: 15
     TURN_ANGLE: 10
     TYPE: RearrangeSim-v0
