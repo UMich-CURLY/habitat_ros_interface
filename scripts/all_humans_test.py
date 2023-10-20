@@ -42,7 +42,11 @@ from IPython import embed
 from nav_msgs.srv import GetPlan
 from get_trajectory import *
 from get_trajectory_rvo import *
+import struct
 
+from sensor_msgs import point_cloud2
+from sensor_msgs.msg import PointCloud2, PointField
+from std_msgs.msg import Header
 import tf2_ros
 lock = threading.Lock()
 rospy.init_node("sim", anonymous=False)
@@ -68,28 +72,46 @@ def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     return points_topdown
 
 def cam_to_world(sim, u, v):
-    sensor_config = sim.sensor_suite.sensors['semantic'].config
-    W = sensor_config['WIDTH']
-    H = sensor_config['HEIGHT']
-    assert(W == H)
-    hfov = float(sensor_config['HFOV']) * np.pi / 180.
-    K = np.array([
-    [1 / np.tan(hfov / 2.), 0., 0., 0.],
-    [0., 1 / np.tan(hfov / 2.), 0., 0.],
-    [0., 0.,  1, 0],
-    [0., 0., 0, 1]])
-    quaternion_0 = qt.from_euler_angles(sensor_config['ORIENTATION'])
-    translation_0 = sensor_config['POSITION']
-    rotation_0 = qt.as_rotation_matrix(quaternion_0)
-    T_world_camera0 = np.eye(4)
-    T_world_camera0[0:3,0:3] = rotation_0
-    T_world_camera0[0:3,3] = translation_0
-    uv_1=np.array([[u,v,1]], dtype=np.float32)
-    uv_1=uv_1.T
-    inv_rot = np.linalg.inv(rotation_0)
-    A = np.matmul(np.linalg.inv(K[0:3,0:3]), uv_1)
-    t = np.array([translation_0]).T
-    return inv_rot.dot(A-t)
+    # sensor_config = sim.sensor_suite.sensors['semantic'].config
+    # W = sensor_config['WIDTH']
+    # H = sensor_config['HEIGHT']
+    # assert(W == H)
+    # hfov = float(sensor_config['HFOV']) * np.pi / 180.
+    # K = np.array([
+    # [1 / np.tan(hfov / 2.), 0., 0., 0.],
+    # [0., 1 / np.tan(hfov / 2.), 0., 0.],
+    # [0., 0.,  1, 0],
+    # [0., 0., 0, 1]])
+    # quaternion_0 = qt.from_euler_angles(sensor_config['ORIENTATION'])
+    # translation_0 = sensor_config['POSITION']
+    # rotation_0 = qt.as_rotation_matrix(quaternion_0)
+    # T_world_camera0 = np.eye(4)
+    # T_world_camera0[0:3,0:3] = rotation_0
+    # T_world_camera0[0:3,3] = translation_0
+    # uv_1=np.array([[u,v,1]], dtype=np.float32)
+    # uv_1=uv_1.T
+    # inv_rot = np.linalg.inv(rotation_0)
+    # A = np.matmul(np.linalg.inv(K[0:3,0:3]), uv_1)
+    # t = np.array([translation_0]).T
+    agent = sim.get_agent(0)
+    render_camera = agent.scene_node.node_sensor_suite.get_sensors()['semantic'].render_camera
+    # ray = render_camera.unproject(mn.Vector2i([u,v]))
+    # raycast_results = sim.cast_ray(ray=ray)
+    # if (raycast_results.has_hits()):
+    #     for i in range(len(raycast_results.hits)):
+    #         print (raycast_results.hits[i].point)
+    #     return (raycast_results.hits[-1].point - ray.origin)*2*3.25 + ray.origin
+    #     # return((u-360)/720, (u-360))
+    # else:
+    #     return None
+    origin = render_camera.unproject(mn.Vector2i([360,360])).origin
+    diff_x = u-360
+    diff_y = v-360
+    sx = (diff_x/360)*(2*3.25)
+    sy = (diff_y/360)*(2*3.25)
+    return origin + mn.Vector3(sy, 1.1, sx)
+
+
 
 
 def quat_to_coeff(quat):
@@ -363,6 +385,7 @@ class sim_env(threading.Thread):
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
         self._pub_third_rgb = rospy.Publisher("~third_rgb", numpy_msg(Floats), queue_size=1)
         self._robot_pose = rospy.Publisher("~robot_pose", PoseStamped, queue_size = 1)
+        self.cloud_pub = rospy.Publisher("semantic_cloud", PointCloud2, queue_size=2)
         # self._pub_follower = rospy.Publisher("~follower_pose", PoseStamped, queue_size = 1)
         self._pub_all_agents = rospy.Publisher("~agent_poses", PoseArray, queue_size = 1)
         self._pub_goal_marker = rospy.Publisher("~goal", Marker, queue_size = 1)
@@ -617,10 +640,6 @@ class sim_env(threading.Thread):
         agent_state = self.env.sim.get_agent_state(0)
         map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot}, self)
         self.initial_pos = initial_pos
-        for i in range(0,700,100):
-            for j in range(0,700, 100):
-                coord = cam_to_world(self.env._sim, i,j)
-                print(coord)
         embed()
         print("created habitat_plant succsefully")
 
@@ -866,6 +885,30 @@ class sim_env(threading.Thread):
                     ),
                 )
             )
+            points = []
+            for i in range(0,observations_semantic.shape[0],2):
+                for j in range(0,observations_semantic.shape[1], 2):
+                    world_coordinates = cam_to_world(self.env._sim, i,j)
+                    [x,y] = list(to_grid(self.env._sim.pathfinder, world_coordinates, self.grid_dimensions))
+                    [x,y] = [x*0.025, y*0.025]
+                    [r,g,b] = semantic_img[i, j, 0:3]
+                    # print([i,j])
+                    a = 255
+                    z = 0.1
+                    rgb = struct.unpack('I', struct.pack('BBBB', b, g, r, a))[0]
+                    pt = [x, y, z, rgb]
+                    points.append(pt)
+            fields = [PointField('x', 0, PointField.FLOAT32, 1),
+            PointField('y', 4, PointField.FLOAT32, 1),
+            PointField('z', 8, PointField.FLOAT32, 1),
+            # PointField('rgb', 12, PointField.UINT32, 1),
+            PointField('rgba', 12, PointField.UINT32, 1),
+            ]
+            header = Header()
+            header.frame_id = "my_map_frame"
+            pc2 = point_cloud2.create_cloud(header, fields, points)
+            pc2.header.stamp = rospy.Time.now()
+            self.cloud_pub.publish(pc2)
             # cv2.imwrite("semantic_image.png", semantic_img)
             self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_semantic.publish(np.float32(semantic_with_res))
