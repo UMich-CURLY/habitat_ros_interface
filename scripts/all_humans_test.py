@@ -71,28 +71,38 @@ def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
         points_topdown.append(np.array([px, py]))
     return points_topdown
 
-def cam_to_world(sim, u, v):
-    # sensor_config = sim.sensor_suite.sensors['semantic'].config
-    # W = sensor_config['WIDTH']
-    # H = sensor_config['HEIGHT']
-    # assert(W == H)
-    # hfov = float(sensor_config['HFOV']) * np.pi / 180.
-    # K = np.array([
-    # [1 / np.tan(hfov / 2.), 0., 0., 0.],
-    # [0., 1 / np.tan(hfov / 2.), 0., 0.],
-    # [0., 0.,  1, 0],
-    # [0., 0., 0, 1]])
-    # quaternion_0 = qt.from_euler_angles(sensor_config['ORIENTATION'])
-    # translation_0 = sensor_config['POSITION']
-    # rotation_0 = qt.as_rotation_matrix(quaternion_0)
-    # T_world_camera0 = np.eye(4)
-    # T_world_camera0[0:3,0:3] = rotation_0
-    # T_world_camera0[0:3,3] = translation_0
-    # uv_1=np.array([[u,v,1]], dtype=np.float32)
-    # uv_1=uv_1.T
-    # inv_rot = np.linalg.inv(rotation_0)
-    # A = np.matmul(np.linalg.inv(K[0:3,0:3]), uv_1)
-    # t = np.array([translation_0]).T
+def cam_to_world(sim, u, v, debug = False):
+    sensor_config = sim.sensor_suite.sensors['semantic'].config
+    agent = sim.get_agent(0)
+    render_camera = agent.scene_node.node_sensor_suite.get_sensors()['semantic'].render_camera
+    W = sensor_config['WIDTH']
+    H = sensor_config['HEIGHT']
+    assert(W == H)
+    K = np.array(render_camera.projection_matrix)
+    quaternion_0 = qt.from_euler_angles(sensor_config['ORIENTATION'])
+    translation_0 = sensor_config['POSITION']
+    rotation_0 = qt.as_rotation_matrix(quaternion_0)
+    T_world_camera0 = np.eye(4)
+    T_world_camera0[0:3,0:3] = rotation_0
+    T_world_camera0[0:3,3] = translation_0
+    T_world_camera0 = np.array(render_camera.camera_matrix)
+    rotation_0 = T_world_camera0[0:3,0:3]
+    translation_0 = T_world_camera0[0:3,3]
+    uv_1=np.array([[u,v,1]], dtype=np.float32)
+    uv_1=np.array([[2*u/W -1,-2*v/H +1,1]], dtype=np.float32)
+    uv_1=np.array([[2*v/H -1,-2*u/W +1,1]], dtype=np.float32)
+    uv_1=uv_1.T
+    if (debug):
+        embed()
+    inv_rot = np.linalg.inv(rotation_0)
+    A = np.matmul(np.linalg.inv(K[0:3,0:3]), uv_1)
+    A[2] = 1
+    t = np.array([translation_0])
+    c = (A-t.T)
+    d = inv_rot.dot(c)
+    # x = 2*d[0]/W -1
+    # y = (H-d[2])/(2*H) -1
+    return d
     agent = sim.get_agent(0)
     render_camera = agent.scene_node.node_sensor_suite.get_sensors()['semantic'].render_camera
     # ray = render_camera.unproject(mn.Vector2i([u,v]))
@@ -107,9 +117,10 @@ def cam_to_world(sim, u, v):
     origin = render_camera.unproject(mn.Vector2i([360,360])).origin
     diff_x = u-360
     diff_y = v-360
-    sx = (diff_x/360)*(2*3.25)
-    sy = (diff_y/360)*(2*3.25)
-    return origin + mn.Vector3(sy, 1.1, sx)
+    sx = (diff_x/360)*(5)
+    sy = (diff_y/360)*(5)
+    # return mn.Vector3(-origin[2], origin[1], -origin[0]) + mn.Vector3(sy, 1.1, sx)
+    return sim.robot.base_pos + mn.Vector3(sy-0.75, 1.1, sx-0.75)
 
 
 
@@ -353,9 +364,9 @@ class sim_env(threading.Thread):
         if island_radius<5.0:
             print("Island radius is ", island_radius)
         chosen_object = semantic_scene.objects[np.random.choice(candidate_doors_index)]
-        config.defrost()
-        config.SIMULATOR.SEMANTIC_SENSOR.POSITION = list(chosen_object.aabb.center)
-        config.freeze()
+        # config.defrost()
+        # config.SIMULATOR.SEMANTIC_SENSOR.POSITION = list(chosen_object.aabb.center)
+        # config.freeze()
 
         
         temp_position = self.env._sim.pathfinder.get_random_navigable_point_near(chosen_object.aabb.center,2)
