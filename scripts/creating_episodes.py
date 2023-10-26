@@ -52,6 +52,7 @@ def _generate_fn():
     if (dataset == "mp3d"):
         for ep in dset.episodes:
             ep.scene_id = "data/scene_datasets/mp3d/"+scene+"/"+scene+".glb"
+            ep.scene_dataset_config = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/mp3d.scene_dataset_config.json"
         print(dset.episodes)
         scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
         out_file = f"./data/datasets/pointnav/mp3d/v1/test/content/"+scene + str(count_episodes)+".json.gz"

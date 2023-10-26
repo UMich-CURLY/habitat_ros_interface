@@ -18,23 +18,15 @@ SIMULATOR:
     GPU_DEVICE_ID: 0
   RGB_SENSOR:
     HEIGHT: 720
-    HFOV: 45
-    ORIENTATION:
-    - 0.0
-    - 0.0
-    - 0.0
-    POSITION:
-    - 0
-    - 3.39
-    - 0
-    SENSOR_SUBTYPE: ORTHOGRAPHIC
+    HFOV: 90
+    SENSOR_SUBTYPE: PINHOLE
     WIDTH: 720
   SCENE: data/scene_datasets/mp3d/Vvot9Ly1tCj/Vvot9Ly1tCj.glb
   SEMANTIC_SENSOR:
     HEIGHT: 720
-    HFOV: 45
+    HFOV: 90
     ORIENTATION:
-    - 0.0
+    - -1.59
     - 0.0
     - 0.0
     POSITION:
