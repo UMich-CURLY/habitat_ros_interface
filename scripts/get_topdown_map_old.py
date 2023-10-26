@@ -8,8 +8,12 @@ from habitat.tasks.nav.nav import NavigationEpisode, NavigationGoal
 from habitat.utils.visualizations import maps
 # from habitat.utils.visualizations.maps import COORDINATE_MIN, COORDINATE_MAX
 from typing import TYPE_CHECKING, Union, cast
-
+from habitat_sim.utils.common import d3_40_colors_rgb
+from PIL import Image
+import cv2
 import argparse
+from IPython import embed
+
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 PARSER.add_argument('-mps', '--mps', default=0.025, type=float, help='mps')
@@ -32,7 +36,32 @@ def get_topdown_map(config_paths, map_name):
     )
     env = habitat.Env(config=config, dataset=dataset)
     env.reset()
-
+    observations = env.reset()
+        
+    semantic_scene = env.sim.semantic_annotations()
+    instance_id_to_label_id = {int(obj.id.split("_")[-1]): obj.category.index() for obj in semantic_scene.objects}
+    names = {int(obj.id.split("_")[-1]): obj.category.name() for obj in semantic_scene.objects}
+    instance_label_mapping = np.array([ instance_id_to_label_id[i] for i in range(len(instance_id_to_label_id)) ])
+    instance_names = np.array([names[i] for i in range(len(names))])
+    candidate_doors_index = np.where(instance_names == 'door')[0]
+    chosen_object = semantic_scene.objects[np.random.choice(candidate_doors_index)]    
+    temp_position = env._sim.pathfinder.get_random_navigable_point_near(chosen_object.aabb.center,2)
+    agent_state = env.sim.get_agent_state()
+    env.sim.set_agent_state(temp_position, agent_state.rotation)
+    observations = env.sim.get_sensor_observations()
+    observations_semantic = np.take(instance_label_mapping, observations['semantic'])
+    semantic_img = Image.new("P", (observations_semantic.shape[1], observations_semantic.shape[0]))
+    semantic_img.putpalette(d3_40_colors_rgb.flatten())
+    semantic_img.putdata((observations_semantic.flatten()%40).astype(np.uint8))
+    semantic_img = semantic_img.convert("RGBA")
+    semantic_img = np.asarray(semantic_img)
+    cv2.imwrite("semantic_img.png", semantic_img)
+    
+    # observations_rgb = np.take(instance_label_mapping, observations['rgb'])
+    # rgb_img = Image.new("P", (observations_rgb.shape[0], observations_rgb.shape[1],3))
+    # rgb_img.pudata((observations_rgb))
+    cv2.imwrite("rgb_img.png", np.asarray(observations['rgb']))
+    embed()
     meters_per_pixel =0.025
     hablab_topdown_map = maps.get_topdown_map_from_sim(
             cast("HabitatSim", env.sim), meters_per_pixel= meters_per_pixel
@@ -77,8 +106,9 @@ def main():
         print("Replacing the data config to the new scene ", scene)
         documents = yaml.dump(config, file)
     #first parameter is config path, second parameter is map name
-    if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
-        get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_"+scene+"_"+str(meters_per_pixel))
+
+    # if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
+    get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_"+scene+"_"+str(meters_per_pixel))
 
 
 

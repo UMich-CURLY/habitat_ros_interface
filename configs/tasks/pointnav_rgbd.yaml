@@ -1,5 +1,5 @@
 DATASET:
-  DATA_PATH: ./data/datasets/pointnav/mp3d/v1/test/content/Vvot9Ly1tCj0.json.gz
+  DATA_PATH: ./data/datasets/pointnav/mp3d/v1/test/content/17DRP5sb8fy0.json.gz
   SCENES_DIR: data/scene_datasets/
   SPLIT: test
   TYPE: PointNav-v1
@@ -10,6 +10,7 @@ SIMULATOR:
     SENSORS:
     - RGB_SENSOR
     - DEPTH_SENSOR
+    - SEMANTIC_SENSOR
   DEPTH_SENSOR:
     HEIGHT: 720
     WIDTH: 720
@@ -17,8 +18,32 @@ SIMULATOR:
     GPU_DEVICE_ID: 0
   RGB_SENSOR:
     HEIGHT: 720
+    HFOV: 45
+    ORIENTATION:
+    - 0.0
+    - 0.0
+    - 0.0
+    POSITION:
+    - 0
+    - 3.39
+    - 0
+    SENSOR_SUBTYPE: ORTHOGRAPHIC
     WIDTH: 720
-  SCENE: data/scene_datasets/mp3d/Vt2qJdWjCF2/Vt2qJdWjCF2.glb
+  SCENE: data/scene_datasets/mp3d/Vvot9Ly1tCj/Vvot9Ly1tCj.glb
+  SEMANTIC_SENSOR:
+    HEIGHT: 720
+    HFOV: 45
+    ORIENTATION:
+    - 0.0
+    - 0.0
+    - 0.0
+    POSITION:
+    - 0
+    - 3.39
+    - 0
+    SENSOR_SUBTYPE: ORTHOGRAPHIC
+    TYPE: HabitatSimSemanticSensor
+    WIDTH: 720
 TASK:
   COUNT_OBJ_COLLISIONS: true
   COUNT_ROBOT_OBJ_COLLS: true

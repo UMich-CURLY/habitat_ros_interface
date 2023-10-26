@@ -135,7 +135,7 @@ SIMULATOR:
     AC_FREQ_RATIO: 4
     DEBUG_RENDER: False
     DEBUG_RENDER_GOAL: True
-    CONCUR_RENDER: False
+    CONCUR_RENDER: True
     AUTO_SLEEP: True
     AGENTS: ['AGENT_0']
 
@@ -144,32 +144,23 @@ SIMULATOR:
         HEIGHT: 1.5
         IS_SET_START_STATE: False
         RADIUS: 0.3
-        SENSORS: ['HEAD_RGB_SENSOR', 'HEAD_DEPTH_SENSOR', 'ARM_RGB_SENSOR', 'ARM_DEPTH_SENSOR', 'THIRD_RGB_SENSOR', 'SEMANTIC_SENSOR']
+        SENSORS: ['HEAD_RGB_SENSOR', 'HEAD_DEPTH_SENSOR', 'THIRD_RGB_SENSOR', 'SEMANTIC_SENSOR']
         START_POSITION: [0, 0, 0]
         START_ROTATION: [0, 0, 0, 1]
     HEAD_RGB_SENSOR:
-        WIDTH: 720
-        HEIGHT: 720
+        WIDTH: 128
+        HEIGHT: 128
     THIRD_RGB_SENSOR:
-        WIDTH: 512
-        HEIGHT: 512
+        WIDTH: 128
+        HEIGHT: 128
         ORIENTATION: [1.519,0.0, 0.0]
-        POSITION: [0, 10.25, 0]
+        POSITION: [0, 5.25, 0]
     HEAD_DEPTH_SENSOR:
-        WIDTH: 720
-        HEIGHT: 720
+        WIDTH: 128
+        HEIGHT: 128
         MIN_DEPTH: 0.0
         MAX_DEPTH: 10.0
         NORMALIZE_DEPTH: True
-    ARM_DEPTH_SENSOR:
-        HEIGHT: 128
-        MAX_DEPTH: 10.0
-        MIN_DEPTH: 0.0
-        NORMALIZE_DEPTH: True
-        WIDTH: 128
-    ARM_RGB_SENSOR:
-        HEIGHT: 128
-        WIDTH: 128
     ARM_REST: [0.6, 0.0, 0.9]
     ARM_INIT: [1.0, 1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
     CTRL_FREQ: 120.0
@@ -186,13 +177,13 @@ SIMULATOR:
     IK_ARM_URDF: ./data/robots/hab_fetch/robots/fetch_onlyarm.urdf
     SEED: 100
     SEMANTIC_SENSOR:
-        HEIGHT: 720
-        HFOV: 90
+        HEIGHT: 128
+        HFOV: 45
         ORIENTATION: [-1.519, 0.0, 0.0]
-        POSITION: [0, 3.25, 0]
+        POSITION: [0, 1.39, 0]
         TYPE: HabitatSimSemanticSensor
         SENSOR_SUBTYPE: "ORTHOGRAPHIC"
-        WIDTH: 720
+        WIDTH: 128
     TILT_ANGLE: 15
     TURN_ANGLE: 10
     TYPE: RearrangeSim-v0

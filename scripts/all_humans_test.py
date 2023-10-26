@@ -287,7 +287,7 @@ class sim_env(threading.Thread):
     _y_axis = 1
     _z_axis = 2
     _dt = 0.00478
-    _sensor_rate = 50  # hz
+    _sensor_rate = 20  # hz
     _r_sensor = rospy.Rate(_sensor_rate)
     _current_episode = 0
     sensor_time_step = 1/_sensor_rate
@@ -651,6 +651,8 @@ class sim_env(threading.Thread):
         agent_state = self.env.sim.get_agent_state(0)
         map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot}, self)
         self.initial_pos = initial_pos
+        ## Why is are there two scene graphs
+        # self.env.sim.get_active_scene_graph = self.env.sim.get_active_semantic_scene_graph
         embed()
         print("created habitat_plant succsefully")
 
@@ -858,7 +860,7 @@ class sim_env(threading.Thread):
                 (
                     np.float32(self.observations["robot_third_rgb"][:,:,0:3].ravel()),
                     np.array(
-                        [512,512]
+                        [128,128]
                     ),
                 )
             )
@@ -866,7 +868,7 @@ class sim_env(threading.Thread):
                 (
                     np.float32(self.observations["robot_head_rgb"][:,:,0:3].ravel()),
                     np.array(
-                        [720,720]
+                        [128,128]
                     ),
                 )
             )
@@ -876,12 +878,13 @@ class sim_env(threading.Thread):
                     np.float32(self.observations["robot_head_depth"].ravel() ),
                     np.array(
                         [
-                            720,
-                            720
+                            128,
+                            128
                         ]
                     ),
                 )
             )   
+            node = self.env._sim.get_active_scene_graph().get_root_node()
             observations_semantic = np.take(self.instance_label_mapping, self.observations['semantic'])
             semantic_img = Image.new("P", (observations_semantic.shape[0], observations_semantic.shape[1]))
             semantic_img.putpalette(d3_40_colors_rgb.flatten())
