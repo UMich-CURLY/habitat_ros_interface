@@ -68,7 +68,7 @@ def _generate_fn():
         os.makedirs(osp.dirname(out_file), exist_ok=True)
         with gzip.open(out_file, "wt") as f:
             f.write(dset.to_json())
-    if (dataset == "habitat"):
+    elif (dataset == "habitat"):
         for ep in dset.episodes:
             ep.scene_id = "data/scene_datasets/habitat-test-scenes/"+scene+".glb"
         print(dset.episodes)
