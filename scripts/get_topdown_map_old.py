@@ -72,6 +72,25 @@ def draw_agent_in_top_down(env, map_path = "agent_pos.png", line = None):
                 pass
     cv2.imwrite(map_path, top_down_map)
 
+def sem_img_to_world(proj, cam, W,H, u, v, debug = False):
+    K = proj
+    T_world_camera = cam
+    rotation_0 = T_world_camera[0:3,0:3]
+    translation_0 = T_world_camera[0:3,3]
+    uv_1=np.array([[u,v,1]], dtype=np.float32)
+    uv_1=np.array([[2*u/W -1,-2*v/H +1,1]], dtype=np.float32)
+    uv_1=np.array([[2*v/H -1,-2*u/W +1,1]], dtype=np.float32)
+    uv_1=uv_1.T
+    assert(W == H)
+    if (debug):
+        embed()
+    inv_rot = np.linalg.inv(rotation_0)
+    A = np.matmul(np.linalg.inv(K[0:3,0:3]), uv_1)
+    A[2] = 1
+    t = np.array([translation_0])
+    c = (A-t.T)
+    d = inv_rot.dot(c)
+    return d
 
 def get_topdown_map(config_paths, map_name):
 
@@ -82,7 +101,7 @@ def get_topdown_map(config_paths, map_name):
     env = habitat.Env(config=config, dataset=dataset)
     env.reset()
     observations = env.reset()
-    np.random.seed(100)    
+    np.random.seed(1000)    
     semantic_scene = env.sim.semantic_annotations()
     instance_id_to_label_id = {int(obj.id.split("_")[-1]): obj.category.index() for obj in semantic_scene.objects}
     names = {int(obj.id.split("_")[-1]): obj.category.name() for obj in semantic_scene.objects}
@@ -131,7 +150,32 @@ def get_topdown_map(config_paths, map_name):
     semantic_img.putdata((observations_semantic.flatten()%40).astype(np.uint8))
     semantic_img = semantic_img.convert("RGBA")
     semantic_img = np.asarray(semantic_img)
+    hablab_topdown_map = maps.get_topdown_map_from_sim(
+                cast("HabitatSim", env.sim), meters_per_pixel= 0.025
+            )
+    recolor_map = np.array(
+        [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
+    )
+    hablab_topdown_map = recolor_map[hablab_topdown_map]
+    semantic_img_camera_mat = np.array(render_camera.render_camera.camera_matrix)
+    semantic_img_proj_mat = np.array(render_camera.render_camera.projection_matrix)
+    grid_dimensions = (hablab_topdown_map.shape[0], hablab_topdown_map.shape[1])
+    for i in range(0,semantic_img.shape[0],5):
+        for j in range(0,semantic_img.shape[1], 2):
+            world_coordinates = sem_img_to_world(semantic_img_proj_mat, semantic_img_camera_mat, semantic_img.shape[0], semantic_img.shape[1], i, j)
+            [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], grid_dimensions, pathfinder = env._sim.pathfinder))
+            # print([i,j])
+            # x = x - 1
+            if (i ==j == 360):
+                center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = env._sim.pathfinder,))
+                print(center_gt[0] - x, center_gt[1]-y)
+            try:
+                hablab_topdown_map[x,y] = semantic_img[i, j, 0:3]
+            except:
+                embed()
+
     cv2.imwrite(IMAGE_DIR+"/semantic_img.png", semantic_img)
+    cv2.imwrite(IMAGE_DIR+"/top_down_with_semantic_overlay.png", hablab_topdown_map)
     # observations_rgb = np.take(instance_label_mapping, observations['rgb'])
     # rgb_img = Image.new("P", (observations_rgb.shape[0], observations_rgb.shape[1],3))
     # rgb_img.pudata((observations_rgb))
@@ -141,7 +185,7 @@ def get_topdown_map(config_paths, map_name):
     with open(IMAGE_DIR+"/cam_mat.npy", 'wb') as f:
         np.save(f,np.array(render_camera.render_camera.camera_matrix))
     with open(IMAGE_DIR+"/proj_mat.npy", 'wb') as f:
-        np.save(f, render_camera.render_camera.projection_matrix)
+        np.save(f, np.array(render_camera.render_camera.projection_matrix))
     f = open(complete_name, "w+")
 
     f.write("H: " + str(semantic_img.shape[0]) + "\n")

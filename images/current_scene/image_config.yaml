@@ -2,4 +2,4 @@ H: 720
 W: 720
 camera_matrix: /home/catkin_ws/src/habitat_ros_interface/images/current_scene/cam_mat.npy
 projection_matrix: /home/catkin_ws/src/habitat_ros_interface/images/current_scene/proj_mat.npy
-object_id: 166
+object_id: 84

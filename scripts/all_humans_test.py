@@ -391,7 +391,7 @@ class sim_env(threading.Thread):
             except yaml.YAMLError as exc:
                 print(exc)
                 raise
-        chosen_object = semantic_scene.objects[image_config["object_id"]]
+        self.chosen_object = semantic_scene.objects[image_config["object_id"]]
         self.semantic_img_H = image_config["H"]
         self.semantic_img_W = image_config["W"]
         with open(image_config["projection_matrix"], 'rb') as f:
@@ -400,11 +400,11 @@ class sim_env(threading.Thread):
             self.semantic_img_camera_mat = np.load(f)
         self.semantic_img = cv2.imread(IMAGE_DIR+"/semantic_img.png")
         # config.defrost()
-        # config.SIMULATOR.SEMANTIC_SENSOR.POSITION = list(chosen_object.aabb.center)
+        # config.SIMULATOR.SEMANTIC_SENSOR.POSITION = list(self.chosen_object.aabb.center)
         # config.freeze()
 
         
-        temp_position = self.env._sim.pathfinder.get_random_navigable_point_near(chosen_object.aabb.center,2)
+        temp_position = self.env._sim.pathfinder.get_random_navigable_point_near(self.chosen_object.aabb.center,2)
         agent_state.position = temp_position
 
         self.lr = self.env._sim.get_debug_line_render()
@@ -930,13 +930,17 @@ class sim_env(threading.Thread):
                 )
             )
             points = []
-            for i in range(0,semantic_img.shape[0],2):
+            for i in range(0,semantic_img.shape[0],5):
                 for j in range(0,semantic_img.shape[1], 2):
                     world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img_W, self.semantic_img_H, i, j)
                     [x,y] = list(to_grid(self.env._sim.pathfinder, world_coordinates, self.grid_dimensions))
-                    [y,x] = [x*0.025, y*0.025]
-                    [r,g,b] = semantic_img[i, j, 0:3]
                     # print([i,j])
+                    x = x - 1
+                    if (i ==j == 360):
+                        center_gt = list(to_grid(self.env._sim.pathfinder, self.chosen_object.aabb.center, self.grid_dimensions))
+                        print(center_gt[0] - x, center_gt[1]-y)
+                    [x,y] = [x*0.025, y*0.025]
+                    [r,g,b] = semantic_img[i, j, 0:3]
                     a = 255
                     z = 0.1
                     rgb = struct.unpack('I', struct.pack('BBBB', b, g, r, a))[0]
