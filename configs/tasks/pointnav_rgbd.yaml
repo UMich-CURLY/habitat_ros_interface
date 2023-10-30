@@ -18,7 +18,6 @@ SIMULATOR:
     GPU_DEVICE_ID: 0
   RGB_SENSOR:
     HEIGHT: 720
-    HFOV: 90
     SENSOR_SUBTYPE: PINHOLE
     WIDTH: 720
   SCENE: data/scene_datasets/mp3d/Vvot9Ly1tCj/Vvot9Ly1tCj.glb

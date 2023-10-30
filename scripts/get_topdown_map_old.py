@@ -76,7 +76,7 @@ def get_topdown_map(config_paths, map_name):
     env = habitat.Env(config=config, dataset=dataset)
     env.reset()
     observations = env.reset()
-    np.random.seed(520)    
+    np.random.seed(100)    
     semantic_scene = env.sim.semantic_annotations()
     instance_id_to_label_id = {int(obj.id.split("_")[-1]): obj.category.index() for obj in semantic_scene.objects}
     names = {int(obj.id.split("_")[-1]): obj.category.name() for obj in semantic_scene.objects}
@@ -85,24 +85,37 @@ def get_topdown_map(config_paths, map_name):
     candidate_doors_index = np.where(instance_names == 'door')[0]
     chosen_object = semantic_scene.objects[np.random.choice(candidate_doors_index)]    
     temp_position = env._sim.pathfinder.get_random_navigable_point_near(chosen_object.aabb.center,1.5)
-    agent_state = env.sim.get_agent_state()
-    env.sim.set_agent_state(temp_position,np.array([0,0,0,1]))
-    agent_door = chosen_object.aabb.center - agent_state.position
-    agent_forward = utils.quat_to_magnum(
-            env.sim.agents[0].get_state().rotation
-        ).transform_vector(mn.Vector3(0.0,0.0,-1.0))
-    agent_door[2] = -agent_door[2]
-    agent_door[1] =0
-    agent_forward = utils.quat_to_magnum(
-            env.sim.agents[0].get_state().rotation
-        ).transform_vector(mn.Vector3(agent_door[0], agent_door[1], agent_door[2]))
+    temp_position = chosen_object.aabb.center
+    temp_position[1] = 0
+    temp_rot = chosen_object.obb.rotation
+    quat_rot =  qt.quaternion(temp_rot[3], temp_rot[0], temp_rot[1], temp_rot[2])
+    quat_rot = quat_rot  *qt.quaternion(0.7071, 0, 0, -0.7071)
+    new_quat = np.array([quat_rot.x, quat_rot.y, quat_rot.z, quat_rot.w])
+    env.sim.set_agent_state(temp_position,new_quat)
+    embed()
+    # agent_state = env.sim.get_agent_state()
+    # observations = env.sim.get_sensor_observations()
+    # cv2.imwrite("rgb_img_no_rot.png", np.asarray(observations['rgb']))
+    # draw_agent_in_top_down(env, map_path = "agent_pos_no_rot.png")
+    # agent_door = chosen_object.aabb.center - agent_state.position
+    # agent_forward = utils.quat_to_magnum(
+    #         env.sim.agents[0].get_state().rotation
+    #     ).transform_vector(mn.Vector3(0.0,0.0,-1.0))
+    # agent_door[2] = -agent_door[2]
+    # agent_door[1] = 0
+    # agent_forward = utils.quat_to_magnum(
+    #         env.sim.agents[0].get_state().rotation
+    #     ).transform_vector(mn.Vector3(agent_door[0], agent_door[1], agent_door[2]))
 
-    diff_quat = utils.quat_from_two_vectors(np.array(agent_forward), agent_door)
-    # diff_quat = diff_quat*qt.quaternion(0,0,-0.7071,0.7071)
-    diff_quat = qt.from_rotation_vector(np.array(agent_forward))
-    env.sim.set_agent_state(temp_position, diff_quat)
+    # diff_quat = utils.quat_from_two_vectors(np.array(agent_forward), agent_door)
+    
+    # diff_quat = qt.from_rotation_vector(np.array(agent_forward))
+    # diff_euler = qt.as_euler_angles(diff_quat)
+    # diff_euler[0] = diff_euler[2] = 0
+    # diff_quat = qt.from_euler_angles(diff_euler)
+    # new_quat = np.array([diff_quat.x, diff_quat.y, diff_quat.z, diff_quat.w])
+    # env.sim.set_agent_state(temp_position, new_quat)
     render_camera = env._sim.get_agent(0).scene_node.node_sensor_suite.get_sensors()['rgb']
-    # render_camera.zoom(2)
     render_camera = env._sim.get_agent(0).scene_node.node_sensor_suite.get_sensors()['semantic']
     render_camera.zoom(2)
     observations = env.sim.get_observations_at(chosen_object.aabb.center)
@@ -113,7 +126,6 @@ def get_topdown_map(config_paths, map_name):
     semantic_img = semantic_img.convert("RGBA")
     semantic_img = np.asarray(semantic_img)
     cv2.imwrite("semantic_img.png", semantic_img)
-    embed()
     # observations_rgb = np.take(instance_label_mapping, observations['rgb'])
     # rgb_img = Image.new("P", (observations_rgb.shape[0], observations_rgb.shape[1],3))
     # rgb_img.pudata((observations_rgb))
