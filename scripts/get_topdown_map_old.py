@@ -27,9 +27,14 @@ scene = ARGS.scene
 meters_per_pixel = ARGS.mps
 dataset = ARGS.dataset
 MAP_DIR = "/home/catkin_ws/src/habitat_ros_interface/maps"
+IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
 if not os.path.exists(MAP_DIR):
     print("Didi not find maps directory")
     os.makedirs(MAP_DIR)
+
+if not os.path.exists(IMAGE_DIR):
+    print("Didi not find maps directory")
+    os.makedirs(IMAGE_DIR)
 
 def draw_agent_in_top_down(env, map_path = "agent_pos.png", line = None):
     agent_state = env.sim.get_agent_state()
@@ -67,6 +72,7 @@ def draw_agent_in_top_down(env, map_path = "agent_pos.png", line = None):
                 pass
     cv2.imwrite(map_path, top_down_map)
 
+
 def get_topdown_map(config_paths, map_name):
 
     config = habitat.get_config(config_paths=config_paths)
@@ -83,7 +89,8 @@ def get_topdown_map(config_paths, map_name):
     instance_label_mapping = np.array([ instance_id_to_label_id[i] for i in range(len(instance_id_to_label_id)) ])
     instance_names = np.array([names[i] for i in range(len(names))])
     candidate_doors_index = np.where(instance_names == 'door')[0]
-    chosen_object = semantic_scene.objects[np.random.choice(candidate_doors_index)]    
+    door_number = np.random.choice(candidate_doors_index)
+    chosen_object = semantic_scene.objects[door_number]    
     temp_position = env._sim.pathfinder.get_random_navigable_point_near(chosen_object.aabb.center,1.5)
     temp_position = chosen_object.aabb.center
     temp_position[1] = 0
@@ -92,7 +99,6 @@ def get_topdown_map(config_paths, map_name):
     quat_rot = quat_rot  *qt.quaternion(0.7071, 0, 0, -0.7071)
     new_quat = np.array([quat_rot.x, quat_rot.y, quat_rot.z, quat_rot.w])
     env.sim.set_agent_state(temp_position,new_quat)
-    embed()
     # agent_state = env.sim.get_agent_state()
     # observations = env.sim.get_sensor_observations()
     # cv2.imwrite("rgb_img_no_rot.png", np.asarray(observations['rgb']))
@@ -125,13 +131,25 @@ def get_topdown_map(config_paths, map_name):
     semantic_img.putdata((observations_semantic.flatten()%40).astype(np.uint8))
     semantic_img = semantic_img.convert("RGBA")
     semantic_img = np.asarray(semantic_img)
-    cv2.imwrite("semantic_img.png", semantic_img)
+    cv2.imwrite(IMAGE_DIR+"/semantic_img.png", semantic_img)
     # observations_rgb = np.take(instance_label_mapping, observations['rgb'])
     # rgb_img = Image.new("P", (observations_rgb.shape[0], observations_rgb.shape[1],3))
     # rgb_img.pudata((observations_rgb))
     observations = env.sim.get_sensor_observations()
-    cv2.imwrite("rgb_img.png", np.asarray(observations['rgb']))
-    
+    cv2.imwrite(IMAGE_DIR+"/rgb_img.png", np.asarray(observations['rgb']))
+    complete_name = os.path.join(IMAGE_DIR, "image_config" + ".yaml")
+    with open(IMAGE_DIR+"/cam_mat.npy", 'wb') as f:
+        np.save(f,np.array(render_camera.render_camera.camera_matrix))
+    with open(IMAGE_DIR+"/proj_mat.npy", 'wb') as f:
+        np.save(f, render_camera.render_camera.projection_matrix)
+    f = open(complete_name, "w+")
+
+    f.write("H: " + str(semantic_img.shape[0]) + "\n")
+    f.write("W: " + str(semantic_img.shape[1]) + "\n")
+    f.write("camera_matrix: " + IMAGE_DIR+"/cam_mat.npy" +"\n")
+    f.write("projection_matrix: " + IMAGE_DIR+"/proj_mat.npy" +"\n")
+    f.write("object_id: " + str(door_number) + "\n")
+    f.close()
     agent_state = env.sim.get_agent_state()
     agent_pos = agent_state.position
     meters_per_pixel =0.025
@@ -143,38 +161,34 @@ def get_topdown_map(config_paths, map_name):
     b[1] = chosen_object.aabb.center[1]
     line = np.linspace(a,b,50)
     draw_agent_in_top_down(env, map_path = "agent_pos.png", line = line)
-    hablab_topdown_map = maps.get_topdown_map_from_sim(
-            cast("HabitatSim", env.sim), meters_per_pixel= meters_per_pixel
+    if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
+        meters_per_pixel =0.025
+        hablab_topdown_map = maps.get_topdown_map_from_sim(
+                cast("HabitatSim", env.sim), meters_per_pixel= meters_per_pixel
+            )
+        recolor_map = np.array(
+            [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
         )
-    recolor_map = np.array(
-        [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
-    )
-    hablab_topdown_map = recolor_map[hablab_topdown_map]
-    square_map_resolution = 5000
-    map_resolution = [5000,5000]
-    top_down_map = hablab_topdown_map
-    grid_dimensions = (top_down_map.shape[0]*meters_per_pixel, top_down_map.shape[1]*meters_per_pixel)
-    # Image containing 0 if occupied, 1 if unoccupied, and 2 if border (if
-    # the flag is set)
-    hablab_topdown_map = maps.get_topdown_map_from_sim(
-            cast("HabitatSim", env.sim), meters_per_pixel= meters_per_pixel
-        )
-    recolor_map = np.array(
-        [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
-    )
-    top_down_map[np.where(top_down_map == 0)] = 125
-    top_down_map[np.where(top_down_map == 1)] = 255
-    top_down_map[np.where(top_down_map == 2)] = 0
-    imageio.imsave(os.path.join(MAP_DIR, map_name + ".pgm"), hablab_topdown_map)
-    print("writing Yaml file! ")
-    complete_name = os.path.join(MAP_DIR, map_name + ".yaml")
-    f = open(complete_name, "w+")
+        hablab_topdown_map = recolor_map[hablab_topdown_map]
+        square_map_resolution = 5000
+        map_resolution = [5000,5000]
+        top_down_map = hablab_topdown_map
+        grid_dimensions = (top_down_map.shape[0]*meters_per_pixel, top_down_map.shape[1]*meters_per_pixel)
+        # Image containing 0 if occupied, 1 if unoccupied, and 2 if border (if
+        # the flag is set)
+        top_down_map[np.where(top_down_map == 0)] = 125
+        top_down_map[np.where(top_down_map == 1)] = 255
+        top_down_map[np.where(top_down_map == 2)] = 0
+        imageio.imsave(os.path.join(MAP_DIR, map_name + ".pgm"), hablab_topdown_map)
+        print("writing Yaml file! ")
+        complete_name = os.path.join(MAP_DIR, map_name + ".yaml")
+        f = open(complete_name, "w+")
 
-    f.write("image: " + map_name + ".pgm\n")
-    f.write("resolution: " + str(meters_per_pixel) + "\n")
-    f.write("origin: [" + str(-1) + "," + str(-grid_dimensions[0]+1) + ", 0.000000]\n")
-    f.write("negate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.196")
-    f.close()
+        f.write("image: " + map_name + ".pgm\n")
+        f.write("resolution: " + str(meters_per_pixel) + "\n")
+        f.write("origin: [" + str(-1) + "," + str(-grid_dimensions[0]+1) + ", 0.000000]\n")
+        f.write("negate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.196")
+        f.close()
 
 
 def main():

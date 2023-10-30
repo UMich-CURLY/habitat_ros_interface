@@ -48,6 +48,8 @@ from sensor_msgs import point_cloud2
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
 import tf2_ros
+import yaml
+
 lock = threading.Lock()
 rospy.init_node("sim", anonymous=False)
 import argparse
@@ -61,6 +63,7 @@ FOLLOWER_OFFSET = [1.5,-1.0,0.0]
 AGENTS_SPEED = 0.5
 USE_RVO = False
 MPP = 0.001
+IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
 def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
     points_topdown = []
     bounds = pathfinder.get_bounds()
@@ -122,7 +125,25 @@ def cam_to_world(sim, u, v, debug = False):
     # return mn.Vector3(-origin[2], origin[1], -origin[0]) + mn.Vector3(sy, 1.1, sx)
     return sim.robot.base_pos + mn.Vector3(sy-0.75, 1.1, sx-0.75)
 
-
+def sem_img_to_world(proj, cam, W,H, u, v, debug = False):
+    K = proj
+    T_world_camera = cam
+    rotation_0 = T_world_camera[0:3,0:3]
+    translation_0 = T_world_camera[0:3,3]
+    uv_1=np.array([[u,v,1]], dtype=np.float32)
+    uv_1=np.array([[2*u/W -1,-2*v/H +1,1]], dtype=np.float32)
+    uv_1=np.array([[2*v/H -1,-2*u/W +1,1]], dtype=np.float32)
+    uv_1=uv_1.T
+    assert(W == H)
+    if (debug):
+        embed()
+    inv_rot = np.linalg.inv(rotation_0)
+    A = np.matmul(np.linalg.inv(K[0:3,0:3]), uv_1)
+    A[2] = 1
+    t = np.array([translation_0])
+    c = (A-t.T)
+    d = inv_rot.dot(c)
+    return d
 
 
 def quat_to_coeff(quat):
@@ -363,7 +384,21 @@ class sim_env(threading.Thread):
                 print("Found better one")
         if island_radius<5.0:
             print("Island radius is ", island_radius)
-        chosen_object = semantic_scene.objects[np.random.choice(candidate_doors_index)]
+
+        with open(IMAGE_DIR+"/image_config.yaml", "r") as stream:
+            try:
+                image_config = yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                print(exc)
+                raise
+        chosen_object = semantic_scene.objects[image_config["object_id"]]
+        self.semantic_img_H = image_config["H"]
+        self.semantic_img_W = image_config["W"]
+        with open(image_config["projection_matrix"], 'rb') as f:
+            self.semantic_img_proj_mat = np.load(f)
+        with open(image_config["camera_matrix"], 'rb') as f:
+            self.semantic_img_camera_mat = np.load(f)
+        self.semantic_img = cv2.imread(IMAGE_DIR+"/semantic_img.png")
         # config.defrost()
         # config.SIMULATOR.SEMANTIC_SENSOR.POSITION = list(chosen_object.aabb.center)
         # config.freeze()
@@ -884,27 +919,22 @@ class sim_env(threading.Thread):
                     ),
                 )
             )   
-            node = self.env._sim.get_active_scene_graph().get_root_node()
-            observations_semantic = np.take(self.instance_label_mapping, self.observations['semantic'])
-            semantic_img = Image.new("P", (observations_semantic.shape[0], observations_semantic.shape[1]))
-            semantic_img.putpalette(d3_40_colors_rgb.flatten())
-            semantic_img.putdata((observations_semantic.flatten()%40).astype(np.uint8))
-            semantic_img = semantic_img.convert("RGBA")
-            semantic_img = np.asarray(semantic_img)
+            
+            semantic_img =self.semantic_img
             semantic_with_res = np.concatenate(
                 (
                     np.float32(semantic_img[:, :, 0:3].ravel()),
                     np.array(
-                        [observations_semantic.shape[0], observations_semantic.shape[1]]
+                        [semantic_img.shape[0], semantic_img.shape[1]]
                     ),
                 )
             )
             points = []
-            for i in range(0,observations_semantic.shape[0],2):
-                for j in range(0,observations_semantic.shape[1], 2):
-                    world_coordinates = cam_to_world(self.env._sim, i,j)
+            for i in range(0,semantic_img.shape[0],2):
+                for j in range(0,semantic_img.shape[1], 2):
+                    world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img_W, self.semantic_img_H, i, j)
                     [x,y] = list(to_grid(self.env._sim.pathfinder, world_coordinates, self.grid_dimensions))
-                    [x,y] = [x*0.025, y*0.025]
+                    [y,x] = [x*0.025, y*0.025]
                     [r,g,b] = semantic_img[i, j, 0:3]
                     # print([i,j])
                     a = 255
