@@ -43,7 +43,7 @@ from nav_msgs.srv import GetPlan
 from get_trajectory import *
 from get_trajectory_rvo import *
 import struct
-
+import geometry_msgs
 from sensor_msgs import point_cloud2
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
@@ -57,73 +57,8 @@ PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 ARGS = PARSER.parse_args()
 scene = ARGS.scene
-AGENT_GOAL_POS_2d = [800,500]
-AGENT_START_POS_2d = [800,100]
-FOLLOWER_OFFSET = [1.5,-1.0,0.0]
-AGENTS_SPEED = 0.5
 USE_RVO = False
-MPP = 0.001
 IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
-def convert_points_to_topdown(pathfinder, points, meters_per_pixel = 0.025):
-    points_topdown = []
-    bounds = pathfinder.get_bounds()
-    for point in points:
-        # convert 3D x,z to topdown x,y
-        px = (point[0] - bounds[0][0]) / meters_per_pixel
-        py = (point[2] - bounds[0][2]) / meters_per_pixel
-        points_topdown.append(np.array([px, py]))
-    return points_topdown
-
-def cam_to_world(sim, u, v, debug = False):
-    sensor_config = sim.sensor_suite.sensors['semantic'].config
-    agent = sim.get_agent(0)
-    render_camera = agent.scene_node.node_sensor_suite.get_sensors()['semantic'].render_camera
-    W = sensor_config['WIDTH']
-    H = sensor_config['HEIGHT']
-    assert(W == H)
-    K = np.array(render_camera.projection_matrix)
-    quaternion_0 = qt.from_euler_angles(sensor_config['ORIENTATION'])
-    translation_0 = sensor_config['POSITION']
-    rotation_0 = qt.as_rotation_matrix(quaternion_0)
-    T_world_camera0 = np.eye(4)
-    T_world_camera0[0:3,0:3] = rotation_0
-    T_world_camera0[0:3,3] = translation_0
-    T_world_camera0 = np.array(render_camera.camera_matrix)
-    rotation_0 = T_world_camera0[0:3,0:3]
-    translation_0 = T_world_camera0[0:3,3]
-    uv_1=np.array([[u,v,1]], dtype=np.float32)
-    uv_1=np.array([[2*u/W -1,-2*v/H +1,1]], dtype=np.float32)
-    uv_1=np.array([[2*v/H -1,-2*u/W +1,1]], dtype=np.float32)
-    uv_1=uv_1.T
-    if (debug):
-        embed()
-    inv_rot = np.linalg.inv(rotation_0)
-    A = np.matmul(np.linalg.inv(K[0:3,0:3]), uv_1)
-    A[2] = 1
-    t = np.array([translation_0])
-    c = (A-t.T)
-    d = inv_rot.dot(c)
-    # x = 2*d[0]/W -1
-    # y = (H-d[2])/(2*H) -1
-    return d
-    agent = sim.get_agent(0)
-    render_camera = agent.scene_node.node_sensor_suite.get_sensors()['semantic'].render_camera
-    # ray = render_camera.unproject(mn.Vector2i([u,v]))
-    # raycast_results = sim.cast_ray(ray=ray)
-    # if (raycast_results.has_hits()):
-    #     for i in range(len(raycast_results.hits)):
-    #         print (raycast_results.hits[i].point)
-    #     return (raycast_results.hits[-1].point - ray.origin)*2*3.25 + ray.origin
-    #     # return((u-360)/720, (u-360))
-    # else:
-    #     return None
-    origin = render_camera.unproject(mn.Vector2i([360,360])).origin
-    diff_x = u-360
-    diff_y = v-360
-    sx = (diff_x/360)*(5)
-    sy = (diff_y/360)*(5)
-    # return mn.Vector3(-origin[2], origin[1], -origin[0]) + mn.Vector3(sy, 1.1, sx)
-    return sim.robot.base_pos + mn.Vector3(sy-0.75, 1.1, sx-0.75)
 
 def sem_img_to_world(proj, cam, W,H, u, v, debug = False):
     K = proj
@@ -204,17 +139,7 @@ def quat_from_two_vectors(v0: np.ndarray, v1: np.ndarray) -> qt.quaternion:
     s = np.sqrt((1 + c) * 2)
     return qt.quaternion(s * 0.5, *(axis / s))
 
-def draw_axes(sim, translation, axis_len=1.0):
-    lr = sim.get_debug_line_render()
-    # draw axes with x+ = red, y+ = green, z+ = blue
-    opacity = 1.0
-    red = mn.Color4(1.0, 0.0, 0.0, opacity)
-    green = mn.Color4(0.0, 1.0, 0.0, opacity)
-    blue = mn.Color4(0.0, 0.0, 1.0, opacity)
-    white = mn.Color4(1.0, 1.0, 1.0, opacity)
-    lr.draw_transformed_line(translation, mn.Vector3(axis_len, 0, 0), red)
-    lr.draw_transformed_line(translation, mn.Vector3(0, axis_len, 0), green)
-    lr.draw_transformed_line(translation, mn.Vector3(0, 0, axis_len), blue)
+
 # Set an object transform relative to the agent state
 def set_object_state_from_agent(
     sim,
@@ -227,88 +152,13 @@ def set_object_state_from_agent(
     obj.translation = ob_translation
     obj.rotation = orientation
 
-def map_to_base_link(msg, my_env):
-    grid_x,grid_y = my_env.grid_dimensions
-    theta = msg['theta']
-    my_env.br.sendTransform((-my_env.initial_state[0][0]+1, -my_env.initial_state[0][1]+1,0.0),
-                    tf.transformations.quaternion_from_euler(0, 0, 0.0),
-                    rospy.Time.now(),
-                    "my_map_frame",
-                    "interim_link"
-    )
-    my_env.br.sendTransform((0.0,0.0,0.0),
-                    tf.transformations.quaternion_from_euler(0, 0, -theta),
-                    rospy.Time.now(),
-                    "interim_link",
-                    "base_link"
-    )
-    poseMsg = PoseStamped()
-    poseMsg.header.stamp = rospy.Time.now()
-    poseMsg.header.frame_id = "base_link"
-    quat = tf.transformations.quaternion_from_euler(0, 0, 0.0)
-    poseMsg.pose.orientation.x = quat[0]
-    poseMsg.pose.orientation.y = quat[1]
-    poseMsg.pose.orientation.z = quat[2]
-    poseMsg.pose.orientation.w = quat[3]
-    poseMsg.pose.position.x = 0.0
-    poseMsg.pose.position.y = 0.0
-    poseMsg.pose.position.z = 0.0
-    my_env._robot_pose.publish(poseMsg)
-
-    ##### Publish other agents 
-    poseArrayMsg = PoseArray()
-    poseArrayMsg.header.frame_id = "my_map_frame"
-    poseArrayMsg.header.stamp = rospy.Time.now()
-    follower_pos = my_env.follower.rigid_state.translation
-    theta = my_env.get_object_heading(my_env.follower.transformation)
-    quat = tf.transformations.quaternion_from_euler(0, 0, theta)
-    follower_pose_2d = to_grid(my_env.env._sim.pathfinder, follower_pos, my_env.grid_dimensions)
-    follower_pose_2d = follower_pose_2d*(0.025*np.ones([1,2]))[0]
-    
-    for i in range(len(my_env.initial_state)-1):
-        poseMsg = Pose()
-        if (i==0):
-            theta = my_env.get_object_heading(my_env.leader.transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
-        elif (i==1):
-            theta = my_env.get_object_heading(my_env.follower.transformation) - mn.Rad(np.pi/2-0.97 + np.pi)
-        else:
-            theta = my_env.get_object_heading(my_env.objs[i-2].transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
-        quat = tf.transformations.quaternion_from_euler(0, 0, theta)
-        poseMsg.orientation.x = quat[0]
-        poseMsg.orientation.y = quat[1]
-        poseMsg.orientation.z = quat[2]
-        poseMsg.orientation.w = quat[3]
-        poseMsg.position.x = my_env.initial_state[i+1][0]-1
-        poseMsg.position.y = my_env.initial_state[i+1][1]-1
-        poseMsg.position.z = 0.0
-        poseArrayMsg.poses.append(poseMsg)
-    my_env._pub_all_agents.publish(poseArrayMsg)
-
-    goal_marker = Marker()
-    goal_marker.header.frame_id = "my_map_frame"
-    goal_marker.type = 2
-    goal_marker.pose.position.x = my_env.initial_state[0][4]-1
-    goal_marker.pose.position.y = my_env.initial_state[0][5]-1
-    goal_marker.pose.position.z = 0.0
-    goal_marker.pose.orientation.x = 0.0
-    goal_marker.pose.orientation.y = 0.0
-    goal_marker.pose.orientation.z = 0.0
-    goal_marker.pose.orientation.w = 1.0
-    goal_marker.scale.x = 0.5
-    goal_marker.scale.y = 0.5
-    goal_marker.scale.z = 0.5
-    goal_marker.color.a = 1.0 
-    goal_marker.color.r = 0.0
-    goal_marker.color.g = 1.0
-    goal_marker.color.b = 0.0
-    my_env._pub_goal_marker.publish(goal_marker)
 
 class sim_env(threading.Thread):
     _x_axis = 0
     _y_axis = 1
     _z_axis = 2
     _dt = 0.00478
-    _sensor_rate = 20  # hz
+    _sensor_rate = 50  # hz
     _r_sensor = rospy.Rate(_sensor_rate)
     _current_episode = 0
     sensor_time_step = 1/_sensor_rate
@@ -318,9 +168,6 @@ class sim_env(threading.Thread):
     current_goal = []
     current_position = []
     current_orientation = []
-    flag_action_uncertainty = True
-    flag_wait_time_uncertainty = True
-    action_uncertainty_rate = 0.9
     follower = []
     new_goal = False
     control_frequency = 20
@@ -333,8 +180,6 @@ class sim_env(threading.Thread):
     received_vel = False
     goal_reached = False
     start_time = []
-    tour_planning_time = []
-    all_points = []
     rtab_pose = []
     goal_time = []
     obs = []
@@ -360,37 +205,16 @@ class sim_env(threading.Thread):
         # self.env._sim.agents[0].move_filter_fn = self.env._sim.step_filter
         agent_state = self.env.sim.get_agent_state(0)
         self.observations = self.env.reset()
-        
-        semantic_scene = self.env.sim.semantic_annotations()
-        instance_id_to_label_id = {int(obj.id.split("_")[-1]): obj.category.index() for obj in semantic_scene.objects}
-        names = {int(obj.id.split("_")[-1]): obj.category.name() for obj in semantic_scene.objects}
-        self.instance_label_mapping = np.array([ instance_id_to_label_id[i] for i in range(len(instance_id_to_label_id)) ])
-        self.instance_names = np.array([names[i] for i in range(len(names))])
-        candidate_doors_index = np.where(self.instance_names == 'door')[0]
         arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         self.env._sim.robot.arm_joint_pos = arm_joint_positions
-        temp_position = self.env._sim.pathfinder.get_random_navigable_point()
-        island_radius = 2.0
-        temp_island_radius = 2.0
-        for i in range(50):
-            new_temp_position = self.env._sim.pathfinder.get_random_navigable_point()
-            [y,x] = np.array(to_grid(self.env._sim.pathfinder, new_temp_position, self.grid_dimensions))
-            if top_down_map[x][y] == 0:
-                continue
-            temp_island_radius = self.env._sim.pathfinder.island_radius(new_temp_position)
-            if island_radius < temp_island_radius:
-                temp_position = new_temp_position
-                island_radius = temp_island_radius
-                print("Found better one")
-        if island_radius<5.0:
-            print("Island radius is ", island_radius)
-
+        
         with open(IMAGE_DIR+"/image_config.yaml", "r") as stream:
             try:
                 image_config = yaml.safe_load(stream)
             except yaml.YAMLError as exc:
                 print(exc)
                 raise
+        semantic_scene = self.env.sim.semantic_annotations()
         self.chosen_object = semantic_scene.objects[image_config["object_id"]]
         self.semantic_img_H = image_config["H"]
         self.semantic_img_W = image_config["W"]
@@ -398,50 +222,32 @@ class sim_env(threading.Thread):
             self.semantic_img_proj_mat = np.load(f)
         with open(image_config["camera_matrix"], 'rb') as f:
             self.semantic_img_camera_mat = np.load(f)
-        self.semantic_img = cv2.imread(IMAGE_DIR+"/semantic_img.png")
-        # config.defrost()
-        # config.SIMULATOR.SEMANTIC_SENSOR.POSITION = list(self.chosen_object.aabb.center)
-        # config.freeze()
+        self.semantic_img = cv2.imread(IMAGE_DIR+"/semantic_img.png")   
 
-        
-        temp_position = self.env._sim.pathfinder.get_random_navigable_point_near(self.chosen_object.aabb.center,2)
-        agent_state.position = temp_position
-
-        self.lr = self.env._sim.get_debug_line_render()
-        self.lr.set_line_width(3)
-
-        self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
-        self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
+        #### Initialize agent near the door     
+        temp_position, rot = self.get_in_band_around_door(agent_state.rotation)
+        self.env.sim.set_agent_state(temp_position, rot)
+        self.env._sim.robot.base_pos = mn.Vector3(temp_position)
+        agent_state = self.env.sim.get_agent_state(0)
         print(self.env.sim)
         config = self.env._sim.config
         print(self.env._sim.active_dataset)
-        self._sensor_resolution = {
-            "RGB": 720,  
-            "DEPTH": 720,
-            "SEMANTIC": 720
-        }
-        print(self.env._sim.pathfinder.get_bounds())
-        
-        # agent_init_pos = np.array(from_grid(self.env._sim.pathfinder, AGENT_START_POS_2d, self.grid_dimensions))
-        # agent_state.position = agent_init_pos
-        self.env.sim.set_agent_state(agent_state.position, agent_state.rotation)
-        self.env._sim.robot.base_pos = mn.Vector3(agent_state.position)
         self._pub_rgb = rospy.Publisher("~rgb", numpy_msg(Floats), queue_size=1)
         self._pub_semantic = rospy.Publisher("~semantic", numpy_msg(Floats), queue_size=1)
         self._pub_depth = rospy.Publisher("~depth", numpy_msg(Floats), queue_size=1)
         self._pub_third_rgb = rospy.Publisher("~third_rgb", numpy_msg(Floats), queue_size=1)
         self._robot_pose = rospy.Publisher("~robot_pose", PoseStamped, queue_size = 1)
         self.cloud_pub = rospy.Publisher("semantic_cloud", PointCloud2, queue_size=2)
-        # self._pub_follower = rospy.Publisher("~follower_pose", PoseStamped, queue_size = 1)
         self._pub_all_agents = rospy.Publisher("~agent_poses", PoseArray, queue_size = 1)
         self._pub_goal_marker = rospy.Publisher("~goal", Marker, queue_size = 1)
         
         self.br = tf.TransformBroadcaster()
+        self.br_tf_2 = tf2_ros.TransformBroadcaster()
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
-        rospy.Subscriber("~plan_3d", numpy_msg(Floats),self.plan_callback, queue_size=1)
-        rospy.Subscriber("/rtabmap/goal_reached", Bool,self.update_goal_status, queue_size=1)
+        # rospy.Subscriber("~plan_3d", numpy_msg(Floats),self.plan_callback, queue_size=1)
+        # rospy.Subscriber("/rtabmap/goal_reached", Bool,self.update_goal_status, queue_size=1)
         rospy.Subscriber("/move_base/result", MoveBaseActionResult ,self.update_move_base_goal_status, queue_size=1)
-        rospy.Subscriber("/rtabmap/localization_pose", PoseWithCovarianceStamped,self.rtabpose_callback,queue_size=1)    
+        # rospy.Subscriber("/rtabmap/localization_pose", PoseWithCovarianceStamped,self.rtabpose_callback,queue_size=1)    
         # rospy.Subscriber("/move_base_simple/goal", PoseStamped,self.landmark_callback,queue_size=1)    
         # self.pub_goal = rospy.Publisher("~current_goal", PoseStamped, queue_size=1)
         self.pub_goal = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=1)
@@ -468,11 +274,10 @@ class sim_env(threading.Thread):
         robot_pos_in_2d = to_grid(self.env._sim.pathfinder, self.env._sim.robot.base_pos, self.grid_dimensions)
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
-        ### N has the total number of extra humans, besides the robot and the two followers
-        self.N = 0
+        self.N = 1
         
         # self.groups = [[0,1,2], [3], [4],[5],[6],[7]]
-        self.groups = [[0]]
+        self.groups = [[0], [1]]
 
         ##### Initiating objects for other humans #####
 
@@ -485,30 +290,20 @@ class sim_env(threading.Thread):
         humans_initial_velocity = []
         ##### Final 3d goals for the agent and the extra agents, the leader and followers just follow the agent 
         self.final_goals_3d = np.zeros([self.N+1,3])
-        self.goal_dist = np.zeros(self.N+3)
+        self.goal_dist = np.zeros(self.N+1)
 
 
         #### Initiating robot in the esfm state ####
         agent_pos = self.env.sim.robot.base_pos
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
+        
         ## Asume the agent goal is always the goal of the 0th agent
-        agent_goal_pos_3d = np.array(from_grid(self.env._sim.pathfinder, AGENT_GOAL_POS_2d, self.grid_dimensions))
-        goal_distance = 0.5
         path = habitat_path.ShortestPath()
         path.requested_start = np.array(start_pos)
         for i in range(50):
-            goal = self.env._sim.pathfinder.get_random_navigable_point()
-
-            temp_goal_dist = np.sqrt((goal[0]-start_pos[0])**2 + (goal[2]-start_pos[2])**2)
-            path.requested_end = goal
-            if(not self.env._sim.pathfinder.find_path(path)):
-                continue
-            if temp_goal_dist > goal_distance:
-                agent_goal_pos_3d = goal
-                goal_distance = temp_goal_dist
-        if (goal_distance<10):
-            print("chose another scene maybe!", goal_distance)
-            # embed()
+            agent_goal_pos_3d, goal_rot = self.get_in_band_around_door(agent_state.rotation)
+            if (self.is_point_on_other_side(agent_goal_pos_3d, agent_state.position)):
+                break
         path.requested_end = agent_goal_pos_3d
         self.final_goals_3d[0,:] = agent_goal_pos_3d
         if(not self.env._sim.pathfinder.find_path(path)):
@@ -540,79 +335,7 @@ class sim_env(threading.Thread):
         goal_pos = [pos*0.025 for pos in goal_pos]
         self.initial_state.append(initial_pos+agents_initial_velocity+goal_pos)
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
-        ##### Human 1 being initiated #####
-        human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
-        self.leader_id = human_template_id
-        file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
-        # self.objs.append(obj)
         
-        # obj_template_handle = './scripts/humantwo.object_config.json'
-        # obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
-        # print(obj_template)
-        # file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
-        # print(file_obj)
-        file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
-        self.leader = file_obj
-        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
-        orientation_y = (np.pi/2-0.97)*180/np.pi #+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
-        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
-        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
-        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
-        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
-        object_orientation2 = rotation_z * rotation_y * rotation_x
-        leader_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos, 2)
-        leader_offset = leader_pos_3d - agent_state.position
-        leader_offset[1] += 1.0
-        set_object_state_from_agent(self.env._sim, self.leader, np.array(leader_offset), orientation = object_orientation2)
-        self.leader_velocity_control = self.leader.velocity_control
-        self.leader_velocity_control.controlling_lin_vel = True
-        self.leader_velocity_control.controlling_ang_vel = True
-        self.leader_velocity_control.ang_vel_is_local = False
-        self.leader_velocity_control.lin_vel_is_local = False
-        self.leader_velocity_control.linear_velocity = np.array([0.0,0.0,0.0])
-        self.leader_velocity_control.angular_velocity = np.array([0.0,0.0,0.0])
-        object_state = self.leader.rigid_state.translation
-        current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
-        current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+initial_pos)
-        self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
-        ##### Human 2 being initiated #####
-        human_template_id = obj_template_mgr.load_configs('./scripts/humantwo')[0]
-        self.follower_id = human_template_id
-        file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
-        # self.objs.append(obj)
-        
-        # obj_template_handle = './scripts/humantwo.object_config.json'
-        # obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
-        # print(obj_template)
-        # file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
-        # print(file_obj)
-        file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
-        self.follower = file_obj
-        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
-        orientation_y = (np.pi/2-0.97)*180/np.pi #+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
-        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
-        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
-        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
-        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
-        object_orientation2 = rotation_z * rotation_y * rotation_x
-        follower_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos, 2)
-        follower_offset = follower_pos_3d - agent_state.position
-        follower_offset[1] += 1.0
-        set_object_state_from_agent(self.env._sim, self.follower, np.array(follower_offset), orientation = object_orientation2)
-        self.follower_velocity_control = self.follower.velocity_control
-        self.follower_velocity_control.controlling_lin_vel = True
-        self.follower_velocity_control.controlling_ang_vel = True
-        self.follower_velocity_control.ang_vel_is_local = False
-        self.follower_velocity_control.lin_vel_is_local = False
-        self.follower_velocity_control.linear_velocity = np.array([0.0,0.0,0.0])
-        self.follower_velocity_control.angular_velocity = np.array([0.0,0.0,0.0])
-        object_state = self.follower.rigid_state.translation
-        current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
-        current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        self.initial_state.append(current_initial_pos_2d+agents_initial_velocity+initial_pos)
-        self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
-
         #### Add the rest of the people with random goal assigned ####
         self.human_template_ids = []
         self.objs = []
@@ -622,20 +345,16 @@ class sim_env(threading.Thread):
             human_template_id = obj_template_mgr.load_configs('./scripts/human')[0]
             self.human_template_ids.append(human_template_id)
             file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
-            # self.objs.append(obj)
-            
-            # obj_template_handle = './scripts/humantwo.object_config.json'
-            # obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
-            # print(obj_template)
-            # file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
-            # print(file_obj)
             file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
             self.objs.append(file_obj)
             
             #### Pick a random start location for this agent ####
-            start_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(self.env._sim.robot.base_pos,10)
+            start_pos_3d, a = self.get_in_band_around_door()
             # start_pos = from_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
-            goal_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(start_pos_3d, 10)
+            temp_goal_pos_3d, a = self.get_in_band_around_door()
+            while(not self.is_point_on_other_side(start_pos_3d, temp_goal_pos_3d)):
+                temp_goal_pos_3d, a = self.get_in_band_around_door()
+            goal_pos_3d = temp_goal_pos_3d
             self.final_goals_3d[k+1,:] = goal_pos_3d
             path = habitat_path.ShortestPath()
             path.requested_start = np.array(start_pos_3d)
@@ -672,7 +391,7 @@ class sim_env(threading.Thread):
             
             self.vel_control_objs[k].linear_velocity = np.array([0.0,0.0,0.0])
             self.vel_control_objs[k].angular_velocity = np.array([0.0,0.0,0.0])
-            self.goal_dist[k+3] = np.linalg.norm((np.array(self.initial_state[k+3][0:2])-np.array(self.initial_state[k+3][4:6])))
+            self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
         
         if USE_RVO:
             self.sfm = ped_rvo(self, map_path = "./maps/resolution_"+scene+"_0.025.pgm", resolution = 0.025)
@@ -684,24 +403,160 @@ class sim_env(threading.Thread):
         # self.initial_state.append(robot_pos_in_2d+humans_initial_velocity[0]+humans_goal_pos_2d[2])
         # self.groups.append([self.N])
         agent_state = self.env.sim.get_agent_state(0)
-        map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot}, self)
+        self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot})
         self.initial_pos = initial_pos
-        ## Why is are there two scene graphs
-        # self.env.sim.get_active_scene_graph = self.env.sim.get_active_semantic_scene_graph
         print("created habitat_plant succsefully")
 
-    def __del__(self):
-        if (len(self.all_points)>1):
-            with open('./scripts/all_points.csv',  mode='w') as csvfile:
-                csv_writer = csv.writer(csvfile, delimiter=',')
-                for points in self.all_points:
-                    print(points)
-                    csv_writer.writerow(points)
-            csvfile.close()
+    def get_in_band_around_door(self, agent_rotation = None):
+        temp_position = self.env.sim.pathfinder.get_random_navigable_point_near(self.chosen_object.aabb.center,5)
+        diff_vec = temp_position - self.chosen_object.aabb.center
+        diff_vec[1] = 0
+        temp_dist = np.linalg.norm(diff_vec)
+        print("Diff vector ", diff_vec)
+        while (temp_dist < 1.5 or temp_dist >2.5):
+            temp_position = self.env.sim.pathfinder.get_random_navigable_point_near(self.chosen_object.aabb.center,5)
+            diff_vec = temp_position - self.chosen_object.aabb.center
+            diff_vec[1] = 0
+            temp_dist = np.linalg.norm(diff_vec)
+        
+        if (agent_rotation):
+            agent_door = self.chosen_object.aabb.center - temp_position
+            agent_door[2] = -agent_door[2]
+            agent_door[1] = 0
+            agent_forward = utils.quat_to_magnum(
+                    agent_rotation
+                ).transform_vector(mn.Vector3(agent_door[0], agent_door[1], agent_door[2]))        
+            diff_quat = qt.from_rotation_vector(np.array(agent_forward))
+            diff_euler = qt.as_euler_angles(diff_quat)
+            diff_euler[0] = diff_euler[2] = 0
+            diff_quat = qt.from_euler_angles(diff_euler)
+            new_quat = np.array([diff_quat.x, diff_quat.y, diff_quat.z, diff_quat.w])
+            return temp_position, new_quat
+        else:
+            return temp_position, None
 
+    def is_point_on_other_side(self, p1, p2):
+        transform = self.chosen_object.obb.world_to_local
+        p1_local = np.matmul(transform, np.append(p1,1.0).T)
+        p2_local = np.matmul(transform, np.append(p2,1.0).T)
+        y1 = p1_local[2]
+        y2 = p2_local[2]
+        x1 = p1_local[1]
+        x2 = p1_local[1]
+
+        if (np.sign(x1) == np.sign(x2) and np.sign(y1) == np.sign(y2)):
+            return False
+        else:
+            return True
+        
     def _render(self):
         self.observations.update(self.env._task._sim.get_observations_at()) 
 
+    def map_to_base_link(self, msg):
+        theta = msg['theta']
+        use_tf_2 = True
+        if (not use_tf_2):
+            self.br.sendTransform((-self.initial_state[0][0]+1, -self.initial_state[0][1]+1,0.0),
+                            tf.transformations.quaternion_from_euler(0, 0, 0.0),
+                            rospy.Time(0),
+                            "my_map_frame",
+                            "interim_link"
+            )
+            self.br.sendTransform((0.0,0.0,0.0),
+                            tf.transformations.quaternion_from_euler(0, 0, -theta),
+                            rospy.Time(0),
+                            "interim_link",
+                            "base_link"
+            )
+        else:
+            t = geometry_msgs.msg.TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = "interim_link"
+            t.child_frame_id = "my_map_frame"
+            t.transform.translation.x = -self.initial_state[0][0]+1
+            t.transform.translation.y = -self.initial_state[0][1]+1
+            t.transform.translation.z = 0.0
+            q = tf.transformations.quaternion_from_euler(0, 0, 0.0)
+            t.transform.rotation.x = q[0]
+            t.transform.rotation.y = q[1]
+            t.transform.rotation.z = q[2]
+            t.transform.rotation.w = q[3]
+            self.br_tf_2.sendTransform(t)
+
+            t = geometry_msgs.msg.TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = "base_link"
+            t.child_frame_id = "interim_link"
+            t.transform.translation.x = 0.0
+            t.transform.translation.y = 0.0
+            t.transform.translation.z = 0.0
+            q = tf.transformations.quaternion_from_euler(0, 0, -theta)
+            t.transform.rotation.x = q[0]
+            t.transform.rotation.y = q[1]
+            t.transform.rotation.z = q[2]
+            t.transform.rotation.w = q[3]
+            self.br_tf_2.sendTransform(t)
+
+        poseMsg = PoseStamped()
+        poseMsg.header.stamp = rospy.Time.now()
+        poseMsg.header.frame_id = "base_link"
+        quat = tf.transformations.quaternion_from_euler(0, 0, 0.0)
+        poseMsg.pose.orientation.x = quat[0]
+        poseMsg.pose.orientation.y = quat[1]
+        poseMsg.pose.orientation.z = quat[2]
+        poseMsg.pose.orientation.w = quat[3]
+        poseMsg.pose.position.x = 0.0
+        poseMsg.pose.position.y = 0.0
+        poseMsg.pose.position.z = 0.0
+        self._robot_pose.publish(poseMsg)
+
+        ##### Publish other agents 
+        poseArrayMsg = PoseArray()
+        poseArrayMsg.header.frame_id = "my_map_frame"
+        poseArrayMsg.header.stamp = rospy.Time.now()
+        # follower_pos = my_env.follower.rigid_state.translation
+        # theta = my_env.get_object_heading(my_env.follower.transformation)
+        # quat = tf.transformations.quaternion_from_euler(0, 0, theta)
+        # follower_pose_2d = to_grid(my_env.env._sim.pathfinder, follower_pos, my_env.grid_dimensions)
+        # follower_pose_2d = follower_pose_2d*(0.025*np.ones([1,2]))[0]
+        
+        for i in range(len(self.initial_state)-1):
+            poseMsg = Pose()
+            # if (i==0):
+            #     theta = my_env.get_object_heading(my_env.leader.transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
+            # elif (i==1):
+            #     theta = my_env.get_object_heading(my_env.follower.transformation) - mn.Rad(np.pi/2-0.97 + np.pi)
+            # else:
+            theta = self.get_object_heading(self.objs[i].transformation) - mn.Rad(np.pi/2-0.97 +np.pi)
+            quat = tf.transformations.quaternion_from_euler(0, 0, theta)
+            poseMsg.orientation.x = quat[0]
+            poseMsg.orientation.y = quat[1]
+            poseMsg.orientation.z = quat[2]
+            poseMsg.orientation.w = quat[3]
+            poseMsg.position.x = self.initial_state[i+1][0]-1
+            poseMsg.position.y = self.initial_state[i+1][1]-1
+            poseMsg.position.z = 0.0
+            poseArrayMsg.poses.append(poseMsg)
+        self._pub_all_agents.publish(poseArrayMsg)
+
+        goal_marker = Marker()
+        goal_marker.header.frame_id = "my_map_frame"
+        goal_marker.type = 2
+        goal_marker.pose.position.x = self.initial_state[0][4]-1
+        goal_marker.pose.position.y = self.initial_state[0][5]-1
+        goal_marker.pose.position.z = 0.0
+        goal_marker.pose.orientation.x = 0.0
+        goal_marker.pose.orientation.y = 0.0
+        goal_marker.pose.orientation.z = 0.0
+        goal_marker.pose.orientation.w = 1.0
+        goal_marker.scale.x = 0.5
+        goal_marker.scale.y = 0.5
+        goal_marker.scale.z = 0.5
+        goal_marker.color.a = 1.0 
+        goal_marker.color.r = 0.0
+        goal_marker.color.g = 1.0
+        goal_marker.color.b = 0.0
+        self._pub_goal_marker.publish(goal_marker)
 
     def update_agent_pos_vel(self): 
         if(self.agent_update_counter/self.update_multiple == self.human_update_counter):
@@ -722,10 +577,7 @@ class sim_env(threading.Thread):
         ##### For teleop human/follower 
         # self.follower_velocity_control.linear_velocity = self.linear_velocity
         # self.follower_velocity_control.angular_velocity = self.angular_velocity
-        self.lr.push_transform(self.env._sim.robot.base_transformation)
         origin = mn.Vector3(0.0, 0.0, 0.0)
-        draw_axes(self.env._sim,origin, axis_len=0.4)
-        self.lr.pop_transform()
         #### Forward simulate
         self.env.sim.step_physics(self.time_step)
         self.observations.update(self.env._task._sim.get_sensor_observations())
@@ -742,89 +594,21 @@ class sim_env(threading.Thread):
         point_behind = [pos*0.025 for pos in point_behind]
         self.initial_state[0][0:2] = initial_pos
         self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
-        ####  Update Leader state in ESFM 
-        object_state = self.leader.rigid_state.translation
-        current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
-        current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        self.initial_state[1][0:2] = current_initial_pos_2d
-        self.initial_state[1][4:6] = point_behind
-        self.goal_dist[1] = np.linalg.norm((np.array(self.initial_state[1][0:2])-np.array(self.initial_state[1][4:6])))
-        #### Update Follower state in ESFM
-        object_state = self.follower.rigid_state.translation
-        current_initial_pos_2d = to_grid(self.env._sim.pathfinder, object_state, self.grid_dimensions)
-        current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-        self.initial_state[2][4:6] = point_behind
-        self.initial_state[2][0:2] = current_initial_pos_2d
-        self.goal_dist[2] = np.linalg.norm((np.array(self.initial_state[2][0:2])-np.array(self.initial_state[2][4:6])))
-        #### Update other humans state in ESFM, sample new goal if reached 
+        
         for k in range(self.N):
             human_state = self.objs[k].rigid_state.translation
             current_initial_pos_2d = to_grid(self.env._sim.pathfinder, human_state, self.grid_dimensions)
             current_initial_pos_2d = [pos*0.025 for pos in current_initial_pos_2d]
-            self.initial_state[k+3][0:2] = current_initial_pos_2d
-            self.goal_dist[k+3] = np.linalg.norm((np.array(self.initial_state[k+3][0:2])-np.array(self.initial_state[k+3][4:6])))
+            self.initial_state[k+1][0:2] = current_initial_pos_2d
+            self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
         #### Calculate new velocity
         
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
         
-        #### Set new velocity for the follower
-        human_state = self.follower.rigid_state
-        computed_velocity[2,:] = [computed_velocity[2,0], computed_velocity[2,1]]
-        next_vel_control = mn.Vector3(computed_velocity[2,0], computed_velocity[2,1], 0.0)
-        diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
-        diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
-        angle= tf.transformations.euler_from_quaternion(diff_list)
-        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
-        orientation_y = (np.pi/2-0.97)*180/np.pi+angle[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
-        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
-        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
-        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
-        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
-        object_orientation2 = rotation_z * rotation_y * rotation_x
-        agent_state = self.env._sim.get_agent_state(0)
-        if(not np.isnan(angle).any()):
-            set_object_state_from_agent(self.env._sim, self.follower, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-            # if(self.goal_dist[1]>self.goal_dist[0]):
-            self.follower_velocity_control.linear_velocity = [computed_velocity[2,0], 0.0,  computed_velocity[2,1]]
-            print("setting linear velocity for follower")
-            # else:
-                # self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
-        else:
-            self.follower_velocity_control.linear_velocity = [0.0,0.0,0.0]
-            self.follower_velocity_control.angular_velocity = [0.0,0.0,0.0]
-            computed_velocity[2,:] = [computed_velocity[2,0], computed_velocity[2,1]]
-
-        #### Setting leader velocity ####
-        human_state = self.leader.rigid_state
-        next_vel_control = mn.Vector3(computed_velocity[1,0], computed_velocity[1,1], 0.0)
-        diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
-        diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
-        angle= tf.transformations.euler_from_quaternion(diff_list)
-        orientation_x = 90  # @param {type:"slider", min:-180, max:180, step:1}
-        orientation_y = (np.pi/2-0.97)*180/np.pi+angle[2]*180/np.pi#+angle_diff[1]*180/np.pi# @param {type:"slider", min:-180, max:180, step:1}
-        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}@param {type:"slider", min:-180, max:180, step:1}
-        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
-        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
-        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
-        object_orientation2 = rotation_z * rotation_y * rotation_x
-        agent_state = self.env._sim.get_agent_state(0)
-        if(not np.isnan(angle).any()):
-            set_object_state_from_agent(self.env._sim, self.leader, offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-            self.leader_velocity_control.linear_velocity = [computed_velocity[1,0], 0.0,  computed_velocity[1,1]]
-            print("setting linear velocity for leader")
-        else:
-            self.leader_velocity_control.linear_velocity = [0.0,0.0,0.0]
-            self.leader_velocity_control.angular_velocity = [0.0,0.0,0.0]
-            computed_velocity[1,:] = [computed_velocity[1,0], computed_velocity[1,1]]
-        # print(computed_velocity, self.follower_velocity_control.linear_velocity)
-        
-        self.initial_state[1][2:4] = [computed_velocity[1,0], computed_velocity[1,1]]
-        self.initial_state[2][2:4] = [computed_velocity[2,0], computed_velocity[2,1]]
-
         #### Setting velocity for the other humans 
         for k in range(self.N):
             human_state = self.objs[k].rigid_state
-            next_vel_control = mn.Vector3(computed_velocity[k+3,0], computed_velocity[k+3,1], 0.0)
+            next_vel_control = mn.Vector3(computed_velocity[k+1,0], computed_velocity[k+1,1], 0.0)
             diff_angle = quat_from_two_vectors(mn.Vector3(1,0,0), next_vel_control)
             diff_list = [diff_angle.x, diff_angle.y, diff_angle.z, diff_angle.w]
             angle= tf.transformations.euler_from_quaternion(diff_list)
@@ -838,20 +622,20 @@ class sim_env(threading.Thread):
             agent_state = self.env._sim.get_agent_state(0)
             if(not np.isnan(angle).any()):
                 set_object_state_from_agent(self.env._sim, self.objs[k], offset= human_state.translation - agent_state.position, orientation = object_orientation2)
-                self.vel_control_objs[k].linear_velocity = [computed_velocity[k+3,0], 0.0,  computed_velocity[k+3,1]]
+                self.vel_control_objs[k].linear_velocity = [computed_velocity[k+1,0], 0.0,  computed_velocity[k+1,1]]
                 print("setting linear velocity for extra agent")
             else:
-                self.leader_velocity_control.linear_velocity = [0.0,0.0,0.0]
-                self.leader_velocity_control.angular_velocity = [0.0,0.0,0.0]
+                self.vel_control_objs[k].linear_velocity = [0.0,0.0,0.0]
+                self.vel_control_objs[k].angular_velocity = [0.0,0.0,0.0]
             # print(computed_velocity, self.follower_velocity_control.linear_velocity)
-            self.initial_state[k+3][2:4] = [computed_velocity[k+3,0], computed_velocity[k+3,1]]
+            self.initial_state[k+1][2:4] = [computed_velocity[k+1,0], computed_velocity[k+1,1]]
             
             #### Update to next topogoal if reached the first one 
-            GOAL_THRESHOLD = 0.3
-            if (self.goal_dist[k+3]<= GOAL_THRESHOLD):
+            GOAL_THRESHOLD = 0.5
+            if (self.goal_dist[k+1]<= GOAL_THRESHOLD):
                 final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[k+1,:], self.grid_dimensions))
                 goal_pos = [pos*0.025 for pos in final_goal_grid]
-                dist = np.linalg.norm(np.array(goal_pos) - np.array(self.initial_state[k+3][4:6]))
+                dist = np.linalg.norm(np.array(goal_pos) - np.array(self.initial_state[k+1][4:6]))
                 path = habitat_path.ShortestPath()
                 path.requested_start = np.array(human_state.translation)
                 #### If it isn't a intermediate goal, sample a new goal for the agent 
@@ -869,11 +653,8 @@ class sim_env(threading.Thread):
                 humans_goal_pos_3d = path.points[1]
                 goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d, self.grid_dimensions))
                 goal_pos = [pos*0.025 for pos in goal_pos]
-                self.initial_state[k+3][4:6] = goal_pos
-                self.goal_dist[k+3] = np.linalg.norm((np.array(self.initial_state[k+3][0:2])-np.array(self.initial_state[k+3][4:6])))
-
-
-
+                self.initial_state[k+1][4:6] = goal_pos
+                self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
         # map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
 
         self.update_counter+=1
@@ -969,18 +750,12 @@ class sim_env(threading.Thread):
             self.initial_state[0][0:2] = initial_pos
             # self.initial_state[0][2:4] = vel
             self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
-            map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.get_object_heading(self.env._sim.robot.base_transformation)},self)
+            self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.get_object_heading(self.env._sim.robot.base_transformation)})
             lock.release()
             self._r_sensor.sleep()
             
 
     def update_orientation(self):
-        # if self.received_vel:
-            # self.received_vel = False
-            # self.vel_control_objs[0].linear_velocity = self.linear_velocity
-            # self.vel_control_objs[0].angular_velocity = self.angular_velocity
-            # self.vel_control.linear_velocity = self.linear_velocity
-            # self.vel_control.angular_velocity = self.angular_velocity
         self.update_agent_pos_vel()
         if(self._global_plan_published):
             if(self.new_goal and self._current_episode<self._total_number_of_episodes):
@@ -1001,11 +776,6 @@ class sim_env(threading.Thread):
                     
 
         rospy.sleep(self.time_step)
-        # self.linear_velocity = np.array([0.0,0.0,0.0])
-        # self.angular_velocity = np.array([0.0,0.0,0.0])
-        # self.vel_control.linear_velocity = self.linear_velocity
-        # self.vel_control.angular_velocity = self.angular_velocity
-        # self._render()
 
     def set_dt(self, dt):
         self._dt = dt
@@ -1018,10 +788,6 @@ class sim_env(threading.Thread):
         e = np.array(to_grid(self.env._sim.pathfinder, [d[0],d[1],d[2]], self.grid_dimensions))
         vel = (c-e)*(0.5/np.linalg.norm(c-e)*np.ones([1,2]))[0]
         return mn.Rad(np.arctan2(vel[1], vel[0]))
-
-    def landmark_callback(self,point):
-        self.all_points.append([point.pose.position.x,point.pose.position.y,point.pose.position.z,point.pose.orientation.x,point.pose.orientation.y,point.pose.orientation.z,point.pose.orientation.w])        
-        print(self._current_episode+1, self.all_points[-1])
 
     def point_callback(self,point):
         # depot = self.rtab_pose

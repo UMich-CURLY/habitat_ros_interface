@@ -92,7 +92,7 @@ def sem_img_to_world(proj, cam, W,H, u, v, debug = False):
     d = inv_rot.dot(c)
     return d
 
-def get_topdown_map(config_paths, map_name):
+def get_topdown_map(config_paths, map_name, selected_door_number = None, select_min= True):
 
     config = habitat.get_config(config_paths=config_paths)
     dataset = habitat.make_dataset(
@@ -108,8 +108,28 @@ def get_topdown_map(config_paths, map_name):
     instance_label_mapping = np.array([ instance_id_to_label_id[i] for i in range(len(instance_id_to_label_id)) ])
     instance_names = np.array([names[i] for i in range(len(names))])
     candidate_doors_index = np.where(instance_names == 'door')[0]
-    door_number = np.random.choice(candidate_doors_index)
-    chosen_object = semantic_scene.objects[door_number]    
+    non_obs_candidate_doors = []
+    sdfs = []
+    for candidate_door in candidate_doors_index:
+        chosen_object = semantic_scene.objects[candidate_door]    
+        if env.sim.distance_to_closest_obstacle(chosen_object.aabb.center) <0.25:
+            continue
+        else:
+            non_obs_candidate_doors.append(candidate_door)
+            sdfs.append(env.sim.distance_to_closest_obstacle(chosen_object.aabb.center))
+    sdfs = np.array(sdfs)
+    candidate_doors_index = np.array(non_obs_candidate_doors)
+    if not selected_door_number:
+        door_number = np.random.choice(candidate_doors_index)
+    else:
+        door_number = candidate_doors_index[selected_door_number]
+    if select_min:
+        arg_min = np.ndarray.argmin(sdfs)
+        door_number = candidate_doors_index[int(arg_min)]
+    
+        
+    chosen_object = semantic_scene.objects[door_number] 
+    print("sdf at chosen door is ", env.sim.distance_to_closest_obstacle(chosen_object.aabb.center))
     temp_position = env._sim.pathfinder.get_random_navigable_point_near(chosen_object.aabb.center,1.5)
     temp_position = chosen_object.aabb.center
     temp_position[1] = 0
@@ -150,6 +170,9 @@ def get_topdown_map(config_paths, map_name):
     semantic_img.putdata((observations_semantic.flatten()%40).astype(np.uint8))
     semantic_img = semantic_img.convert("RGBA")
     semantic_img = np.asarray(semantic_img)
+    cv2.imwrite(IMAGE_DIR+"/semantic_img.png", semantic_img)
+
+    semantic_img = cv2.imread(IMAGE_DIR+"/semantic_img.png")
     hablab_topdown_map = maps.get_topdown_map_from_sim(
                 cast("HabitatSim", env.sim), meters_per_pixel= 0.025
             )
@@ -174,7 +197,6 @@ def get_topdown_map(config_paths, map_name):
             except:
                 embed()
 
-    cv2.imwrite(IMAGE_DIR+"/semantic_img.png", semantic_img)
     cv2.imwrite(IMAGE_DIR+"/top_down_with_semantic_overlay.png", hablab_topdown_map)
     # observations_rgb = np.take(instance_label_mapping, observations['rgb'])
     # rgb_img = Image.new("P", (observations_rgb.shape[0], observations_rgb.shape[1],3))
@@ -233,9 +255,10 @@ def get_topdown_map(config_paths, map_name):
         f.write("origin: [" + str(-1) + "," + str(-grid_dimensions[0]+1) + ", 0.000000]\n")
         f.write("negate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.196")
         f.close()
+    return len(candidate_doors_index), door_number
 
 
-def main():
+def main(select_door = None):
     with open("configs/tasks/pointnav_rgbd.yaml",'r') as file:
         # The FullLoader parameter handles the conversion from YAML
         # scalar values to Python the dictionary format
@@ -251,10 +274,14 @@ def main():
         documents = yaml.dump(config, file)
     #first parameter is config path, second parameter is map name
 
-    # if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
-    get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_"+scene+"_"+str(meters_per_pixel))
-
+    if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
+        if select_door:
+            total_doors, current_door = get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_"+scene+"_"+str(meters_per_pixel), select_door)
+        else:
+            total_doors, current_door = get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_"+scene+"_"+str(meters_per_pixel))
+    print("Chosen gate %d from %d doors ", current_door, total_doors)
 
 
 if __name__ == "__main__":
+    select_door = None
     main()
