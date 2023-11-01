@@ -118,7 +118,7 @@ class ped_rvo():
         self.load_obs_from_map(map_path, resolution)
         self.fig, self.ax = plt.subplots()
         self.plot_obstacles()
-        self.max_counter = int(30/my_env.human_time_step)
+        self.max_counter = int(20/my_env.human_time_step)
         self.update_number = 0
         self.orca_ped = []
         initial_state = my_env.initial_state
@@ -244,8 +244,9 @@ class ped_rvo():
             if (self.update_number < self.max_counter):
                 self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
                 self.ax.plot(initial_state[j][4], initial_state[j][5], "-x", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
-            print("Initial state is ",initial_state[j])
-            print("Point reaches in this step is ", [x,y])
+        print("Initial state is ",initial_state[1])
+        print("Point reaches in this step is ", [x,y])
+        print("Time step in rvo2 sim is", self.dt)
         if (self.update_number == self.max_counter):
                 print("saving the offline plot!!")
                 self.fig.savefig("save_stepwise_rvo2"+".png", dpi=300)
@@ -257,7 +258,7 @@ class ped_rvo():
         
         if save_anim:
             self.plot_obstacles()
-            num_steps = 1
+            num_steps = 10
             for i in range(num_steps):
                 self.orca_sim.doStep()
                 colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))

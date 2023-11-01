@@ -57,7 +57,7 @@ PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 ARGS = PARSER.parse_args()
 scene = ARGS.scene
-USE_RVO = False
+USE_RVO = True
 IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
 
 def sem_img_to_world(proj, cam, W,H, u, v, debug = False):
@@ -170,10 +170,10 @@ class sim_env(threading.Thread):
     current_orientation = []
     follower = []
     new_goal = False
-    control_frequency = 20
+    control_frequency = 30
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
-    human_control_frequency = 5
+    human_control_frequency = 30
     human_time_step = 1/human_control_frequency
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
@@ -312,7 +312,7 @@ class sim_env(threading.Thread):
         agents_initial_pos_3d =[]
         agents_goal_pos_3d = []
         agents_initial_pos_3d.append(path.points[0])
-        agents_goal_pos_3d.append(path.points[1])
+        agents_goal_pos_3d.append(path.points[-1])
         sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
         file_obj = rigid_obj_mgr.add_object_by_template_id(sphere_template_id)
         # self.objs.append(obj)
@@ -350,6 +350,8 @@ class sim_env(threading.Thread):
             
             #### Pick a random start location for this agent ####
             start_pos_3d, a = self.get_in_band_around_door()
+            while(not self.is_point_on_other_side(start_pos_3d, agent_state.position)):
+                start_pos_3d, a = self.get_in_band_around_door()
             # start_pos = from_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
             temp_goal_pos_3d, a = self.get_in_band_around_door()
             while(not self.is_point_on_other_side(start_pos_3d, temp_goal_pos_3d)):
@@ -363,7 +365,7 @@ class sim_env(threading.Thread):
                 print("Watch this one Tribhi!!!!",i)
                 continue
             humans_initial_pos_3d.append(path.points[0])
-            humans_goal_pos_3d.append(path.points[1])
+            humans_goal_pos_3d.append(path.points[-1])
             human_initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
             human_initial_pos = [pos*0.025 for pos in human_initial_pos]
             goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[-1], self.grid_dimensions))
@@ -394,7 +396,7 @@ class sim_env(threading.Thread):
             self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
         
         if USE_RVO:
-            self.sfm = ped_rvo(self, map_path = "./maps/resolution_"+scene+"_0.025.pgm", resolution = 0.025)
+            self.sfm = ped_rvo(self, map_path = "./images/current_scene/small_top_down.png", resolution = 0.025)
             print("Initialized rvo2 sim")
         else:
             self.sfm = social_force(self, map_path = "./maps/resolution_"+scene+"_0.025.pgm", resolution = 0.025, groups = self.groups)
@@ -405,6 +407,8 @@ class sim_env(threading.Thread):
         agent_state = self.env.sim.get_agent_state(0)
         self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot})
         self.initial_pos = initial_pos
+        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter), save_anim= True)
+        exit(0)
         print("created habitat_plant succsefully")
 
     def get_in_band_around_door(self, agent_rotation = None):
@@ -604,7 +608,7 @@ class sim_env(threading.Thread):
         #### Calculate new velocity
         
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
-        
+        print(computed_velocity)
         #### Setting velocity for the other humans 
         for k in range(self.N):
             human_state = self.objs[k].rigid_state

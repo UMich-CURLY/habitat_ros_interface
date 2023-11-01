@@ -180,24 +180,43 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
         [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
     )
     hablab_topdown_map = recolor_map[hablab_topdown_map]
+    small_top_down_map = 255*np.ones(hablab_topdown_map.shape)
     semantic_img_camera_mat = np.array(render_camera.render_camera.camera_matrix)
     semantic_img_proj_mat = np.array(render_camera.render_camera.projection_matrix)
     grid_dimensions = (hablab_topdown_map.shape[0], hablab_topdown_map.shape[1])
-    for i in range(0,semantic_img.shape[0],5):
-        for j in range(0,semantic_img.shape[1], 2):
+    grid_points = np.ones([semantic_img.shape[0],semantic_img.shape[1],2])
+    for i in range(0,semantic_img.shape[0],1):
+        for j in range(0,semantic_img.shape[1], 1):
             world_coordinates = sem_img_to_world(semantic_img_proj_mat, semantic_img_camera_mat, semantic_img.shape[0], semantic_img.shape[1], i, j)
             [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], grid_dimensions, pathfinder = env._sim.pathfinder))
             # print([i,j])
             # x = x - 1
+            grid_points[i,j,0] = x
+            grid_points[i,j,1] = y
             if (i ==j == 360):
                 center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = env._sim.pathfinder,))
                 print(center_gt[0] - x, center_gt[1]-y)
             try:
-                hablab_topdown_map[x,y] = semantic_img[i, j, 0:3]
+                small_top_down_map[x,y] = hablab_topdown_map[x,y]
+                # hablab_topdown_map[x,y] = semantic_img[i, j, 0:3]
             except:
                 embed()
-
+    # grid_points = np.array(grid_points)
+    min_x = int(np.min(grid_points[:,:,0]))
+    min_y = int(np.min(grid_points[:,:,1]))
+    max_x = int(np.max(grid_points[:,:,0]))
+    max_y = int(np.max(grid_points[:,:,1]))
+    range_x = np.arange(min_x, max_x)
+    range_y = np.arange(min_y, max_y)
+    line_1 = np.column_stack((np.tile(min_x, range_y.size), range_y))
+    line_2 = np.column_stack((np.tile(max_x, range_y.size), range_y))
+    line_3 = np.column_stack((range_x, np.tile(min_y, range_x.size)))
+    line_4 = np.column_stack((range_x, np.tile(max_y, range_x.size)))
+    square = np.concatenate((line_1, line_2, line_3, line_4))
+    small_top_down_map[square[:,0], square[:,1],:] = [0,0,0]
+    print(min_x, min_y, max_x, max_y)
     cv2.imwrite(IMAGE_DIR+"/top_down_with_semantic_overlay.png", hablab_topdown_map)
+    cv2.imwrite(IMAGE_DIR+"/small_top_down.png", small_top_down_map)
     # observations_rgb = np.take(instance_label_mapping, observations['rgb'])
     # rgb_img = Image.new("P", (observations_rgb.shape[0], observations_rgb.shape[1],3))
     # rgb_img.pudata((observations_rgb))
@@ -274,11 +293,11 @@ def main(select_door = None):
         documents = yaml.dump(config, file)
     #first parameter is config path, second parameter is map name
 
-    if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
-        if select_door:
-            total_doors, current_door = get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_"+scene+"_"+str(meters_per_pixel), select_door)
-        else:
-            total_doors, current_door = get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_"+scene+"_"+str(meters_per_pixel))
+    # if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
+    if select_door:
+        total_doors, current_door = get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_"+scene+"_"+str(meters_per_pixel), select_door)
+    else:
+        total_doors, current_door = get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_"+scene+"_"+str(meters_per_pixel))
     print("Chosen gate %d from %d doors ", current_door, total_doors)
 
 
