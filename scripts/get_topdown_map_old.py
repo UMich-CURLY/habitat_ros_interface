@@ -215,6 +215,7 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     square = np.concatenate((line_1, line_2, line_3, line_4))
     small_top_down_map[square[:,0], square[:,1],:] = [0,0,0]
     print(min_x, min_y, max_x, max_y)
+    resolution_semantic = (max_x - min_x)*0.025/semantic_img.shape[0]
     cv2.imwrite(IMAGE_DIR+"/top_down_with_semantic_overlay.png", hablab_topdown_map)
     cv2.imwrite(IMAGE_DIR+"/small_top_down.png", small_top_down_map)
     # observations_rgb = np.take(instance_label_mapping, observations['rgb'])
@@ -234,6 +235,7 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     f.write("camera_matrix: " + IMAGE_DIR+"/cam_mat.npy" +"\n")
     f.write("projection_matrix: " + IMAGE_DIR+"/proj_mat.npy" +"\n")
     f.write("object_id: " + str(door_number) + "\n")
+    f.write("resolution: "+ str(resolution_semantic)+ "\n")
     f.close()
     agent_state = env.sim.get_agent_state()
     agent_pos = agent_state.position

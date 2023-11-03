@@ -59,6 +59,8 @@ ARGS = PARSER.parse_args()
 scene = ARGS.scene
 USE_RVO = False
 IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
+GOAL_BAND = (1.5, 2.5)
+
 
 def sem_img_to_world(proj, cam, W,H, u, v, debug = False):
     K = proj
@@ -232,6 +234,7 @@ class sim_env(threading.Thread):
         self.chosen_object = semantic_scene.objects[image_config["object_id"]]
         self.semantic_img_H = image_config["H"]
         self.semantic_img_W = image_config["W"]
+        self.semantic_img_resolution = image_config["resolution"]
         with open(image_config["projection_matrix"], 'rb') as f:
             self.semantic_img_proj_mat = np.load(f)
         with open(image_config["camera_matrix"], 'rb') as f:
@@ -254,7 +257,7 @@ class sim_env(threading.Thread):
         self.cloud_pub = rospy.Publisher("semantic_cloud", PointCloud2, queue_size=2)
         self._pub_all_agents = rospy.Publisher("~agent_poses", PoseArray, queue_size = 1)
         self._pub_goal_marker = rospy.Publisher("~goal", Marker, queue_size = 1)
-        
+        self._pub_robot_sem = rospy.Publisher("robot_pose_in_image", Pose, queue_size = 1)
         self.br = tf.TransformBroadcaster()
         self.br_tf_2 = tf2_ros.TransformBroadcaster()
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
@@ -453,7 +456,8 @@ class sim_env(threading.Thread):
             return temp_position, new_quat
         else:
             return temp_position, None
-
+    
+        
     def is_point_on_other_side(self, p1, p2):
         transform = self.chosen_object.obb.world_to_local
         p1_local = np.matmul(transform, np.append(p1,1.0).T)
@@ -728,6 +732,7 @@ class sim_env(threading.Thread):
             agent_pos = self.env.sim.robot.base_pos
             agent_pixel = world_to_sem_img(self.semantic_img_proj_mat, self.semantic_img_camera_mat, agent_pos, self.semantic_img_W, self.semantic_img_H)
             print("position and pixel", agent_pos, agent_pixel)
+            
             try:
                 u,v = int(agent_pixel[0]), int(agent_pixel[1])
                 semantic_img[u:u+10, v:v+10] = [0,0,0]
@@ -771,6 +776,9 @@ class sim_env(threading.Thread):
             # pc2.header.stamp = rospy.Time.now()
             # self.cloud_pub.publish(pc2)
             # cv2.imwrite("semantic_image.png", semantic_img)
+            pose = Pose()
+            pose.position = [agent_pixel[0], agent_pixel[1], 0.0]
+            self._pub_robot_sem.publish(pose)
             self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_semantic.publish(np.float32(semantic_with_res))
             self._pub_depth.publish(np.float32(depth_with_res))

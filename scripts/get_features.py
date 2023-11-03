@@ -44,6 +44,20 @@ def sem_img_to_world(proj, cam, W,H, u, v, debug = False):
     d = inv_rot.dot(c)
     return d
 
+def world_to_sem_img(proj, cam, agent_state, W, H, debug = False):
+    K = proj
+    T_cam_world = cam
+    pos = np.array([agent_state[0], agent_state[1], agent_state[2], 1.0])
+    projection = np.matmul(T_cam_world, pos)
+    # projection = np.array([projection[0], projection[2], projection[1], 1.0])
+    image_coordinate = np.matmul(K, projection)
+    if (debug):
+        embed()
+    image_coordinate = image_coordinate/image_coordinate[2]
+    v = (image_coordinate[0]+1)*(H/2)
+    u = (1-image_coordinate[1])*(W/2)
+    return [int(u),int(v)]
+
 def transform_pose(input_pose, from_frame, to_frame):
 
     # **Assuming /tf2 topic is being broadcasted
@@ -63,6 +77,9 @@ def transform_pose(input_pose, from_frame, to_frame):
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
         raise
 
+def get_circle_around_door(semantic_image, resolution, goal_band):
+    pass
+
 IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
 
 Step = namedtuple('Step','cur_state next_state')
@@ -74,6 +91,7 @@ class FeatureExpect():
 
         ### Replace with esfm
         self.sub_people = rospy.Subscriber("sim/agent_poses", PoseArray, self.people_callback, queue_size=100)
+        self.sub_robot = rospy.Subscriber("sim/robot_pose_in_image", Pose, self.get_robot_pose, queue_size=100)
         # self.sub_goal = rospy.Subscriber("move_base_simple/goal", PoseStamped, self.goal_callback, queue_size=100)
         self.robot_pose = [0.0, 0.0]
         self.previous_robot_pose = []
@@ -86,31 +104,22 @@ class FeatureExpect():
             except yaml.YAMLError as exc:
                 print(exc)
                 raise
-        semantic_scene = self.env.sim.semantic_annotations()
-        self.chosen_object = semantic_scene.objects[image_config["object_id"]]
         self.semantic_img_H = image_config["H"]
         self.semantic_img_W = image_config["W"]
+        self.semantic_img_resolution = image_config["resolution"]
         with open(image_config["projection_matrix"], 'rb') as f:
             self.semantic_img_proj_mat = np.load(f)
         with open(image_config["camera_matrix"], 'rb') as f:
             self.semantic_img_camera_mat = np.load(f)
         self.semantic_img = cv2.imread(IMAGE_DIR+"/semantic_img.png")   
+        self.traj = []
 
-    def get_robot_pose(self):
-        self.tf_listener.waitForTransform("/my_map_frame", "/base_link", rospy.Time(), rospy.Duration(4.0))
-        (trans,rot) = self.tf_listener.lookupTransform('/my_map_frame', '/base_link', rospy.Time(0))
-        self.robot_pose = [trans[0], trans[1]]
-        if(len(self.previous_robot_pose) == 0):
-            self.previous_robot_pose = self.robot_pose
-        else:
-            self.robot_distance += np.sqrt((self.robot_pose[0] - self.previous_robot_pose[0])**2 + (self.robot_pose[1] - self.previous_robot_pose[1])**2)
-            self.previous_robot_pose = self.robot_pose
-        tf_matrix = quaternion_matrix(rot)
-        tf_matrix[0][3] = trans[0]
-        tf_matrix[1][3] = trans[1]
-        tf_matrix[2][3] = trans[2]
+    def get_robot_pose(self, msg):
+        pose = msg.pose
+        if pose not in self.traj:
+            self.traj.append(pose)
         # print(tf_matrix)
-        return tf_matrix
+        return pose
 
     def traj_callback(self,data):
         self.traj_feature = [[cell] for cell in data.data]
