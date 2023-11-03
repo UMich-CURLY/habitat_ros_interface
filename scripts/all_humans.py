@@ -289,9 +289,9 @@ class sim_env(threading.Thread):
         print(robot_pos_in_2d)
         ### Add human objects and groups here! 
         ### N has the total number of extra humans, besides the robot and the two followers
-        self.N = 10
+        self.N = 1
         
-        self.groups = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9],[10]]
+        self.groups = [[0],[1]]
 
 
         ##### Initiating objects for other humans #####
@@ -583,7 +583,6 @@ class sim_env(threading.Thread):
         #### Calculate new velocity
         
         computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
-        
         # #### Set new velocity for the follower
         # human_state = self.follower.rigid_state
         # computed_velocity[2,:] = [computed_velocity[2,0], computed_velocity[2,1]]
@@ -656,7 +655,7 @@ class sim_env(threading.Thread):
             if(not np.isnan(angle).any()):
                 set_object_state_from_agent(self.env._sim, self.objs[k], offset= human_state.translation - agent_state.position, orientation = object_orientation2)
                 self.vel_control_objs[k].linear_velocity = [computed_velocity[k+1,0], 0.0,  computed_velocity[k+1,1]]
-                print("setting linear velocity for extra agent")
+                print("setting linear velocity for extra agent", self.vel_control_objs[k].linear_velocity)
             else:
                 self.vel_control_objs[k].linear_velocity = [0.0,0.0,0.0]
                 self.vel_control_objs[k].angular_velocity = [0.0,0.0,0.0]

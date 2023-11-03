@@ -57,7 +57,7 @@ PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 ARGS = PARSER.parse_args()
 scene = ARGS.scene
-USE_RVO = True
+USE_RVO = False
 IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
 
 def sem_img_to_world(proj, cam, W,H, u, v, debug = False):
@@ -79,6 +79,20 @@ def sem_img_to_world(proj, cam, W,H, u, v, debug = False):
     c = (A-t.T)
     d = inv_rot.dot(c)
     return d
+
+def world_to_sem_img(proj, cam, agent_state, W, H, debug = False):
+    K = proj
+    T_cam_world = cam
+    pos = np.array([agent_state[0], agent_state[1], agent_state[2], 1.0])
+    projection = np.matmul(T_cam_world, pos)
+    # projection = np.array([projection[0], projection[2], projection[1], 1.0])
+    image_coordinate = np.matmul(K, projection)
+    if (debug):
+        embed()
+    image_coordinate = image_coordinate/image_coordinate[2]
+    v = (image_coordinate[0]+1)*(H/2)
+    u = (1-image_coordinate[1])*(W/2)
+    return [int(u),int(v)]
 
 
 def quat_to_coeff(quat):
@@ -170,10 +184,10 @@ class sim_env(threading.Thread):
     current_orientation = []
     follower = []
     new_goal = False
-    control_frequency = 30
+    control_frequency = 20
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
-    human_control_frequency = 30
+    human_control_frequency = 5
     human_time_step = 1/human_control_frequency
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
@@ -365,14 +379,14 @@ class sim_env(threading.Thread):
                 print("Watch this one Tribhi!!!!",i)
                 continue
             humans_initial_pos_3d.append(path.points[0])
-            humans_goal_pos_3d.append(path.points[-1])
+            humans_goal_pos_3d.append(path.points[1])
             human_initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
             human_initial_pos = [pos*0.025 for pos in human_initial_pos]
             goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[-1], self.grid_dimensions))
             goal_pos = [pos*0.025 for pos in goal_pos]
             self.initial_state.append(human_initial_pos+agents_initial_velocity+goal_pos)
-            agent_state = self.env.sim.get_agent_state(0)
-            offset = humans_initial_pos_3d[k]-agent_state.position
+            agent_state = self.env.sim.robot.base_pos
+            offset = humans_initial_pos_3d[k]-agent_state
             offset[1] += 1.0
             orientation_x = 90   # @param {type:"slider", min:-180, max:180, step:1}
             orientation_y = (np.pi/2-0.97)*180/np.pi  # @param {type:"slider", min:-180, max:180, step:1}
@@ -407,8 +421,9 @@ class sim_env(threading.Thread):
         agent_state = self.env.sim.get_agent_state(0)
         self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot})
         self.initial_pos = initial_pos
-        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter), save_anim= True)
-        exit(0)
+        # computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter), save_anim= True)
+        self.prev_human_update_time = rospy.Time.now()
+        embed()
         print("created habitat_plant succsefully")
 
     def get_in_band_around_door(self, agent_rotation = None):
@@ -577,16 +592,19 @@ class sim_env(threading.Thread):
         ang_vel = self.angular_velocity[1]
         base_vel = [lin_vel, ang_vel]
         # self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
-        self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}})
+        self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
         ##### For teleop human/follower 
         # self.follower_velocity_control.linear_velocity = self.linear_velocity
         # self.follower_velocity_control.angular_velocity = self.angular_velocity
         origin = mn.Vector3(0.0, 0.0, 0.0)
         #### Forward simulate
-        self.env.sim.step_physics(self.time_step)
-        self.observations.update(self.env._task._sim.get_sensor_observations())
+        # self.env.sim.step_physics(self.time_step)
+        # self.observations.update(self.env._task._sim.get_sensor_observations())
 
     def update_pos_vel(self):
+        time_now = rospy.Time.now()
+        print("Time between updates is ", (self.prev_human_update_time - time_now).to_sec())
+        self.prev_human_update_time = time_now
         #### Update agent state 
         agent_pos = self.env.sim.robot.base_pos
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
@@ -623,11 +641,12 @@ class sim_env(threading.Thread):
             rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
             rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
             object_orientation2 = rotation_z * rotation_y * rotation_x
-            agent_state = self.env._sim.get_agent_state(0)
+            agent_state = self.env.sim.robot.base_pos
+            print("Human is at ", human_state.translation)
             if(not np.isnan(angle).any()):
-                set_object_state_from_agent(self.env._sim, self.objs[k], offset= human_state.translation - agent_state.position, orientation = object_orientation2)
+                set_object_state_from_agent(self.env._sim, self.objs[k], offset= human_state.translation - agent_state, orientation = object_orientation2)
                 self.vel_control_objs[k].linear_velocity = [computed_velocity[k+1,0], 0.0,  computed_velocity[k+1,1]]
-                print("setting linear velocity for extra agent")
+                print("setting linear velocity for extra agent", self.vel_control_objs[k].linear_velocity)
             else:
                 self.vel_control_objs[k].linear_velocity = [0.0,0.0,0.0]
                 self.vel_control_objs[k].angular_velocity = [0.0,0.0,0.0]
@@ -659,6 +678,7 @@ class sim_env(threading.Thread):
                 goal_pos = [pos*0.025 for pos in goal_pos]
                 self.initial_state[k+1][4:6] = goal_pos
                 self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
+
         # map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
 
         self.update_counter+=1
@@ -705,6 +725,15 @@ class sim_env(threading.Thread):
             )   
             
             semantic_img =self.semantic_img
+            agent_pos = self.env.sim.robot.base_pos
+            agent_pixel = world_to_sem_img(self.semantic_img_proj_mat, self.semantic_img_camera_mat, agent_pos, self.semantic_img_W, self.semantic_img_H)
+            print("position and pixel", agent_pos, agent_pixel)
+            try:
+                u,v = int(agent_pixel[0]), int(agent_pixel[1])
+                semantic_img[u:u+10, v:v+10] = [0,0,0]
+            except:
+                print("not in image Frame!!!!")
+                pass 
             semantic_with_res = np.concatenate(
                 (
                     np.float32(semantic_img[:, :, 0:3].ravel()),
@@ -797,8 +826,9 @@ class sim_env(threading.Thread):
         # depot = self.rtab_pose
         # self.start_time = rospy.get_time()
         # self.tour_plan.plan(depot)
-        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "requested save", save_anim = True)
-
+        # computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "requested save", save_anim = True)
+        return
+    
     def update_move_base_goal_status(self,msg):
         self.goal_reached = (msg.status.status ==3)
         print("Move base goal reached? ", self.goal_reached)

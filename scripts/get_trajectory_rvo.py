@@ -258,7 +258,7 @@ class ped_rvo():
         
         if save_anim:
             self.plot_obstacles()
-            num_steps = 10
+            num_steps = 1000
             for i in range(num_steps):
                 self.orca_sim.doStep()
                 colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))
