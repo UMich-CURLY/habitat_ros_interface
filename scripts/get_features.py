@@ -7,7 +7,7 @@ import sys
 from pyparsing import empty
 # from laser2density import Laser2density
 import rospy
-from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray, Pose
 import numpy as np
 from numpy import cos, sin
 import matplotlib.pyplot as plt
@@ -77,16 +77,14 @@ def transform_pose(input_pose, from_frame, to_frame):
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
         raise
 
-def get_circle_around_door(semantic_image, resolution, goal_band):
-    pass
+
 
 IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
 
 Step = namedtuple('Step','cur_state next_state')
 class FeatureExpect():
     def __init__(self, gridsize=(3,3), resolution=1):
-        self.gridsize = gridsize
-        self.resolution = resolution
+        
         # self.traj_sub = rospy.Subscriber("traj_matrix", numpy_msg(Floats), self.traj_callback,queue_size=100)
 
         ### Replace with esfm
@@ -107,19 +105,32 @@ class FeatureExpect():
         self.semantic_img_H = image_config["H"]
         self.semantic_img_W = image_config["W"]
         self.semantic_img_resolution = image_config["resolution"]
+        self.gridsize = [self.semantic_img_H, self.semantic_img_W]
+        self.resolution = self.semantic_img_resolution
         with open(image_config["projection_matrix"], 'rb') as f:
             self.semantic_img_proj_mat = np.load(f)
         with open(image_config["camera_matrix"], 'rb') as f:
             self.semantic_img_camera_mat = np.load(f)
+        with open(image_config["door_center"], 'rb') as f:
+            self.door_center =  np.load(f)
+        with open(image_config["world_to_door"], 'rb') as f:
+            self.world_to_door =  np.load(f)
         self.semantic_img = cv2.imread(IMAGE_DIR+"/semantic_img.png")   
         self.traj = []
+        self.start_point = False
 
     def get_robot_pose(self, msg):
         pose = msg.pose
+        if (self.start_point == False):
+            if (self.is_point_in_band):
+                self.start_point = True
+                self.get_current_feature()
+                self.traj.append(pose)
+                return pose
         if pose not in self.traj:
             self.traj.append(pose)
         # print(tf_matrix)
-        return pose
+        
 
     def traj_callback(self,data):
         self.traj_feature = [[cell] for cell in data.data]
@@ -137,76 +148,55 @@ class FeatureExpect():
             pose_people_tf[1][3] = people_pose[1]
             pose_people_tf[2][3] = people_pose[2]
             self.pose_people_tf = np.append(self.pose_people_tf, np.array([pose_people_tf]), axis=0)
-    def goal_callback(self,data):
-        self.goal = data
-        self.received_goal = True
-        print("Goal Received")
-        
-
+    
     def get_current_feature(self):
-        # 
-        # self.localcost_feature = self.Laser2density.temp_result
-        self.social_distance_feature = np.ndarray.tolist(self.SocialDistance.get_features())
-        # feature_list = [self.social_distance_feature]
-        # self.current_feature = np.array([self.distance_feature[i] + self.localcost_feature[i] + self.traj_feature[i] + [0.0] for i in range(len(self.distance_feature))])
-        if (self.received_goal):
-            self.distance_feature = self.Distance2goal.get_feature_matrix(self.goal)
-            self.current_feature = np.array([self.distance_feature[i] + self.traj_feature[i] + [0.0] for i in range(len(self.distance_feature))])
-            self.feature_maps.append(np.array(self.current_feature).T)
+        self.goal_sink = self.get_goal_sink_feature()
 
-    def get_expect(self):
-        R1 = self.get_robot_pose()
 
-        self.get_current_feature()
+    def get_goal_sink_feature(self, goal_band = [1.5,2.5]):
+        empty_image = 0*np.ones(self.semantic_img.shape)
+        robot_start_pose = self.traj[0]
+        robot_start_coord = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_start_pose[0], robot_start_pose[1])
+        robot_dist = self.get_dist_from_door(robot_start_pose)
+        goal_band[0] = robot_dist - 0.1
+        goal_band[1] = robot_dist + 0.1
+        for i in range(0,self.semantic_img.shape[0],1):
+            for j in range(0,self.semantic_img.shape[1], 1):
+                world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1],i,j)
+                if(self.is_point_in_band([i,j]), goal_band):
+                    if(self.is_point_on_other_side(robot_start_coord, world_coordinates)):
+                        empty_image[i,j] = [255,0,0]
+                    else:
+                        empty_image[i,j] = [0,255,0]
+        return empty_image
 
-        self.feature_expect = np.array([0 for i in range(len(self.current_feature[0]))], dtype=np.float64)
+    def is_point_in_band(self, point, goal_band = [1.5,2.5]):
+        dist = self.get_dist_from_door(point)
+        if (dist >goal_band[0] and dist< goal_band[1]):
+            return True
+        else:
+            return False
+    def get_dist_from_door(self,point):
+        center_gt = [self.door_center[2], self.door_center[0]]
+        world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], point[0], point[1])
+        [x,y] = [world_coordinates[2], world_coordinates[0]]
+        dist = np.linalg.norm(np.array(center_gt)-np.array([x,y]))
+        return dist
+    def is_point_on_other_side(self, p1, p2):
+        transform = self.world_to_door
+        p1_local = np.matmul(transform, np.append(p1,1.0).T)
+        p2_local = np.matmul(transform, np.append(p2,1.0).T)
+        y1 = p1_local[2]
+        y2 = p2_local[2]
+        x1 = p1_local[1]
+        x2 = p1_local[1]
 
-        self.robot_pose_rb = [0.0,0.0]
+        if (np.sign(x1) == np.sign(x2) and np.sign(y1) == np.sign(y2)):
+            return False
+        else:
+            return True
         
-        index = self.in_which_cell(self.robot_pose_rb)
-        percent_temp = 0
-        while(index):
-            # Robot pose
-            R2 = self.get_robot_pose()
-            
-            R = np.dot(np.linalg.inv(R1), R2)
 
-            self.robot_pose_rb = np.dot(R, np.array([[0, 0, 0, 1]]).T)
-
-            self.robot_pose_rb = [self.robot_pose_rb[0][0], self.robot_pose_rb[1][0]]
-
-            index = self.in_which_cell(self.robot_pose_rb)
-            print("Relative robot_pose is ", self.robot_pose_rb, "Index is ", index)
-            distance = np.sqrt((self.robot_pose[0] - self.goal.pose.position.x)**2+(self.robot_pose[1] - self.goal.pose.position.y)**2)
-            if(distance < 0.1 or not index):
-                break
-            if(not index in self.trajectory):
-                self.trajectory.append(index)
-            
-            # Whether the robot reaches the goal
-            
-            # print("distance: ", distance)
-            step_list = []
-            
-            rospy.sleep(0.1)
-
-        self.traj = [self.trajectory[i][1]*self.gridsize[1]+self.trajectory[i][0] for i in range(len(self.trajectory))]
-
-        if(len(self.traj) > 1):
-            self.trajs.append(np.array(self.traj))
-        
-        discount = [(1/e)**i for i in range(len(self.trajectory))]
-        # for i in range(len(discount)):
-
-        #     self.feature_expect += np.dot(self.current_feature[int(self.trajectory[i][1] * self.gridsize[1] + self.trajectory[i][0])], discount[i])
-        
-        self.trajectory = []
-
-        # num_changes = abs(sum(self.percent_reward)) / self.robot_distance
-
-        # print("Normalized sudden change: ", num_changes)
-	
-        # print(self.feature_maps)
 
     def rot2eul(self, R) :
 
@@ -232,24 +222,8 @@ class FeatureExpect():
 if __name__ == "__main__":
         rospy.init_node("Feature_expect",anonymous=False)
         # initpose_pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped, queue_size=1)
-        feature = FeatureExpect(resolution=0.1, gridsize=(11,11))
-
-        fm_file = "../dataset/fm/fm.npz"
-        traj_file = "../dataset/trajs/trajs.npz"
-        # while(not feature.initpose_get):
-        #     rospy.sleep(0.1)
-        # feature.reset_robot()
+        feature = FeatureExpect()
         rospy.sleep(1)
-        while(not feature.received_goal):
-            rospy.sleep(0.1)
-        feature.get_current_feature()
-        np.savez(fm_file, *feature.feature_maps)
-        print("Feature map is ", feature.feature_maps)
-        print("Rospy shutdown", rospy.is_shutdown())
         while(not rospy.is_shutdown()):
-            feature.get_expect()
-            print("Traj is ", feature.trajs)
-            if(len(feature.traj) > 1):
-                np.savez(traj_file, *feature.trajs)
-                print("One demonstration finished!!")
+            print("Traj is ", feature.traj)
             rospy.sleep(0.1)
