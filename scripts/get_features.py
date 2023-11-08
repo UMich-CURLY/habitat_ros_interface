@@ -19,12 +19,12 @@ import tf2_ros
 import tf2_geometry_msgs
 from collections import namedtuple
 from threading import Thread
-from IPython import embed
 from rospy.numpy_msg import numpy_msg
 from rospy_tutorials.msg import Floats
 import yaml
 import cv2 
-def sem_img_to_world(proj, cam, W,H, u, v, debug = False):
+from IPython import embed
+def sem_img_to_world(proj, cam, W,H, u, v, robot_height, debug = False):
     K = proj
     T_world_camera = cam
     rotation_0 = T_world_camera[0:3,0:3]
@@ -38,11 +38,17 @@ def sem_img_to_world(proj, cam, W,H, u, v, debug = False):
         embed()
     inv_rot = np.linalg.inv(rotation_0)
     A = np.matmul(np.linalg.inv(K[0:3,0:3]), uv_1)
-    A[2] = 1
+    A[2] = 0.04
     t = np.array([translation_0])
     c = (A-t.T)
     d = inv_rot.dot(c)
-    return d
+    # print("Using prev method ", d)
+    #### Work with new height 
+    uv_1 = np.append(uv_1, 1.0)
+    A = np.matmul(np.linalg.inv(K[0:4,0:4]), uv_1)
+    new_A =np.array([A[0],-A[1], -1.39+robot_height, 1.0])
+    d = np.matmul(np.linalg.inv(T_world_camera), new_A)
+    return d[0:3]
 
 def world_to_sem_img(proj, cam, agent_state, W, H, debug = False):
     K = proj
@@ -88,8 +94,8 @@ class FeatureExpect():
         # self.traj_sub = rospy.Subscriber("traj_matrix", numpy_msg(Floats), self.traj_callback,queue_size=100)
 
         ### Replace with esfm
-        self.sub_people = rospy.Subscriber("sim/agent_poses", PoseArray, self.people_callback, queue_size=100)
-        self.sub_robot = rospy.Subscriber("sim/robot_pose_in_image", Pose, self.get_robot_pose, queue_size=100)
+        self.sub_people = rospy.Subscriber("agent_poses", PoseArray, self.people_callback, queue_size=100)
+        self.sub_robot = rospy.Subscriber("robot_pose_in_sim", Pose, self.get_robot_pose, queue_size=100)
         # self.sub_goal = rospy.Subscriber("move_base_simple/goal", PoseStamped, self.goal_callback, queue_size=100)
         self.robot_pose = [0.0, 0.0]
         self.previous_robot_pose = []
@@ -111,25 +117,36 @@ class FeatureExpect():
             self.semantic_img_proj_mat = np.load(f)
         with open(image_config["camera_matrix"], 'rb') as f:
             self.semantic_img_camera_mat = np.load(f)
-        with open(image_config["door_center"], 'rb') as f:
-            self.door_center =  np.load(f)
+        self.door_center =  image_config["door_center"]
+        print(self.door_center)
         with open(image_config["world_to_door"], 'rb') as f:
             self.world_to_door =  np.load(f)
         self.semantic_img = cv2.imread(IMAGE_DIR+"/semantic_img.png")   
         self.traj = []
         self.start_point = False
+        self.update_num = 0
 
     def get_robot_pose(self, msg):
-        pose = msg.pose
+        robot_pos_3d = [msg.position.x, msg.position.y, msg.position.z]
+        self.robot_height = robot_pos_3d[1]
+        self.update_num+=1
+        # print("dist is ", self.get_dist_from_door_3d(robot_pos_3d))
+        robot_pose_2d = world_to_sem_img(self.semantic_img_proj_mat, self.semantic_img_camera_mat, robot_pos_3d, self.semantic_img.shape[0], self.semantic_img.shape[1])
+        self.semantic_img[robot_pose_2d[0], robot_pose_2d[1]] = [0,0,0]
+        if (self.update_num == 1000):
+            print("saving image")
+            cv2.imwrite("try_in_feat.png",self.semantic_img)
+        # if (self.update_num == 1):
+        #     test_pos_3d = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_pose_2d[0], robot_pose_2d[1], robot_pos_3d[1], debug = True)
+        # test_pos_3d = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_pose_2d[0], robot_pose_2d[1], robot_pos_3d[1])
         if (self.start_point == False):
-            if (self.is_point_in_band):
+            if (self.is_point_in_band(robot_pose_2d)):
                 self.start_point = True
+                self.traj.append(robot_pose_2d)
                 self.get_current_feature()
-                self.traj.append(pose)
-                return pose
-        if pose not in self.traj:
-            self.traj.append(pose)
-        # print(tf_matrix)
+                return robot_pose_2d
+        if robot_pose_2d not in self.traj:
+            self.traj.append(robot_pose_2d)
         
 
     def traj_callback(self,data):
@@ -151,19 +168,23 @@ class FeatureExpect():
     
     def get_current_feature(self):
         self.goal_sink = self.get_goal_sink_feature()
+        print("Saving feature")
+        cv2.imwrite(IMAGE_DIR+"/dataset/goal_sink.png", self.goal_sink)
 
 
     def get_goal_sink_feature(self, goal_band = [1.5,2.5]):
         empty_image = 0*np.ones(self.semantic_img.shape)
         robot_start_pose = self.traj[0]
-        robot_start_coord = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_start_pose[0], robot_start_pose[1])
+        robot_start_coord = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_start_pose[0], robot_start_pose[1], self.robot_height)
         robot_dist = self.get_dist_from_door(robot_start_pose)
         goal_band[0] = robot_dist - 0.1
         goal_band[1] = robot_dist + 0.1
+        print(goal_band)
         for i in range(0,self.semantic_img.shape[0],1):
             for j in range(0,self.semantic_img.shape[1], 1):
-                world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1],i,j)
-                if(self.is_point_in_band([i,j]), goal_band):
+                world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1],i,j, self.robot_height)
+                # print("Coords", world_coordinates[2], world_coordinates[0])
+                if(self.is_point_in_band([i,j], goal_band)):
                     if(self.is_point_on_other_side(robot_start_coord, world_coordinates)):
                         empty_image[i,j] = [255,0,0]
                     else:
@@ -178,8 +199,14 @@ class FeatureExpect():
             return False
     def get_dist_from_door(self,point):
         center_gt = [self.door_center[2], self.door_center[0]]
-        world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], point[0], point[1])
+        world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], point[0], point[1], self.robot_height)
         [x,y] = [world_coordinates[2], world_coordinates[0]]
+        dist = np.linalg.norm(np.array(center_gt)-np.array([x,y]))
+        return dist
+    
+    def get_dist_from_door_3d(self,point3d):
+        center_gt = [self.door_center[2], self.door_center[0]]
+        [x,y] = [point3d[2], point3d[0]]
         dist = np.linalg.norm(np.array(center_gt)-np.array([x,y]))
         return dist
     def is_point_on_other_side(self, p1, p2):
@@ -223,7 +250,12 @@ if __name__ == "__main__":
         rospy.init_node("Feature_expect",anonymous=False)
         # initpose_pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped, queue_size=1)
         feature = FeatureExpect()
-        rospy.sleep(1)
+        update = 0
         while(not rospy.is_shutdown()):
-            print("Traj is ", feature.traj)
-            rospy.sleep(0.1)
+            rospy.sleep(0.01)
+            # print("Traj is ", feature.traj)
+            # update +=1
+            # print(update)
+            # if (update==300):
+            #     cv2.imwrite("try_in_feat.png",feature.semantic_img)
+            

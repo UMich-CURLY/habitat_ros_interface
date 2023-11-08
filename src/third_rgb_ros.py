@@ -14,8 +14,8 @@ import cv2
 import numpy as np
 
 
-RGB_IMG_WIDTH = 720
-RGB_IMG_HEIGHT = 720
+RGB_IMG_WIDTH = 128
+RGB_IMG_HEIGHT = 128
 
 rospy.init_node("npthirdrgb2ros_rgb",anonymous=False)
 

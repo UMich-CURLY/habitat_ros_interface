@@ -257,7 +257,7 @@ class sim_env(threading.Thread):
         self.cloud_pub = rospy.Publisher("semantic_cloud", PointCloud2, queue_size=2)
         self._pub_all_agents = rospy.Publisher("~agent_poses", PoseArray, queue_size = 1)
         self._pub_goal_marker = rospy.Publisher("~goal", Marker, queue_size = 1)
-        self._pub_robot_sem = rospy.Publisher("robot_pose_in_image", Pose, queue_size = 1)
+        self._pub_robot_sem = rospy.Publisher("robot_pose_in_sim", Pose, queue_size = 1)
         self.br = tf.TransformBroadcaster()
         self.br_tf_2 = tf2_ros.TransformBroadcaster()
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
@@ -777,7 +777,7 @@ class sim_env(threading.Thread):
             # self.cloud_pub.publish(pc2)
             # cv2.imwrite("semantic_image.png", semantic_img)
             pose = Pose()
-            pose.position = [agent_pixel[0], agent_pixel[1], 0.0]
+            pose.position = agent_pos
             self._pub_robot_sem.publish(pose)
             self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_semantic.publish(np.float32(semantic_with_res))

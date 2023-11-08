@@ -186,7 +186,7 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     grid_dimensions = (hablab_topdown_map.shape[0], hablab_topdown_map.shape[1])
     grid_points = np.ones([semantic_img.shape[0],semantic_img.shape[1],2])
     goal_points = np.ones([semantic_img.shape[0],semantic_img.shape[1],2])
-    empty_image = 255*np.ones(semantic_img.shape)
+    empty_image = hablab_topdown_map
     center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = env._sim.pathfinder))
     for i in range(0,semantic_img.shape[0],1):
         for j in range(0,semantic_img.shape[1], 1):
@@ -198,7 +198,7 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
             dist = np.linalg.norm(np.array(center_gt)*0.025-np.array([x,y])*0.025)
             if (dist >1.5 and dist<2.5):
                 if(env._sim.pathfinder.is_navigable(world_coordinates)):
-                    empty_image[i,j] = [0,0,0]
+                    empty_image[x,y] = [0,0,0]
                     goal_points[i,j,0] = x
                     goal_points[i,j,1] = y
             grid_points[i,j,0] = x
@@ -239,16 +239,18 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
         np.save(f,np.array(render_camera.render_camera.camera_matrix))
     with open(IMAGE_DIR+"/proj_mat.npy", 'wb') as f:
         np.save(f, np.array(render_camera.render_camera.projection_matrix))
+    with open(IMAGE_DIR+"/world_to_door.npy", 'wb') as f:
+        np.save(f, np.array(render_camera.render_camera.projection_matrix))
     f = open(complete_name, "w+")
-
+    center = " \n- " + str(chosen_object.aabb.center[0]) + "\n- " + str(chosen_object.aabb.center[1]) + "\n- "+ str(chosen_object.aabb.center[2])
     f.write("H: " + str(semantic_img.shape[0]) + "\n")
     f.write("W: " + str(semantic_img.shape[1]) + "\n")
     f.write("camera_matrix: " + IMAGE_DIR+"/cam_mat.npy" +"\n")
     f.write("projection_matrix: " + IMAGE_DIR+"/proj_mat.npy" +"\n")
     f.write("object_id: " + str(door_number) + "\n")
     f.write("resolution: "+ str(resolution_semantic)+ "\n")
-    f.write("door_center: "+ str(chosen_object.aabb.center)+ "\n")
-    f.write("world_to_door" + str(chosen_object.obb.world_to_local) + "\n")
+    f.write("door_center: "+ center+ "\n")
+    f.write("world_to_door: " + IMAGE_DIR+"/world_to_door.npy" + "\n")
     f.close()
     agent_state = env.sim.get_agent_state()
     agent_pos = agent_state.position
