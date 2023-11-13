@@ -22,7 +22,7 @@ SIMULATOR:
     WIDTH: 128
   SCENE: data/scene_datasets/mp3d/Vvot9Ly1tCj/Vvot9Ly1tCj.glb
   SEMANTIC_SENSOR:
-    HEIGHT: 128
+    HEIGHT: 32
     HFOV: 90
     ORIENTATION:
     - -1.59
@@ -34,7 +34,7 @@ SIMULATOR:
     - 0
     SENSOR_SUBTYPE: ORTHOGRAPHIC
     TYPE: HabitatSimSemanticSensor
-    WIDTH: 128
+    WIDTH: 32
 TASK:
   COUNT_OBJ_COLLISIONS: true
   COUNT_ROBOT_OBJ_COLLS: true

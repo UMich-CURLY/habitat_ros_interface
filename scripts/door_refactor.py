@@ -92,8 +92,8 @@ def world_to_sem_img(proj, cam, agent_state, W, H, debug = False):
     if (debug):
         embed()
     image_coordinate = image_coordinate/image_coordinate[2]
-    v = (image_coordinate[0]+1)*(H/2)
-    u = (1-image_coordinate[1])*(W/2)
+    v = H-(image_coordinate[0]+1)*(H/2)
+    u = W-(1-image_coordinate[1])*(W/2)
     return [int(u),int(v)]
 
 
@@ -465,11 +465,12 @@ class sim_env(threading.Thread):
         y1 = p1_local[2]
         y2 = p2_local[2]
         x1 = p1_local[1]
-        x2 = p1_local[1]
+        x2 = p2_local[1]
 
-        if (np.sign(x1) == np.sign(x2) and np.sign(y1) == np.sign(y2)):
+        if (np.sign(y1) == np.sign(y2)):
             return False
         else:
+            print(p1_local, p2_local)
             return True
         
     def _render(self):

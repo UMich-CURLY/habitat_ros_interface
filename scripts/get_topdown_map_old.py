@@ -240,7 +240,7 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     with open(IMAGE_DIR+"/proj_mat.npy", 'wb') as f:
         np.save(f, np.array(render_camera.render_camera.projection_matrix))
     with open(IMAGE_DIR+"/world_to_door.npy", 'wb') as f:
-        np.save(f, np.array(render_camera.render_camera.projection_matrix))
+        np.save(f, np.array(chosen_object.obb.world_to_local))
     f = open(complete_name, "w+")
     center = " \n- " + str(chosen_object.aabb.center[0]) + "\n- " + str(chosen_object.aabb.center[1]) + "\n- "+ str(chosen_object.aabb.center[2])
     f.write("H: " + str(semantic_img.shape[0]) + "\n")
