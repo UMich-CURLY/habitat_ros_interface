@@ -188,8 +188,8 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     goal_points = np.ones([semantic_img.shape[0],semantic_img.shape[1],2])
     empty_image = hablab_topdown_map
     center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = env._sim.pathfinder))
-    for i in range(0,semantic_img.shape[0],1):
-        for j in range(0,semantic_img.shape[1], 1):
+    for i in range(0,semantic_img.shape[0]):
+        for j in range(0,semantic_img.shape[1]):
             world_coordinates = sem_img_to_world(semantic_img_proj_mat, semantic_img_camera_mat, semantic_img.shape[0], semantic_img.shape[1], i, j)
             [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], grid_dimensions, pathfinder = env._sim.pathfinder))
             # print([i,j])
@@ -198,11 +198,25 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
             dist = np.linalg.norm(np.array(center_gt)*0.025-np.array([x,y])*0.025)
             if (dist >1.5 and dist<2.5):
                 if(env._sim.pathfinder.is_navigable(world_coordinates)):
-                    empty_image[x,y] = [0,0,0]
+                    # empty_image[x,y] = [0,0,0]
                     goal_points[i,j,0] = x
                     goal_points[i,j,1] = y
             grid_points[i,j,0] = x
             grid_points[i,j,1] = y
+            if (i ==j == 360):
+                center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = env._sim.pathfinder,))
+                print(center_gt[0] - x, center_gt[1]-y)
+    # grid_points = np.array(grid_points)
+    min_x = int(np.min(grid_points[:,:,0]))
+    min_y = int(np.min(grid_points[:,:,1]))
+    max_x = int(np.max(grid_points[:,:,0]))
+    max_y = int(np.max(grid_points[:,:,1]))
+    
+    resolution_semantic = (max_x - min_x)*0.025/semantic_img.shape[0]
+    for i in np.arange(0,semantic_img.shape[0],resolution_semantic):
+        for j in np.arange(0,semantic_img.shape[1], resolution_semantic):
+            world_coordinates = sem_img_to_world(semantic_img_proj_mat, semantic_img_camera_mat, semantic_img.shape[0], semantic_img.shape[1], i, j)
+            [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], grid_dimensions, pathfinder = env._sim.pathfinder))
             if (i ==j == 360):
                 center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = env._sim.pathfinder,))
                 print(center_gt[0] - x, center_gt[1]-y)
@@ -211,11 +225,10 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
                 # hablab_topdown_map[x,y] = semantic_img[i, j, 0:3]
             except:
                 embed()
-    # grid_points = np.array(grid_points)
-    min_x = int(np.min(grid_points[:,:,0]))
-    min_y = int(np.min(grid_points[:,:,1]))
-    max_x = int(np.max(grid_points[:,:,0]))
-    max_y = int(np.max(grid_points[:,:,1]))
+    max_x += int(1/resolution_semantic)
+    max_y += int(1/resolution_semantic)
+    # min_x -= int(1/resolution_semantic)
+    # min_y -= int(1/resolution_semantic)
     range_x = np.arange(min_x, max_x)
     range_y = np.arange(min_y, max_y)
     line_1 = np.column_stack((np.tile(min_x, range_y.size), range_y))
@@ -225,7 +238,6 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     square = np.concatenate((line_1, line_2, line_3, line_4))
     small_top_down_map[square[:,0], square[:,1],:] = [0,0,0]
     print(min_x, min_y, max_x, max_y)
-    resolution_semantic = (max_x - min_x)*0.025/semantic_img.shape[0]
     cv2.imwrite(IMAGE_DIR+"/top_down_with_semantic_overlay.png", hablab_topdown_map)
     cv2.imwrite(IMAGE_DIR+"/small_top_down.png", small_top_down_map)
     cv2.imwrite(IMAGE_DIR+"/goal_sink.png", empty_image)

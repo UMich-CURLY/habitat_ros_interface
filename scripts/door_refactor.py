@@ -419,7 +419,7 @@ class sim_env(threading.Thread):
             self.sfm = ped_rvo(self, map_path = "./images/current_scene/small_top_down.png", resolution = 0.025)
             print("Initialized rvo2 sim")
         else:
-            self.sfm = social_force(self, map_path = "./maps/resolution_"+scene+"_0.025.pgm", resolution = 0.025, groups = self.groups)
+            self.sfm = social_force(self, map_path = "./images/current_scene/small_top_down.png", resolution = 0.025, groups = self.groups)
             print("Initialized ESFM sim")
         print(self.initial_state)
         # self.initial_state.append(robot_pos_in_2d+humans_initial_velocity[0]+humans_goal_pos_2d[2])
