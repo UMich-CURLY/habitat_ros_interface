@@ -34,7 +34,7 @@ from geometry_msgs.msg import PointStamped, PoseStamped, PoseWithCovarianceStamp
 from visualization_msgs.msg import Marker, MarkerArray
 import threading
 import tf
-from tour_planner_dropped import tour_planner
+# from tour_planner_dropped import tour_planner
 import csv
 from move_base_msgs.msg import MoveBaseActionResult
 from matplotlib import pyplot as plt
@@ -163,9 +163,9 @@ def set_object_state_from_agent(
     offset=np.array([0, 2.0, -1.5]),
     orientation=mn.Quaternion(((0, 0, 0), 1)),
     ):
-    agent_transform = sim.agents[0].scene_node.transformation_matrix()
-    ob_translation = agent_transform.transform_point(offset)
-    obj.translation = ob_translation
+    # agent_transform = sim.agents[0].scene_node.transformation_matrix()
+    # ob_translation = agent_transform.transform_point(offset)
+    # obj.translation = ob_translation
     obj.rotation = orientation
 
 
@@ -399,6 +399,9 @@ class sim_env(threading.Thread):
             rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
             object_orientation = rotation_z * rotation_y * rotation_x
             set_object_state_from_agent(self.env._sim, file_obj, offset=offset, orientation = object_orientation)
+            agent_transform = self.env.sim.agents[0].scene_node.transformation_matrix()
+            ob_translation = agent_transform.transform_point(offset)
+            file_obj.translation = ob_translation
             vel_control_obj = file_obj.velocity_control
             vel_control_obj.controlling_lin_vel = True
             vel_control_obj.controlling_ang_vel = True
@@ -598,6 +601,7 @@ class sim_env(threading.Thread):
         base_vel = [lin_vel, ang_vel]
         # self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
         self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
+        print(self.initial_state[1])
         ##### For teleop human/follower 
         # self.follower_velocity_control.linear_velocity = self.linear_velocity
         # self.follower_velocity_control.angular_velocity = self.angular_velocity
@@ -660,6 +664,7 @@ class sim_env(threading.Thread):
             
             #### Update to next topogoal if reached the first one 
             GOAL_THRESHOLD = 0.5
+            print("Goal dist is", self.goal_dist[k+1])
             if (self.goal_dist[k+1]<= GOAL_THRESHOLD):
                 final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[k+1,:], self.grid_dimensions))
                 goal_pos = [pos*0.025 for pos in final_goal_grid]
@@ -667,20 +672,27 @@ class sim_env(threading.Thread):
                 path = habitat_path.ShortestPath()
                 path.requested_start = np.array(human_state.translation)
                 #### If it isn't a intermediate goal, sample a new goal for the agent 
-                if dist<=GOAL_THRESHOLD:
-                    new_goal_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(human_state.translation, 10)
-                    path.requested_end = new_goal_pos_3d 
-                    if(not self.env._sim.pathfinder.find_path(path)):
+                # if dist<=GOAL_THRESHOLD:
+                #     new_goal_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(human_state.translation, 10)
+                #     path.requested_end = new_goal_pos_3d 
+                #     if(not self.env._sim.pathfinder.find_path(path)):
+                #         continue
+                #     self.final_goals_3d[k+1,:] = new_goal_pos_3d 
+                # #### Update to next intermediate goal 
+                # else:
+                print("setting new goal now! ")
+                path.requested_end = self.final_goals_3d[k+1,:]
+                if(not self.env._sim.pathfinder.find_path(path)):
+                    continue
+                for i in range(len(path.points)):
+                    humans_goal_pos_3d = path.points[i]
+                    goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d, self.grid_dimensions))
+                    goal_pos = [pos*0.025 for pos in goal_pos]
+                    dist = np.linalg.norm(np.array(goal_pos) - np.array(self.initial_state[k+1][0:2]))
+                    if (dist <GOAL_THRESHOLD):
                         continue
-                    self.final_goals_3d[k+1,:] = new_goal_pos_3d 
-                #### Update to next intermediate goal 
-                else:
-                    path.requested_end = self.final_goals_3d[k+1,:]
-                    if(not self.env._sim.pathfinder.find_path(path)):
-                        continue
-                humans_goal_pos_3d = path.points[1]
-                goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d, self.grid_dimensions))
-                goal_pos = [pos*0.025 for pos in goal_pos]
+                    else:
+                        break
                 self.initial_state[k+1][4:6] = goal_pos
                 self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
 
@@ -732,11 +744,10 @@ class sim_env(threading.Thread):
             semantic_img =self.semantic_img
             agent_pos = self.env.sim.robot.base_pos
             agent_pixel = world_to_sem_img(self.semantic_img_proj_mat, self.semantic_img_camera_mat, agent_pos, self.semantic_img_W, self.semantic_img_H)
-            print("position and pixel", agent_pos, agent_pixel)
             
             try:
                 u,v = int(agent_pixel[0]), int(agent_pixel[1])
-                semantic_img[u:u+10, v:v+10] = [0,0,0]
+                semantic_img[u, v] = [0,0,0]
             except:
                 print("not in image Frame!!!!")
                 pass 
