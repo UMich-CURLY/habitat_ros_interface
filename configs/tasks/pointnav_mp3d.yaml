@@ -13,20 +13,18 @@ SIMULATOR:
     HEIGHT: 256
 TASK:
   TYPE: Nav-v0
-  SUCCESS_DISTANCE: 0.2
 
   SENSORS: ['POINTGOAL_WITH_GPS_COMPASS_SENSOR']
   POINTGOAL_WITH_GPS_COMPASS_SENSOR:
     GOAL_FORMAT: "POLAR"
     DIMENSIONALITY: 2
-  COUNT_OBJ_COLLISIONS: True
-  COUNT_ROBOT_OBJ_COLLS: True
   GOAL_SENSOR_UUID: pointgoal_with_gps_compass
 
   MEASUREMENTS: ['DISTANCE_TO_GOAL', 'SUCCESS', 'SPL']
   SUCCESS:
     SUCCESS_DISTANCE: 0.2
 DATASET:
+  DATA_PATH: /home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content/Vvot9Ly1tCj0.json.gz
+  SCENES_DIR: /home/catkin_ws/src/habitat_ros_interface/data/scene_datasets
+  SPLIT: test
   TYPE: PointNav-v1
-  SPLIT: train
-  DATA_PATH: data/datasets/pointnav/mp3d/v1/{split}/{split}.json.gz

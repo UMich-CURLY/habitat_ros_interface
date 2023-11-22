@@ -25,7 +25,7 @@ scene = ARGS.scene
 dataset = ARGS.dataset
 num_episodes_per_scene = 1
 
-def _generate_fn():
+def _generate_fn(start = None, goal = None):
     cfg = habitat.get_config()
     cfg.defrost()
     if (dataset == "mp3d"):
@@ -80,6 +80,10 @@ def _generate_fn():
     else:
         print("No dataset found")
         exit(0)
+    if (start and goal):
+        for ep in dset.episodes:
+            ep.start_position = start
+            ep.goals = goal
 
 
 # scenes = glob.glob("./data/scene_datasets/mp3d/17DRP5sb8fy.glb")

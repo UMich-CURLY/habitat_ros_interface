@@ -17,15 +17,27 @@ from habitat_sim.utils import common as utils
 import magnum as mn
 import math
 import quaternion as qt
+import creating_episodes as ep
+import gzip
+import json
+from habitat.tasks.nav.nav import (
+    NavigationEpisode,
+    NavigationGoal,
+    ShortestPathPoint,
+)
 PARSER = argparse.ArgumentParser(description=None)
+# PARSER.add_argument('-x', '--foor', default="False", type=str, help='door')
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 PARSER.add_argument('-mps', '--mps', default=0.025, type=float, help='mps')
 PARSER.add_argument('-d', '--dataset', default="mp3d", type=str, help='dataset')
 
 ARGS = PARSER.parse_args()
+print(ARGS)
 scene = ARGS.scene
+embed()
 meters_per_pixel = ARGS.mps
 dataset = ARGS.dataset
+fixed_door = ARGS.door
 MAP_DIR = "/home/catkin_ws/src/habitat_ros_interface/maps"
 IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
 if not os.path.exists(MAP_DIR):
@@ -36,13 +48,13 @@ if not os.path.exists(IMAGE_DIR):
     print("Didi not find maps directory")
     os.makedirs(IMAGE_DIR)
 
-def draw_agent_in_top_down(env, map_path = "agent_pos.png", line = None):
-    agent_state = env.sim.get_agent_state()
+def draw_agent_in_top_down(sim, map_path = "agent_pos.png", line = None):
+    agent_state = sim.get_agent_state()
     agent_pos = agent_state.position
     meters_per_pixel =0.025
     
     top_down_map = maps.get_topdown_map(
-        env.sim.pathfinder, height=0.06, meters_per_pixel=meters_per_pixel
+        sim.pathfinder, height=0.06, meters_per_pixel=meters_per_pixel
     )
     recolor_map = np.array(
         [[255, 255, 255], [128, 128, 128], [0, 0, 0]], dtype=np.uint8
@@ -50,10 +62,10 @@ def draw_agent_in_top_down(env, map_path = "agent_pos.png", line = None):
     top_down_map = recolor_map[top_down_map]
     grid_dimensions = (top_down_map.shape[0], top_down_map.shape[1])
     agent_grid_pos = maps.to_grid(
-        agent_pos[2], agent_pos[0], grid_dimensions, pathfinder=env.sim.pathfinder
+        agent_pos[2], agent_pos[0], grid_dimensions, pathfinder=sim.pathfinder
     )
     agent_forward = utils.quat_to_magnum(
-        env.sim.agents[0].get_state().rotation
+        sim.agents[0].get_state().rotation
     ).transform_vector(mn.Vector3(0, 0, -1.0))
     agent_orientation = math.atan2(agent_forward[0], agent_forward[2])
     # draw the agent and trajectory on the map
@@ -64,7 +76,7 @@ def draw_agent_in_top_down(env, map_path = "agent_pos.png", line = None):
     if line is not None:
         for i in range(line.shape[0]):
             door_points_2d.append(maps.to_grid(
-                line[i,2], line[i,0], grid_dimensions, pathfinder=env.sim.pathfinder
+                line[i,2], line[i,0], grid_dimensions, pathfinder=sim.pathfinder
             ))
             try:
                 top_down_map[door_points_2d[i][0], door_points_2d[i][1]] = [0,255,0]
@@ -92,17 +104,11 @@ def sem_img_to_world(proj, cam, W,H, u, v, debug = False):
     d = inv_rot.dot(c)
     return d
 
-def get_topdown_map(config_paths, map_name, selected_door_number = None, select_min= True):
+def get_topdown_map(sim, map_name, selected_door_number = None, select_min= True):
 
-    config = habitat.get_config(config_paths=config_paths)
-    dataset = habitat.make_dataset(
-        id_dataset=config.DATASET.TYPE, config=config.DATASET
-    )
-    env = habitat.Env(config=config, dataset=dataset)
-    env.reset()
-    observations = env.reset()
+    
     np.random.seed(1000)    
-    semantic_scene = env.sim.semantic_annotations()
+    semantic_scene = sim.semantic_annotations()
     instance_id_to_label_id = {int(obj.id.split("_")[-1]): obj.category.index() for obj in semantic_scene.objects}
     names = {int(obj.id.split("_")[-1]): obj.category.name() for obj in semantic_scene.objects}
     instance_label_mapping = np.array([ instance_id_to_label_id[i] for i in range(len(instance_id_to_label_id)) ])
@@ -112,32 +118,32 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     sdfs = []
     for candidate_door in candidate_doors_index:
         chosen_object = semantic_scene.objects[candidate_door]    
-        if env.sim.distance_to_closest_obstacle(chosen_object.aabb.center) <0.25:
+        if sim.distance_to_closest_obstacle(chosen_object.aabb.center) <0.25:
             continue
         else:
             non_obs_candidate_doors.append(candidate_door)
-            sdfs.append(env.sim.distance_to_closest_obstacle(chosen_object.aabb.center))
+            sdfs.append(sim.distance_to_closest_obstacle(chosen_object.aabb.center))
     sdfs = np.array(sdfs)
     candidate_doors_index = np.array(non_obs_candidate_doors)
     if not selected_door_number:
         door_number = np.random.choice(candidate_doors_index)
     else:
-        door_number = candidate_doors_index[selected_door_number]
+        door_number = selected_door_number
     if select_min:
         arg_min = np.ndarray.argmin(sdfs)
         door_number = candidate_doors_index[int(arg_min)]
     
         
     chosen_object = semantic_scene.objects[door_number] 
-    print("sdf at chosen door is ", env.sim.distance_to_closest_obstacle(chosen_object.aabb.center))
-    temp_position = env._sim.pathfinder.get_random_navigable_point_near(chosen_object.aabb.center,1.5)
+    print("sdf at chosen door is ", sim.distance_to_closest_obstacle(chosen_object.aabb.center))
+    temp_position = sim.pathfinder.get_random_navigable_point_near(chosen_object.aabb.center,1.5)
     temp_position = chosen_object.aabb.center
     temp_position[1] = 0
     temp_rot = chosen_object.obb.rotation
     quat_rot =  qt.quaternion(temp_rot[3], temp_rot[0], temp_rot[1], temp_rot[2])
     quat_rot = quat_rot  *qt.quaternion(0.7071, 0, 0, -0.7071)
     new_quat = np.array([quat_rot.x, quat_rot.y, quat_rot.z, quat_rot.w])
-    env.sim.set_agent_state(temp_position,new_quat)
+    sim.set_agent_state(temp_position,new_quat)
     # agent_state = env.sim.get_agent_state()
     # observations = env.sim.get_sensor_observations()
     # cv2.imwrite("rgb_img_no_rot.png", np.asarray(observations['rgb']))
@@ -160,10 +166,9 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     # diff_quat = qt.from_euler_angles(diff_euler)
     # new_quat = np.array([diff_quat.x, diff_quat.y, diff_quat.z, diff_quat.w])
     # env.sim.set_agent_state(temp_position, new_quat)
-    render_camera = env._sim.get_agent(0).scene_node.node_sensor_suite.get_sensors()['rgb']
-    render_camera = env._sim.get_agent(0).scene_node.node_sensor_suite.get_sensors()['semantic']
+    render_camera = sim.get_agent(0).scene_node.node_sensor_suite.get_sensors()['semantic']
     render_camera.zoom(2)
-    observations = env.sim.get_observations_at(chosen_object.aabb.center)
+    observations = sim.get_observations_at(chosen_object.aabb.center)
     observations_semantic = np.take(instance_label_mapping, observations['semantic'])
     semantic_img = Image.new("P", (observations_semantic.shape[1], observations_semantic.shape[0]))
     semantic_img.putpalette(d3_40_colors_rgb.flatten())
@@ -174,7 +179,7 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
 
     semantic_img = cv2.imread(IMAGE_DIR+"/semantic_img.png")
     hablab_topdown_map = maps.get_topdown_map_from_sim(
-                cast("HabitatSim", env.sim), meters_per_pixel= 0.025
+                cast("HabitatSim", sim), meters_per_pixel= 0.025
             )
     recolor_map = np.array(
         [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
@@ -187,25 +192,25 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     grid_points = np.ones([semantic_img.shape[0],semantic_img.shape[1],2])
     goal_points = np.ones([semantic_img.shape[0],semantic_img.shape[1],2])
     empty_image = hablab_topdown_map
-    center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = env._sim.pathfinder))
+    center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = sim.pathfinder))
     for i in range(0,semantic_img.shape[0]):
         for j in range(0,semantic_img.shape[1]):
             world_coordinates = sem_img_to_world(semantic_img_proj_mat, semantic_img_camera_mat, semantic_img.shape[0], semantic_img.shape[1], i, j)
-            [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], grid_dimensions, pathfinder = env._sim.pathfinder))
+            [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], grid_dimensions, pathfinder = sim.pathfinder))
             # print([i,j])
             # x = x - 1
             world_coordinates[1] = 0.04
             dist = np.linalg.norm(np.array(center_gt)*0.025-np.array([x,y])*0.025)
             if (dist >1.5 and dist<2.5):
-                if(env._sim.pathfinder.is_navigable(world_coordinates)):
+                if(sim.pathfinder.is_navigable(world_coordinates)):
                     # empty_image[x,y] = [0,0,0]
                     goal_points[i,j,0] = x
                     goal_points[i,j,1] = y
             grid_points[i,j,0] = x
             grid_points[i,j,1] = y
-            if (i ==j == 360):
-                center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = env._sim.pathfinder,))
-                print(center_gt[0] - x, center_gt[1]-y)
+            # if (i ==j == 360):
+            #     center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = sim.pathfinder,i,j))
+            #     print(center_gt[0] - x, center_gt[1]-y)
     # grid_points = np.array(grid_points)
     min_x = int(np.min(grid_points[:,:,0]))
     min_y = int(np.min(grid_points[:,:,1]))
@@ -216,10 +221,10 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     for i in np.arange(0,semantic_img.shape[0],resolution_semantic):
         for j in np.arange(0,semantic_img.shape[1], resolution_semantic):
             world_coordinates = sem_img_to_world(semantic_img_proj_mat, semantic_img_camera_mat, semantic_img.shape[0], semantic_img.shape[1], i, j)
-            [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], grid_dimensions, pathfinder = env._sim.pathfinder))
-            if (i ==j == 360):
-                center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = env._sim.pathfinder,))
-                print(center_gt[0] - x, center_gt[1]-y)
+            [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], grid_dimensions, pathfinder = sim.pathfinder))
+            # if (i ==j == 360):
+            #     center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = sim.pathfinder,))
+            #     print(center_gt[0] - x, center_gt[1]-y)
             try:
                 small_top_down_map[x,y] = hablab_topdown_map[x,y]
                 # hablab_topdown_map[x,y] = semantic_img[i, j, 0:3]
@@ -244,7 +249,7 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     # observations_rgb = np.take(instance_label_mapping, observations['rgb'])
     # rgb_img = Image.new("P", (observations_rgb.shape[0], observations_rgb.shape[1],3))
     # rgb_img.pudata((observations_rgb))
-    observations = env.sim.get_sensor_observations()
+    observations = sim.get_sensor_observations()
     cv2.imwrite(IMAGE_DIR+"/rgb_img.png", np.asarray(observations['rgb']))
     complete_name = os.path.join(IMAGE_DIR, "image_config" + ".yaml")
     with open(IMAGE_DIR+"/cam_mat.npy", 'wb') as f:
@@ -264,7 +269,7 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     f.write("door_center: "+ center+ "\n")
     f.write("world_to_door: " + IMAGE_DIR+"/world_to_door.npy" + "\n")
     f.close()
-    agent_state = env.sim.get_agent_state()
+    agent_state = sim.get_agent_state()
     agent_pos = agent_state.position
     meters_per_pixel =0.025
     
@@ -274,11 +279,11 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
     a[1] = chosen_object.aabb.center[1]
     b[1] = chosen_object.aabb.center[1]
     line = np.linspace(a,b,50)
-    draw_agent_in_top_down(env, map_path = "agent_pos.png", line = line)
+    draw_agent_in_top_down(sim, map_path = "agent_pos.png", line = line)
     if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
         meters_per_pixel =0.025
         hablab_topdown_map = maps.get_topdown_map_from_sim(
-                cast("HabitatSim", env.sim), meters_per_pixel= meters_per_pixel
+                cast("HabitatSim", sim), meters_per_pixel= meters_per_pixel
             )
         recolor_map = np.array(
             [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
@@ -305,8 +310,20 @@ def get_topdown_map(config_paths, map_name, selected_door_number = None, select_
         f.close()
     return len(candidate_doors_index), door_number
 
+def from_json(json_str: str):
+    deserialized = json.loads(json_str)
+    for episode in deserialized["episodes"]:
+        episode = NavigationEpisode(**episode)
+        episode.episode_id = 0
+        for g_index, goal in enumerate(episode.goals):
+            episode.goals[g_index] = NavigationGoal(**goal)
+        if episode.shortest_paths is not None:
+            for path in episode.shortest_paths:
+                for p_index, point in enumerate(path):
+                    path[p_index] = ShortestPathPoint(**point)
+        return episode
 
-def main(select_door = None):
+def run(selected_door = False, door_num = 0):
     with open("configs/tasks/pointnav_rgbd.yaml",'r') as file:
         # The FullLoader parameter handles the conversion from YAML
         # scalar values to Python the dictionary format
@@ -317,19 +334,30 @@ def main(select_door = None):
             config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/gibson/v1/test/content/"+scene+"0.json.gz"
         elif (dataset == "habitat"):
             config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/habitat-test-scenes/v1/test/content/"+scene+"0.json.gz"
+    
     with open("configs/tasks/pointnav_rgbd.yaml",'w') as file:
         print("Replacing the data config to the new scene ", scene)
         documents = yaml.dump(config, file)
     #first parameter is config path, second parameter is map name
-
+    config_paths = "configs/tasks/pointnav_rgbd.yaml"
+    config = habitat.get_config(config_paths=config_paths)
+    eps = habitat.make_dataset(
+        id_dataset=config.DATASET.TYPE, config=config.DATASET
+    )
+    if (selected_door):
+        with gzip.open(config['DATASET']['DATA_PATH'], "rb") as f:
+            episode = from_json(f.read())
+        eps.episodes = [episode]
+    env = habitat.Env(config=config, dataset=eps)
+    if (selected_door):
+        door_num = int(env.episodes[0].info['door_number'])
     # if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
-    if select_door:
-        total_doors, current_door = get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_"+scene+"_"+str(meters_per_pixel), select_door)
+    if selected_door:
+        total_doors, current_door = get_topdown_map(env.sim, "resolution_"+scene+"_"+str(meters_per_pixel), door_num)
     else:
-        total_doors, current_door = get_topdown_map("configs/tasks/pointnav_rgbd.yaml", "resolution_"+scene+"_"+str(meters_per_pixel))
+        total_doors, current_door = get_topdown_map(env.sim, "resolution_"+scene+"_"+str(meters_per_pixel))
     print("Chosen gate %d from %d doors ", current_door, total_doors)
 
 
 if __name__ == "__main__":
-    select_door = None
-    main()
+    run(fixed_door)
