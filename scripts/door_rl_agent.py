@@ -736,21 +736,24 @@ class sim_env(threading.Thread):
         ang_vel = self.angular_velocity[1]
         base_vel = [lin_vel, ang_vel]
         # self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
-        action = self._eval_checkpoint()
-        self.observations.update(self.env.step(action[0]))
-        # self.all_obs.append(self.observations)
-        batch = batch_obs(  # type: ignore
-            [self.observations],
-            device=self.device,
-            cache=self.ppo._obs_batching_cache,
-        )
-        self.batch = apply_obs_transforms_batch(batch, self.ppo.obs_transforms)  # type: ignore
+        # if (self.env.)
+        if(not self.env.episode_over):
+            action = self._eval_checkpoint()
+            self.observations.update(self.env.step(action[0]))
 
-        self.not_done_masks = torch.tensor(
-            [[True]],
-            dtype=torch.bool,
-            device=self.device,
-        )
+            # self.all_obs.append(self.observations)
+            batch = batch_obs(  # type: ignore
+                [self.observations],
+                device=self.device,
+                cache=self.ppo._obs_batching_cache,
+            )
+            self.batch = apply_obs_transforms_batch(batch, self.ppo.obs_transforms)  # type: ignore
+
+            self.not_done_masks = torch.tensor(
+                [[True]],
+                dtype=torch.bool,
+                device=self.device,
+            )
         # rewards = torch.tensor(
         #     rewards_l, dtype=torch.float, device="cpu"
         # ).unsqueeze(1)
