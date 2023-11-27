@@ -256,11 +256,7 @@ class sim_env(threading.Thread):
             self.semantic_img_camera_mat = np.load(f)
         self.semantic_img = cv2.imread(IMAGE_DIR+"/semantic_img.png")   
 
-        #### Initialize agent near the door     
-        temp_position, rot = self.get_in_band_around_door(agent_state.rotation)
-        self.env.sim.set_agent_state(temp_position, rot)
-        # self.env._sim.robot.base_pos = mn.Vector3(temp_position)
-        agent_state = self.env.sim.get_agent_state(0)
+        
         print(self.env.sim)
         config = self.env._sim.config
         print(self.env._sim.active_dataset)
@@ -323,7 +319,12 @@ class sim_env(threading.Thread):
         ##### Final 3d goals for the agent and the extra agents, the leader and followers just follow the agent 
         self.final_goals_3d = np.zeros([self.N+1,3])
         self.goal_dist = np.zeros(self.N+1)
-
+        #### Initialize agent near the door     
+        # temp_position, rot = self.get_in_band_around_door(agent_state.rotation)
+        temp_position, rot = self.env.episodes[0].start_position, self.env.episodes[0].start_rotation
+        self.env.sim.set_agent_state(temp_position, rot)
+        # self.env._sim.robot.base_pos = mn.Vector3(temp_position)
+        agent_state = self.env.sim.get_agent_state(0)
 
         #### Initiating robot in the esfm state ####
         agent_pos = self.env.sim.get_agent_state(0).position
@@ -332,10 +333,11 @@ class sim_env(threading.Thread):
         ## Asume the agent goal is always the goal of the 0th agent
         path = habitat_path.ShortestPath()
         path.requested_start = np.array(start_pos)
-        for i in range(50):
-            agent_goal_pos_3d, goal_rot = self.get_in_band_around_door(agent_state.rotation)
-            if (self.is_point_on_other_side(agent_goal_pos_3d, agent_state.position)):
-                break
+        # for i in range(50):
+        #     agent_goal_pos_3d, goal_rot = self.get_in_band_around_door(agent_state.rotation)
+        #     if (self.is_point_on_other_side(agent_goal_pos_3d, agent_state.position)):
+        #         break
+        agent_goal_pos_3d = self.env.episodes[0].goals[0].position
         path.requested_end = agent_goal_pos_3d
         self.final_goals_3d[0,:] = agent_goal_pos_3d
         if(not self.env._sim.pathfinder.find_path(path)):
@@ -382,20 +384,23 @@ class sim_env(threading.Thread):
             
             #### Pick a random start location for this agent ####
             start_pos_3d, a = self.get_in_band_around_door()
-            while(not self.is_point_on_other_side(start_pos_3d, agent_state.position)):
-                start_pos_3d, a = self.get_in_band_around_door()
-            # start_pos = from_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
-            temp_goal_pos_3d, a = self.get_in_band_around_door()
-            while(not self.is_point_on_other_side(start_pos_3d, temp_goal_pos_3d)):
+            goes_through_door = False
+            while (not goes_through_door):
+                while(not self.is_point_on_other_side(start_pos_3d, agent_state.position)):
+                    start_pos_3d, a = self.get_in_band_around_door()
+                # start_pos = from_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
                 temp_goal_pos_3d, a = self.get_in_band_around_door()
-            goal_pos_3d = temp_goal_pos_3d
-            self.final_goals_3d[k+1,:] = goal_pos_3d
-            path = habitat_path.ShortestPath()
-            path.requested_start = np.array(start_pos_3d)
-            path.requested_end = goal_pos_3d
-            if(not self.env._sim.pathfinder.find_path(path)):
-                print("Watch this one Tribhi!!!!",i)
-                continue
+                while(not self.is_point_on_other_side(start_pos_3d, temp_goal_pos_3d)):
+                    temp_goal_pos_3d, a = self.get_in_band_around_door()
+                goal_pos_3d = temp_goal_pos_3d
+                self.final_goals_3d[k+1,:] = goal_pos_3d
+                path = habitat_path.ShortestPath()
+                path.requested_start = np.array(start_pos_3d)
+                path.requested_end = goal_pos_3d
+                if(not self.env._sim.pathfinder.find_path(path)):
+                    print("Watch this one Tribhi!!!!",i)
+                    continue
+                goes_through_door = self.check_path_goes_through_door(path)
             humans_initial_pos_3d.append(path.points[0])
             humans_goal_pos_3d.append(path.points[1])
             human_initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
@@ -432,9 +437,11 @@ class sim_env(threading.Thread):
         
         if USE_RVO:
             self.sfm = ped_rvo(self, map_path = "./images/current_scene/small_top_down.png", resolution = 0.025)
+            self.sfm.fig.savefig("Initial_plot.png")
             print("Initialized rvo2 sim")
         else:
             self.sfm = social_force(self, map_path = "./images/current_scene/small_top_down.png", resolution = 0.025, groups = self.groups)
+            self.sfm.fig.savefig("Initial_plot.png")
             print("Initialized ESFM sim")
         print(self.initial_state)
         # self.initial_state.append(robot_pos_in_2d+humans_initial_velocity[0]+humans_goal_pos_2d[2])
@@ -522,6 +529,7 @@ class sim_env(threading.Thread):
             device=self.ppo.device,
             dtype=torch.bool,
         )
+        embed()
         print("created habitat_plant succsefully")
 
     def get_in_band_around_door(self, agent_rotation = None):
@@ -567,6 +575,35 @@ class sim_env(threading.Thread):
         else:
             print(p1_local, p2_local)
             return True
+    def is_in_same_region(self, pos):
+        region = self.chosen_object.region
+        agent_loc = pos
+
+        ''' Check if agent is in region 0 '''
+        center = region.aabb.center
+        sizes = region.aabb.sizes
+        if ((center - 1/2*sizes < agent_loc).all()  and (agent_loc < center + 1/2*sizes).all()):
+            return True
+        else:
+            return False
+
+    def check_path_goes_through_door(self, path):
+        diff = path.points[0]-self.chosen_object.aabb.center
+        diff[1] = 0
+        dist = np.linalg.norm(diff)
+        initial_dist = dist
+        dist_from_door = 100
+        for point in path.points:
+            diff = point-self.chosen_object.aabb.center
+            diff[1] = 0
+            dist = np.linalg.norm(diff)
+            if dist <dist_from_door:
+                dist_from_door = dist
+        if (dist_from_door) < initial_dist:
+            print(dist_from_door)
+            return True
+        else:
+            return False
         
     def _render(self):
         self.observations.update(self.env._task._sim.get_observations_at()) 
@@ -915,34 +952,34 @@ class sim_env(threading.Thread):
                     ),
                 )
             )
-            # points = []
-            # for i in range(0,semantic_img.shape[0],5):
-            #     for j in range(0,semantic_img.shape[1], 5):
-            #         world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img_W, self.semantic_img_H, i, j)
-            #         [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], self.grid_dimensions, pathfinder = self.env._sim.pathfinder))
-            #         # print([i,j])
-            #         # x = x - 1
-            #         if (i ==j == 360):
-            #             center_gt = list(to_grid(self.env._sim.pathfinder, self.chosen_object.aabb.center, self.grid_dimensions))
-            #             print(center_gt[0] - y, center_gt[1]-x)
-            #         [y,x] = [x*0.025, y*0.025]
-            #         [r,g,b] = semantic_img[i, j, 0:3]
-            #         a = 255
-            #         z = 0.1
-            #         rgb = struct.unpack('I', struct.pack('BBBB', b, g, r, a))[0]
-            #         pt = [x - 1.0, y - 1.0, z, rgb]
-            #         points.append(pt)
-            # fields = [PointField('x', 0, PointField.FLOAT32, 1),
-            # PointField('y', 4, PointField.FLOAT32, 1),
-            # PointField('z', 8, PointField.FLOAT32, 1),
-            # # PointField('rgb', 12, PointField.UINT32, 1),
-            # PointField('rgba', 12, PointField.UINT32, 1),
-            # ]
-            # header = Header()
-            # header.frame_id = "my_map_frame"
-            # pc2 = point_cloud2.create_cloud(header, fields, points)
-            # pc2.header.stamp = rospy.Time.now()
-            # self.cloud_pub.publish(pc2)
+            points = []
+            for i in range(0,semantic_img.shape[0],5):
+                for j in range(0,semantic_img.shape[1], 5):
+                    world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img_W, self.semantic_img_H, i, j)
+                    [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], self.grid_dimensions, pathfinder = self.env._sim.pathfinder))
+                    # print([i,j])
+                    # x = x - 1
+                    if (i ==j == 360):
+                        center_gt = list(to_grid(self.env._sim.pathfinder, self.chosen_object.aabb.center, self.grid_dimensions))
+                        print(center_gt[0] - y, center_gt[1]-x)
+                    [y,x] = [x*0.025, y*0.025]
+                    [r,g,b] = semantic_img[i, j, 0:3]
+                    a = 255
+                    z = 0.1
+                    rgb = struct.unpack('I', struct.pack('BBBB', b, g, r, a))[0]
+                    pt = [x - 1.0, y - 1.0, z, rgb]
+                    points.append(pt)
+            fields = [PointField('x', 0, PointField.FLOAT32, 1),
+            PointField('y', 4, PointField.FLOAT32, 1),
+            PointField('z', 8, PointField.FLOAT32, 1),
+            # PointField('rgb', 12, PointField.UINT32, 1),
+            PointField('rgba', 12, PointField.UINT32, 1),
+            ]
+            header = Header()
+            header.frame_id = "my_map_frame"
+            pc2 = point_cloud2.create_cloud(header, fields, points)
+            pc2.header.stamp = rospy.Time.now()
+            self.cloud_pub.publish(pc2)
             # cv2.imwrite("semantic_image.png", semantic_img)
             pose = Pose()
             pose.position = agent_pos

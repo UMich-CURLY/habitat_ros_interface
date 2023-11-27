@@ -94,32 +94,28 @@ class pointnav_data():
         # quat_rot = quat_rot  *qt.quaternion(0.7071, 0, 0, -0.7071)
         # new_quat = np.array([quat_rot.x, quat_rot.y, quat_rot.z, quat_rot.w])
         agent_state = self.sim.get_agent_state(0)
-        chosen_object = semantic_scene.objects[door_number]     
-        temp_position, rot = self.get_in_band_around_door(agent_state.rotation)
-        self.sim.set_agent_state(temp_position, rot)
-        agent_pos = self.sim.get_agent_state(0).position
-        agent_state = self.sim.get_agent_state(0)
-        start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
-        
-        ## Asume the agent goal is always the goal of the 0th agent
-        path = habitat_path.ShortestPath()
-        path.requested_start = np.array(start_pos)
-        for i in range(50):
+        chosen_object = semantic_scene.objects[door_number]   
+        goes_through_door = False
+        while (not goes_through_door):
+            temp_position, rot = self.get_in_band_around_door(agent_state.rotation)
+            self.sim.set_agent_state(temp_position, rot)
+            agent_pos = self.sim.get_agent_state(0).position
+            agent_state = self.sim.get_agent_state(0)
+            start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
+            
+            ## Asume the agent goal is always the goal of the 0th agent
+            path = habitat_path.ShortestPath()
+            path.requested_start = np.array(start_pos)
             agent_goal_pos_3d, goal_rot = self.get_in_band_around_door(agent_state.rotation)
-            if (self.is_point_on_other_side(agent_goal_pos_3d, agent_state.position)):
+            if (not self.is_point_on_other_side(agent_goal_pos_3d, agent_state.position)):
+                continue
+            else:
                 path.requested_end = agent_goal_pos_3d
-                if(not self.sim.pathfinder.find_path(path)):
-                    print("Didn't find path")
-                    embed()
-                    continue
-                else:
-                    print("Found path!!", path.points)
-                    break
-        if (i==50):
-            return False
-        path.requested_end = agent_goal_pos_3d
-        if(not self.sim.pathfinder.find_path(path)):
-            print("Didn't find path")
+            if(not self.sim.pathfinder.find_path(path)):
+                print("Didn't find path")
+                embed()
+                continue       
+            goes_through_door = self.check_path_goes_through_door(path)
         print(path.points)
         return start_pos, path.points[-1], path.geodesic_distance, door_number
 
@@ -150,7 +146,24 @@ class pointnav_data():
         else:
             return temp_position, None
     
-        
+    def check_path_goes_through_door(self, path):
+        diff = path.points[0]-self.chosen_object.aabb.center
+        diff[1] = 0
+        dist = np.linalg.norm(diff)
+        initial_dist = dist
+        dist_from_door = 100
+        for point in path.points:
+            diff = point-self.chosen_object.aabb.center
+            diff[1] = 0
+            dist = np.linalg.norm(diff)
+            if dist <dist_from_door:
+                dist_from_door = dist
+        if (dist_from_door) < initial_dist:
+            print("Path dist from door and starting is, All good!", dist_from_door, initial_dist)
+            return True
+        else:
+            print("Path dist from door and starting is", dist_from_door, initial_dist)
+            return False
     def is_point_on_other_side(self, p1, p2):
         transform = self.chosen_object.obb.world_to_local
         p1_local = np.matmul(transform, np.append(p1,1.0).T)
@@ -165,14 +178,24 @@ class pointnav_data():
         else:
             print(p1_local, p2_local)
             return True
+    def is_in_same_region(self, pos):
+        region = self.chosen_object.region
+        agent_loc = pos
 
+        ''' Check if agent is in region 0 '''
+        center = region.aabb.center
+        sizes = region.aabb.sizes
+        if ((center - 1/2*sizes < agent_loc).all()  and (agent_loc < center + 1/2*sizes).all()):
+            return True
+        else:
+            return False
     def _generate_fn(self, scene, dataset, start = None, goal = None):
         
         count_episodes = 0
         for ep in self.dset.episodes:
             start, goal, dist, door = self.get_start_goal()
             ep.start_position = np.float64(start)
-            ep.goals = [NavigationGoal(position = goal, radius = 2)]
+            ep.goals = [NavigationGoal(position = goal, radius = 0.2)]
             ep.info={"geodesic_distance": dist, "door_number": np.float64(door)}
             # ep.extra_info = {}
         if (dataset == "mp3d"):
