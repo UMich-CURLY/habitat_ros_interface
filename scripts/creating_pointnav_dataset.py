@@ -26,7 +26,7 @@ import argparse
 import numpy as np
 import quaternion as qt
 from IPython import embed
-from get_topdown_map_old import *
+from get_topdown_map_rl import draw_agent_in_top_down
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 PARSER.add_argument('-d', '--dataset', default="mp3d", type=str, help='dataset')
@@ -88,7 +88,7 @@ class pointnav_data():
             arg_min = np.ndarray.argmin(sdfs)
             door_number = candidate_doors_index[int(arg_min)]
         
-        self.chosen_object = chosen_object
+        self.chosen_object = semantic_scene.objects[door_number]    
         # temp_rot = chosen_object.obb.rotation
         # quat_rot =  qt.quaternion(temp_rot[3], temp_rot[0], temp_rot[1], temp_rot[2])
         # quat_rot = quat_rot  *qt.quaternion(0.7071, 0, 0, -0.7071)
@@ -197,6 +197,13 @@ class pointnav_data():
             ep.start_position = np.float64(start)
             ep.goals = [NavigationGoal(position = goal, radius = 0.2)]
             ep.info={"geodesic_distance": dist, "door_number": np.float64(door)}
+            semantic_scene = self.sim.semantic_annotations()
+            chosen_object = semantic_scene.objects[int(door)] 
+            a = np.append(chosen_object.aabb.center+chosen_object.aabb.sizes/10, 1.0)
+            b = np.append(chosen_object.aabb.center-chosen_object.aabb.sizes/10, 1.0)
+            a[1] = chosen_object.aabb.center[1]
+            b[1] = chosen_object.aabb.center[1]
+            line = np.linspace(a,b,50)
             # ep.extra_info = {}
         if (dataset == "mp3d"):
             for ep in self.dset.episodes:
@@ -229,6 +236,8 @@ class pointnav_data():
         else:
             print("No dataset found")
             exit(0)
+        
+        draw_agent_in_top_down(self.sim, map_path = "agent_pos_in_dataset.png", line = line)
         
 
 

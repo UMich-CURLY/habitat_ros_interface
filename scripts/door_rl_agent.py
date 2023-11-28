@@ -952,37 +952,44 @@ class sim_env(threading.Thread):
                     ),
                 )
             )
-            points = []
-            for i in range(0,semantic_img.shape[0],5):
-                for j in range(0,semantic_img.shape[1], 5):
-                    world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img_W, self.semantic_img_H, i, j)
-                    [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], self.grid_dimensions, pathfinder = self.env._sim.pathfinder))
-                    # print([i,j])
-                    # x = x - 1
-                    if (i ==j == 360):
-                        center_gt = list(to_grid(self.env._sim.pathfinder, self.chosen_object.aabb.center, self.grid_dimensions))
-                        print(center_gt[0] - y, center_gt[1]-x)
-                    [y,x] = [x*0.025, y*0.025]
-                    [r,g,b] = semantic_img[i, j, 0:3]
-                    a = 255
-                    z = 0.1
-                    rgb = struct.unpack('I', struct.pack('BBBB', b, g, r, a))[0]
-                    pt = [x - 1.0, y - 1.0, z, rgb]
-                    points.append(pt)
-            fields = [PointField('x', 0, PointField.FLOAT32, 1),
-            PointField('y', 4, PointField.FLOAT32, 1),
-            PointField('z', 8, PointField.FLOAT32, 1),
-            # PointField('rgb', 12, PointField.UINT32, 1),
-            PointField('rgba', 12, PointField.UINT32, 1),
-            ]
-            header = Header()
-            header.frame_id = "my_map_frame"
-            pc2 = point_cloud2.create_cloud(header, fields, points)
-            pc2.header.stamp = rospy.Time.now()
-            self.cloud_pub.publish(pc2)
+            # points = []
+            # for i in range(0,semantic_img.shape[0],5):
+            #     for j in range(0,semantic_img.shape[1], 5):
+            #         world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img_W, self.semantic_img_H, i, j)
+            #         [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], self.grid_dimensions, pathfinder = self.env._sim.pathfinder))
+            #         # print([i,j])
+            #         # x = x - 1
+            #         if (i ==j == 360):
+            #             center_gt = list(to_grid(self.env._sim.pathfinder, self.chosen_object.aabb.center, self.grid_dimensions))
+            #             print(center_gt[0] - y, center_gt[1]-x)
+            #         [y,x] = [x*0.025, y*0.025]
+            #         [r,g,b] = semantic_img[i, j, 0:3]
+            #         a = 255
+            #         z = 0.1
+            #         rgb = struct.unpack('I', struct.pack('BBBB', b, g, r, a))[0]
+            #         pt = [x - 1.0, y - 1.0, z, rgb]
+            #         points.append(pt)
+            # fields = [PointField('x', 0, PointField.FLOAT32, 1),
+            # PointField('y', 4, PointField.FLOAT32, 1),
+            # PointField('z', 8, PointField.FLOAT32, 1),
+            # # PointField('rgb', 12, PointField.UINT32, 1),
+            # PointField('rgba', 12, PointField.UINT32, 1),
+            # ]
+            # header = Header()
+            # header.frame_id = "my_map_frame"
+            # pc2 = point_cloud2.create_cloud(header, fields, points)
+            # pc2.header.stamp = rospy.Time.now()
+            # self.cloud_pub.publish(pc2)
             # cv2.imwrite("semantic_image.png", semantic_img)
             pose = Pose()
-            pose.position = agent_pos
+            pose.position.x = agent_pos[0]
+            pose.position.y = agent_pos[1]
+            pose.position.z = agent_pos[2]
+            # agent_rot = self.env.sim.get_agent_state(0).rotation
+            # pose.orientation.x = agent_rot[0]
+            # pose.orientation.y = agent_rot[1]
+            # pose.orientation.z = agent_rot[2]
+            # pose.orientation.w = agent_rot[3]
             self._pub_robot_sem.publish(pose)
             # self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_semantic.publish(np.float32(semantic_with_res))

@@ -62,6 +62,14 @@ def world_to_sem_img(proj, cam, agent_state, W, H, debug = False):
     image_coordinate = image_coordinate/image_coordinate[2]
     v = H-(image_coordinate[0]+1)*(H/2)
     u = W-(1-image_coordinate[1])*(W/2)
+    if u >=W:
+        u = W-1
+    if u<0:
+        u = 0
+    if v>=H:
+        v = H-1
+    if v<0:
+        v = 0    
     return [int(u),int(v)]
 
 def transform_pose(input_pose, from_frame, to_frame):
@@ -136,7 +144,7 @@ class FeatureExpect():
         self.robot_height = robot_pos_3d[1]
         self.update_num+=1
         robot_pose_2d = world_to_sem_img(self.semantic_img_proj_mat, self.semantic_img_camera_mat, robot_pos_3d, self.semantic_img.shape[0], self.semantic_img.shape[1])
-        
+    
         world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1],robot_pose_2d[0],robot_pose_2d[1], self.robot_height)
         if (self.start_point == False):
             if (self.is_point_in_band(robot_pose_2d)):
