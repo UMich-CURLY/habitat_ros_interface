@@ -20,7 +20,9 @@ import habitat
 import habitat_sim
 from habitat.datasets.pointnav.pointnav_generator import generate_pointnav_episode
 import argparse
-
+'''
+Reads everything from the dataset directory and creates a single json file with all the episodes
+'''
 
 class pointnav_data():
     def __init__(self):

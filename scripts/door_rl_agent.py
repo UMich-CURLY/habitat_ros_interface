@@ -201,10 +201,10 @@ class sim_env(threading.Thread):
     current_orientation = []
     follower = []
     new_goal = False
-    control_frequency = 20
+    control_frequency = 2
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
-    human_control_frequency = 5
+    human_control_frequency = 2
     human_time_step = 1/human_control_frequency
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])

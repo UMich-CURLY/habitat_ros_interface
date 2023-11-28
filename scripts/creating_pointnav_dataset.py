@@ -36,7 +36,9 @@ scene = ARGS.scene
 dataset = ARGS.dataset
 num_episodes_per_scene = 1
 GOAL_BAND = (1.5, 2.5)
-
+'''
+Create N Number of episodes for each scene. Specify the correct scene in arguments
+'''
 class pointnav_data():
     def __init__(self):
         cfg = habitat.get_config()
@@ -96,7 +98,8 @@ class pointnav_data():
         agent_state = self.sim.get_agent_state(0)
         chosen_object = semantic_scene.objects[door_number]   
         goes_through_door = False
-        while (not goes_through_door):
+        path_dist = 0
+        while (not goes_through_door or path_dist<1.0):
             temp_position, rot = self.get_in_band_around_door(agent_state.rotation)
             self.sim.set_agent_state(temp_position, rot)
             agent_pos = self.sim.get_agent_state(0).position
@@ -116,6 +119,7 @@ class pointnav_data():
                 embed()
                 continue       
             goes_through_door = self.check_path_goes_through_door(path)
+            path_dist = path.geodesic_distance
         print(path.points)
         return start_pos, path.points[-1], path.geodesic_distance, door_number
 

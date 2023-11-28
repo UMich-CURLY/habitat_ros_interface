@@ -24,6 +24,9 @@ from rospy_tutorials.msg import Floats
 import yaml
 import cv2 
 from IPython import embed
+
+
+OUT_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/irl/"
 def sem_img_to_world(proj, cam, W,H, u, v, robot_height, debug = False):
     K = proj
     T_world_camera = cam
@@ -157,18 +160,19 @@ class FeatureExpect():
         self.semantic_img[robot_pose_2d[0], robot_pose_2d[1]] = [0,0,0]
         if (robot_pose_2d not in self.traj):
             self.traj.append(robot_pose_2d)
+            print(robot_pose_2d)
         # if (self.update_num == 1):
         #     test_pos_3d = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_pose_2d[0], robot_pose_2d[1], robot_pos_3d[1], debug = True)
         # test_pos_3d = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_pose_2d[0], robot_pose_2d[1], robot_pos_3d[1])
         
         robot_start_pose = self.traj[0]
         robot_start_coord = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_start_pose[0], robot_start_pose[1], self.robot_height)
-        if(self.is_point_in_band(robot_pose_2d, self.ep_goal_band)):
+        if(self.is_point_in_band(robot_pose_2d,[1.0,2.5]) and len(self.traj)>8):
             if(not self.is_point_on_other_side(robot_start_coord, robot_pos_3d)):
                 self.end_point = True
                 print("saving image", len(self.traj))
-                cv2.imwrite("try_in_feat.png",self.semantic_img)
-                with open(IMAGE_DIR+"/trajectory.npy", 'wb') as f:
+                cv2.imwrite(OUT_DIR+"demo_0/"+ "traj_feat.png",self.semantic_img)
+                with open(OUT_DIR+"demo_0/"+ "trajectory.npy", 'wb') as f:
                     np.save(f, np.array(self.traj))
             
                 
@@ -194,7 +198,7 @@ class FeatureExpect():
     def get_current_feature(self):
         self.goal_sink = self.get_goal_sink_feature()
         print("Saving feature")
-        cv2.imwrite(IMAGE_DIR+"/dataset/goal_sink.png", self.goal_sink)
+        cv2.imwrite(OUT_DIR+"demo_0/"+ "goal_sink.png", self.goal_sink)
 
 
     def get_goal_sink_feature(self, goal_band = [1.5,2.5]):

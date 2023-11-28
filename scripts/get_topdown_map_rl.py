@@ -25,7 +25,6 @@ from habitat.tasks.nav.nav import (
     NavigationGoal,
     ShortestPathPoint,
 )
-
 PARSER = argparse.ArgumentParser(description=None)
 
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
@@ -116,11 +115,20 @@ def get_topdown_map(sim, map_name, selected_door_number = None, select_min= Fals
     sdfs = []
     for candidate_door in candidate_doors_index:
         chosen_object = semantic_scene.objects[candidate_door]    
-        if sim.distance_to_closest_obstacle(chosen_object.aabb.center) <0.25:
+        if sim.distance_to_closest_obstacle(chosen_object.aabb.center) <0.25 or sim.distance_to_closest_obstacle(chosen_object.aabb.center) >0.6:
             continue
         else:
             non_obs_candidate_doors.append(candidate_door)
             sdfs.append(sim.distance_to_closest_obstacle(chosen_object.aabb.center))
+        temp_position_agent = sim.pathfinder.get_random_navigable_point_near(chosen_object.aabb.center,1.5)
+        temp_position = chosen_object.aabb.center
+        temp_position[1] = temp_position_agent[1]
+        temp_rot = chosen_object.obb.rotation
+        quat_rot =  qt.quaternion(temp_rot[3], temp_rot[0], temp_rot[1], temp_rot[2])
+        quat_rot = quat_rot  *qt.quaternion(0.7071,0.0,0.0,-0.7071)
+        new_quat = np.array([quat_rot.x, quat_rot.y, quat_rot.z, quat_rot.w])
+        if (not np.allclose(new_quat, np.array([0,0,0,1]), atol = 0.1)) or (not np.allclose(new_quat, np.array([-0.499,0.499,0.499,0.499]), atol = 0.1)):
+            continue
     sdfs = np.array(sdfs)
     candidate_doors_index = np.array(non_obs_candidate_doors)
     door_number = selected_door_number
@@ -136,9 +144,8 @@ def get_topdown_map(sim, map_name, selected_door_number = None, select_min= Fals
     temp_position[1] = temp_position_agent[1]
     temp_rot = chosen_object.obb.rotation
     quat_rot =  qt.quaternion(temp_rot[3], temp_rot[0], temp_rot[1], temp_rot[2])
-    quat_rot = quat_rot  *qt.quaternion(0.7071, 0, 0, -0.7071)
+    quat_rot = quat_rot  *qt.quaternion(0.7071,0.0,0.0,-0.7071)
     new_quat = np.array([quat_rot.x, quat_rot.y, quat_rot.z, quat_rot.w])
-    new_quat = np.array([0,0,0,1])
     sim.set_agent_state(temp_position,new_quat)
     print("Door state is ", temp_position, new_quat)
     # agent_state = env.sim.get_agent_state()

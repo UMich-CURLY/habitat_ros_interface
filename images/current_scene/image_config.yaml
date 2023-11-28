@@ -2,10 +2,10 @@ H: 32
 W: 32
 camera_matrix: /home/catkin_ws/src/habitat_ros_interface/images/current_scene/cam_mat.npy
 projection_matrix: /home/catkin_ws/src/habitat_ros_interface/images/current_scene/proj_mat.npy
-object_id: 374
+object_id: 524
 resolution: 0.15078125
 door_center:  
-- -5.38891
-- 1.2123299
-- 5.57856
+- 7.96209
+- 1.3347592
+- 7.83556
 world_to_door: /home/catkin_ws/src/habitat_ros_interface/images/current_scene/world_to_door.npy
