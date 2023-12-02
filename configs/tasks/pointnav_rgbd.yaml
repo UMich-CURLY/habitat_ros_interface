@@ -17,9 +17,18 @@ SIMULATOR:
   HABITAT_SIM_V0:
     GPU_DEVICE_ID: 0
   RGB_SENSOR:
-    HEIGHT: 128
+    HEIGHT: 720
+    HFOV: 90
+    ORIENTATION:
+    - -1.59
+    - 0.0
+    - 0.0
+    POSITION:
+    - 0
+    - 1.39
+    - 0
     SENSOR_SUBTYPE: PINHOLE
-    WIDTH: 128
+    WIDTH: 720
   SCENE: data/scene_datasets/mp3d/Vvot9Ly1tCj/Vvot9Ly1tCj.glb
   SEMANTIC_SENSOR:
     HEIGHT: 32

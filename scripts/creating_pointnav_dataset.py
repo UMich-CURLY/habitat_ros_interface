@@ -77,6 +77,13 @@ class pointnav_data():
             chosen_object = semantic_scene.objects[candidate_door]    
             if self.sim.distance_to_closest_obstacle(chosen_object.aabb.center) <0.25:
                 continue
+            # if (not np.allclose(goal_rot, np.array([0,0,0,1]), atol = 0.1)) or (not np.allclose(goal_rot, np.array([-0.499,0.499,0.499,0.499]), atol = 0.1)):
+            #     embed()
+            temp_rot = chosen_object.obb.rotation
+            quat_rot =  qt.quaternion(temp_rot[3], temp_rot[0], temp_rot[1], temp_rot[2])
+            a =  qt.as_euler_angles(quat_rot)
+            if (int(abs(a[1]*180/3.1415))%90 > 3):
+                continue
             else:
                 non_obs_candidate_doors.append(candidate_door)
                 sdfs.append(self.sim.distance_to_closest_obstacle(chosen_object.aabb.center))
@@ -91,6 +98,15 @@ class pointnav_data():
             door_number = candidate_doors_index[int(arg_min)]
         
         self.chosen_object = semantic_scene.objects[door_number]    
+        # target_quat = mn.Quaternion(mn.Vector3([1.0,0,0]), 0.0)
+        # obj_rot = chosen_object.obb.rotation
+        # obj_quat = mn.Quaternion(mn.Vector3(obj_rot[0], obj_rot[1], obj_rot[2]), obj_rot[3])
+        # obj_quat_inv = obj_quat.inverted()
+        # x = target_quat*obj_quat_inv
+        # self.chosen_object = {'obb': None, 'aabb':None}
+        # embed()
+        # self.chosen_object.obb = chosen_object.obb.rotate(x)
+        # self.chosen_object.aabb = chosen_object.obb.to_aabb()
         # temp_rot = chosen_object.obb.rotation
         # quat_rot =  qt.quaternion(temp_rot[3], temp_rot[0], temp_rot[1], temp_rot[2])
         # quat_rot = quat_rot  *qt.quaternion(0.7071, 0, 0, -0.7071)
@@ -110,6 +126,7 @@ class pointnav_data():
             path = habitat_path.ShortestPath()
             path.requested_start = np.array(start_pos)
             agent_goal_pos_3d, goal_rot = self.get_in_band_around_door(agent_state.rotation)
+            
             if (not self.is_point_on_other_side(agent_goal_pos_3d, agent_state.position)):
                 continue
             else:
@@ -203,8 +220,17 @@ class pointnav_data():
             ep.info={"geodesic_distance": dist, "door_number": np.float64(door)}
             semantic_scene = self.sim.semantic_annotations()
             chosen_object = semantic_scene.objects[int(door)] 
-            a = np.append(chosen_object.aabb.center+chosen_object.aabb.sizes/10, 1.0)
-            b = np.append(chosen_object.aabb.center-chosen_object.aabb.sizes/10, 1.0)
+            temp_position_agent = self.sim.pathfinder.get_random_navigable_point_near(chosen_object.aabb.center,1.5)
+            temp_position = chosen_object.aabb.center
+            temp_position[1] = temp_position_agent[1]
+            temp_rot = chosen_object.obb.rotation
+            quat_rot =  qt.quaternion(temp_rot[0], temp_rot[1], temp_rot[2], temp_rot[3])
+            # quat_rot = quat_rot  *qt.quaternion(0.7071,0.0,0.0,-0.7071)
+            new_quat = np.array([quat_rot.x, quat_rot.y, quat_rot.z, quat_rot.w])
+            new_quat = np.array([1,0,0,0])
+            self.sim.set_agent_state(temp_position,quat_rot)
+            a = np.append(chosen_object.aabb.center+chosen_object.aabb.sizes/2, 1.0)
+            b = np.append(chosen_object.aabb.center-chosen_object.aabb.sizes/2, 1.0)
             a[1] = chosen_object.aabb.center[1]
             b[1] = chosen_object.aabb.center[1]
             line = np.linspace(a,b,50)

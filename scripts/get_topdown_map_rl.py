@@ -137,15 +137,30 @@ def get_topdown_map(sim, map_name, selected_door_number = None, select_min= Fals
         door_number = candidate_doors_index[int(arg_min)]
     
         
-    chosen_object = semantic_scene.objects[door_number] 
+    chosen_object= semantic_scene.objects[door_number] 
+    # target_quat = mn.Quaternion(mn.Vector3([1.0,0,0]), 0.0)
+    # obj_rot = chosen_object_unrotated.obb.rotation
+    # obj_quat = mn.Quaternion(mn.Vector3(obj_rot[0], obj_rot[1], obj_rot[2]), obj_rot[3])
+    # obj_quat_inv = obj_quat.inverted()
+    # x = target_quat*obj_quat_inv
+    # chosen_object.obb = chosen_object.obb.rotate(x)
+    # chosen_object.aabb = chosen_object.obb.to_aabb()
     print("sdf at chosen door is ", sim.distance_to_closest_obstacle(chosen_object.aabb.center))
     temp_position_agent = sim.pathfinder.get_random_navigable_point_near(chosen_object.aabb.center,1.5)
     temp_position = chosen_object.aabb.center
     temp_position[1] = temp_position_agent[1]
     temp_rot = chosen_object.obb.rotation
     quat_rot =  qt.quaternion(temp_rot[3], temp_rot[0], temp_rot[1], temp_rot[2])
-    quat_rot = quat_rot  *qt.quaternion(0.7071,0.0,0.0,-0.7071)
+    a =  qt.as_euler_angles(quat_rot)
+    a[0] = a[2] = 0
+    quat_rot = qt.from_euler_angles(a)
+    # temp_rot = [-temp_rot[3], 0.0, temp_rot[1], 0.0]
+    # temp_rot = temp_rot/np.linalg.norm(temp_rot)
+    # quat_rot =  qt.quaternion(temp_rot[0], temp_rot[1], temp_rot[2], temp_rot[3])
+    # embed()
+    # quat_rot = qt.quaternion(0.7071,0.7071,0.0,0.0) * quat_rot
     new_quat = np.array([quat_rot.x, quat_rot.y, quat_rot.z, quat_rot.w])
+    # new_quat = np.array([1,0,0,0])
     sim.set_agent_state(temp_position,new_quat)
     print("Door state is ", temp_position, new_quat)
     # agent_state = env.sim.get_agent_state()
@@ -180,7 +195,7 @@ def get_topdown_map(sim, map_name, selected_door_number = None, select_min= Fals
     semantic_img = semantic_img.convert("RGBA")
     semantic_img = np.asarray(semantic_img)
     cv2.imwrite(IMAGE_DIR+"/semantic_img.png", semantic_img)
-
+    cv2.imwrite(IMAGE_DIR+"rgb_img.png", np.asarray(observations['rgb']))
     semantic_img = cv2.imread(IMAGE_DIR+"/semantic_img.png")
     hablab_topdown_map = maps.get_topdown_map_from_sim(
                 cast("HabitatSim", sim), meters_per_pixel= 0.025
@@ -189,6 +204,7 @@ def get_topdown_map(sim, map_name, selected_door_number = None, select_min= Fals
         [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
     )
     hablab_topdown_map = recolor_map[hablab_topdown_map]
+    new_top_down_map = hablab_topdown_map.copy()
     small_top_down_map = 255*np.ones(hablab_topdown_map.shape)
     semantic_img_camera_mat = np.array(render_camera.render_camera.camera_matrix)
     semantic_img_proj_mat = np.array(render_camera.render_camera.projection_matrix)
@@ -221,17 +237,18 @@ def get_topdown_map(sim, map_name, selected_door_number = None, select_min= Fals
     min_y = int(np.min(grid_points[:,:,1]))
     max_x = int(np.max(grid_points[:,:,0]))
     max_y = int(np.max(grid_points[:,:,1]))
-    
+    print(min_x, min_y, max_x, max_y)
     resolution_semantic = (max_x - min_x)*0.025/semantic_img.shape[0]
     for i in np.arange(0,semantic_img.shape[0],resolution_semantic):
-        for j in np.arange(0,semantic_img.shape[1], resolution_semantic):
+        for j in np.arange(0,semantic_img.shape[1],resolution_semantic):
             world_coordinates = sem_img_to_world(semantic_img_proj_mat, semantic_img_camera_mat, semantic_img.shape[0], semantic_img.shape[1], i, j)
             [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], grid_dimensions, pathfinder = sim.pathfinder))
             # if (i ==j == 360):
             #     center_gt = list(maps.to_grid(chosen_object.aabb.center[2], chosen_object.aabb.center[0] , grid_dimensions, pathfinder = sim.pathfinder,))
             #     print(center_gt[0] - x, center_gt[1]-y)
             try:
-                small_top_down_map[x,y] = hablab_topdown_map[x,y]
+                if((new_top_down_map[x,y] == [0,0,0]).all()):
+                    small_top_down_map[x,y] = [0,0,0]
                 # hablab_topdown_map[x,y] = semantic_img[i, j, 0:3]
             except:
                 embed()
@@ -246,6 +263,7 @@ def get_topdown_map(sim, map_name, selected_door_number = None, select_min= Fals
     line_3 = np.column_stack((range_x, np.tile(min_y, range_x.size)))
     line_4 = np.column_stack((range_x, np.tile(max_y, range_x.size)))
     square = np.concatenate((line_1, line_2, line_3, line_4))
+    print(np.max(square))
     small_top_down_map[square[:,0], square[:,1],:] = [0,0,0]
     print(min_x, min_y, max_x, max_y)
     cv2.imwrite(IMAGE_DIR+"/top_down_with_semantic_overlay.png", hablab_topdown_map)
