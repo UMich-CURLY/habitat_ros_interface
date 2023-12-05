@@ -302,10 +302,10 @@ class sim_env(threading.Thread):
         # robot_pos_in_2d = to_grid(self.env._sim.pathfinder, self.env._sim.robot.base_pos, self.grid_dimensions)
         # print(robot_pos_in_2d)
         ### Add human objects and groups here! 
-        self.N = 1
+        self.N = 0
         
         # self.groups = [[0,1,2], [3], [4],[5],[6],[7]]
-        self.groups = [[0], [1]]
+        self.groups = [[0]]
 
         ##### Initiating objects for other humans #####
 
@@ -398,7 +398,7 @@ class sim_env(threading.Thread):
                 path.requested_start = np.array(start_pos_3d)
                 path.requested_end = goal_pos_3d
                 if(not self.env._sim.pathfinder.find_path(path)):
-                    print("Watch this one Tribhi!!!!",i)
+                    print("Watch this one Tribhi!!!!")
                     continue
                 goes_through_door = self.check_path_goes_through_door(path)
             humans_initial_pos_3d.append(path.points[0])
@@ -421,7 +421,7 @@ class sim_env(threading.Thread):
             set_object_state_from_agent(self.env._sim, file_obj, offset=offset, orientation = object_orientation)
             agent_transform = self.env.sim.agents[0].scene_node.transformation_matrix()
             ob_translation = agent_transform.transform_point(offset)
-            file_obj.translation = ob_translation
+            file_obj.translation = mn.Vector3([human_initial_pos[k][0], human_initial_pos[k][1]+1, human_initial_pos[k][2]])
             vel_control_obj = file_obj.velocity_control
             vel_control_obj.controlling_lin_vel = True
             vel_control_obj.controlling_ang_vel = True
@@ -538,7 +538,7 @@ class sim_env(threading.Thread):
         diff_vec[1] = 0
         temp_dist = np.linalg.norm(diff_vec)
         print("Diff vector ", diff_vec)
-        while (temp_dist < 1.5 or temp_dist >2.5):
+        while (temp_dist < 1.0 or temp_dist >1.5):
             temp_position = self.env.sim.pathfinder.get_random_navigable_point_near(self.chosen_object.aabb.center,5)
             diff_vec = temp_position - self.chosen_object.aabb.center
             diff_vec[1] = 0
@@ -570,7 +570,7 @@ class sim_env(threading.Thread):
         x1 = p1_local[1]
         x2 = p2_local[1]
 
-        if (np.sign(y1) == np.sign(y2)):
+        if (np.sign(y1) == np.sign(y2) or abs(y1)<5 or abs(y2) <5):
             return False
         else:
             print(p1_local, p2_local)
@@ -791,11 +791,12 @@ class sim_env(threading.Thread):
                 dtype=torch.bool,
                 device=self.device,
             )
+        else:
+            self.env.sim.step_physics(self.time_step)
         # rewards = torch.tensor(
         #     rewards_l, dtype=torch.float, device="cpu"
         # ).unsqueeze(1)
         # self.current_episode_reward += rewards
-        print(self.initial_state[1])
         ##### For teleop human/follower 
         # self.follower_velocity_control.linear_velocity = self.linear_velocity
         # self.follower_velocity_control.angular_velocity = self.angular_velocity

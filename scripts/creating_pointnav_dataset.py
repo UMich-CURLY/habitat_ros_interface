@@ -35,7 +35,7 @@ ARGS = PARSER.parse_args()
 scene = ARGS.scene
 dataset = ARGS.dataset
 num_episodes_per_scene = 1
-GOAL_BAND = (1.5, 2.5)
+GOAL_BAND = (1.0, 1.5)
 '''
 Create N Number of episodes for each scene. Specify the correct scene in arguments
 '''
@@ -145,7 +145,7 @@ class pointnav_data():
         diff_vec = temp_position - self.chosen_object.aabb.center
         diff_vec[1] = 0
         temp_dist = np.linalg.norm(diff_vec)
-        while (temp_dist < 1.5 or temp_dist >2.5):
+        while (temp_dist < 1.0 or temp_dist >1.5):
             temp_position = self.sim.pathfinder.get_random_navigable_point_near(self.chosen_object.aabb.center,5)
             diff_vec = temp_position - self.chosen_object.aabb.center
             diff_vec[1] = 0

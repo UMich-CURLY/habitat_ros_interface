@@ -1,30 +1,33 @@
+DATASET:
+  DATA_PATH: ./data/datasets/pointnav/mp3d/v1/test/content/B6ByNegPMKs0.json.gz
+  SCENES_DIR: /home/catkin_ws/src/habitat_ros_interface/data/scene_datasets
+  SPLIT: test
+  TYPE: PointNav-v1
 ENVIRONMENT:
   MAX_EPISODE_STEPS: 500
 SIMULATOR:
   AGENT_0:
-    SENSORS: ['RGB_SENSOR']
+    SENSORS:
+    - RGB_SENSOR
+  DEPTH_SENSOR:
+    HEIGHT: 256
+    WIDTH: 256
   HABITAT_SIM_V0:
     GPU_DEVICE_ID: 0
   RGB_SENSOR:
-    WIDTH: 256
     HEIGHT: 256
-  DEPTH_SENSOR:
     WIDTH: 256
-    HEIGHT: 256
 TASK:
-  TYPE: Nav-v0
-
-  SENSORS: ['POINTGOAL_WITH_GPS_COMPASS_SENSOR']
-  POINTGOAL_WITH_GPS_COMPASS_SENSOR:
-    GOAL_FORMAT: "POLAR"
-    DIMENSIONALITY: 2
   GOAL_SENSOR_UUID: pointgoal_with_gps_compass
-
-  MEASUREMENTS: ['DISTANCE_TO_GOAL', 'SUCCESS', 'SPL']
+  MEASUREMENTS:
+  - DISTANCE_TO_GOAL
+  - SUCCESS
+  - SPL
+  POINTGOAL_WITH_GPS_COMPASS_SENSOR:
+    DIMENSIONALITY: 2
+    GOAL_FORMAT: POLAR
+  SENSORS:
+  - POINTGOAL_WITH_GPS_COMPASS_SENSOR
   SUCCESS:
     SUCCESS_DISTANCE: 0.2
-DATASET:
-  DATA_PATH: /home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content/Vvot9Ly1tCj0.json.gz
-  SCENES_DIR: /home/catkin_ws/src/habitat_ros_interface/data/scene_datasets
-  SPLIT: test
-  TYPE: PointNav-v1
+  TYPE: Nav-v0
