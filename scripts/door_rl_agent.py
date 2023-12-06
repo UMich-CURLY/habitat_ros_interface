@@ -563,14 +563,16 @@ class sim_env(threading.Thread):
         
     def is_point_on_other_side(self, p1, p2):
         transform = self.chosen_object.obb.world_to_local
+        size = np.array(self.chosen_object.aabb.sizes)
         p1_local = np.matmul(transform, np.append(p1,1.0).T)
         p2_local = np.matmul(transform, np.append(p2,1.0).T)
+        p_size = np.matmul(transform, np.append(size,1.0).T)
         y1 = p1_local[2]
         y2 = p2_local[2]
         x1 = p1_local[1]
         x2 = p2_local[1]
-
-        if (np.sign(y1) == np.sign(y2) or abs(y1)<5 or abs(y2) <5):
+        x_size = size[0]
+        if (np.sign(y1) == np.sign(y2) or abs(y1)<5 or abs(y2) <5 or abs(x1)>x_size or abs(x2)>x_size):
             return False
         else:
             print(p1_local, p2_local)

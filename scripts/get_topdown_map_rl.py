@@ -45,13 +45,13 @@ if not os.path.exists(IMAGE_DIR):
     print("Didi not find maps directory")
     os.makedirs(IMAGE_DIR)
 
-def draw_agent_in_top_down(sim, map_path = "agent_pos.png", line = None):
+def draw_agent_in_top_down(sim, map_path = "agent_pos.png", line = None, goal = None, points_3d = None):
     agent_state = sim.get_agent_state()
     agent_pos = agent_state.position
     meters_per_pixel =0.025
     
     top_down_map = maps.get_topdown_map(
-        sim.pathfinder, height=0.06, meters_per_pixel=meters_per_pixel
+        sim.pathfinder, height=agent_pos[1], meters_per_pixel=meters_per_pixel
     )
     recolor_map = np.array(
         [[255, 255, 255], [128, 128, 128], [0, 0, 0]], dtype=np.uint8
@@ -69,7 +69,20 @@ def draw_agent_in_top_down(sim, map_path = "agent_pos.png", line = None):
     maps.draw_agent(
         top_down_map, agent_grid_pos, agent_orientation, agent_radius_px=8
     )
+    if goal is not None:
+        goal_grid_pos = maps.to_grid(
+            goal[2], goal[0], grid_dimensions, pathfinder=sim.pathfinder
+        )
+        maps.draw_agent(
+            top_down_map, goal_grid_pos, agent_orientation, agent_radius_px=8
+        )
     door_points_2d = []
+    if points_3d is not None:
+        for point_3d in points_3d:
+            point_2d = maps.to_grid(
+                point_3d[2], point_3d[0], grid_dimensions, pathfinder=sim.pathfinder
+            )
+            top_down_map[point_2d] = [255,0,0]
     if line is not None:
         for i in range(line.shape[0]):
             door_points_2d.append(maps.to_grid(
@@ -221,7 +234,7 @@ def get_topdown_map(sim, map_name, selected_door_number = None, select_min= Fals
             # x = x - 1
             world_coordinates[1] = 0.04
             dist = np.linalg.norm(np.array(center_gt)*0.025-np.array([x,y])*0.025)
-            if (dist >1.5 and dist<2.5):
+            if (dist >1.0 and dist<1.5):
                 if(sim.pathfinder.is_navigable(world_coordinates)):
                     # empty_image[x,y] = [0,0,0]
                     goal_points[i,j,0] = x
@@ -239,8 +252,8 @@ def get_topdown_map(sim, map_name, selected_door_number = None, select_min= Fals
     max_y = int(np.max(grid_points[:,:,1]))
     print(min_x, min_y, max_x, max_y)
     resolution_semantic = (max_x - min_x)*0.025/semantic_img.shape[0]
-    for i in np.arange(0,semantic_img.shape[0],resolution_semantic):
-        for j in np.arange(0,semantic_img.shape[1],resolution_semantic):
+    for i in np.arange(-20,semantic_img.shape[0]+20,resolution_semantic):
+        for j in np.arange(-20,semantic_img.shape[1]+20,resolution_semantic):
             world_coordinates = sem_img_to_world(semantic_img_proj_mat, semantic_img_camera_mat, semantic_img.shape[0], semantic_img.shape[1], i, j)
             [x,y] = list(maps.to_grid(world_coordinates[2], world_coordinates[0], grid_dimensions, pathfinder = sim.pathfinder))
             # if (i ==j == 360):
@@ -251,21 +264,22 @@ def get_topdown_map(sim, map_name, selected_door_number = None, select_min= Fals
                     small_top_down_map[x,y] = [0,0,0]
                 # hablab_topdown_map[x,y] = semantic_img[i, j, 0:3]
             except:
-                embed()
-    max_x += int(1/resolution_semantic)
-    max_y += int(1/resolution_semantic)
-    # min_x -= int(1/resolution_semantic)
-    # min_y -= int(1/resolution_semantic)
-    range_x = np.arange(min_x, max_x)
-    range_y = np.arange(min_y, max_y)
-    line_1 = np.column_stack((np.tile(min_x, range_y.size), range_y))
-    line_2 = np.column_stack((np.tile(max_x, range_y.size), range_y))
-    line_3 = np.column_stack((range_x, np.tile(min_y, range_x.size)))
-    line_4 = np.column_stack((range_x, np.tile(max_y, range_x.size)))
-    square = np.concatenate((line_1, line_2, line_3, line_4))
-    print(np.max(square))
-    small_top_down_map[square[:,0], square[:,1],:] = [0,0,0]
-    print(min_x, min_y, max_x, max_y)
+                print("Not found in sem image")
+                
+    # max_x += int(1/resolution_semantic)
+    # max_y += int(1/resolution_semantic)
+    # # min_x -= int(1/resolution_semantic)
+    # # min_y -= int(1/resolution_semantic)
+    # range_x = np.arange(min_x, max_x)
+    # range_y = np.arange(min_y, max_y)
+    # line_1 = np.column_stack((np.tile(min_x, range_y.size), range_y))
+    # line_2 = np.column_stack((np.tile(max_x, range_y.size), range_y))
+    # line_3 = np.column_stack((range_x, np.tile(min_y, range_x.size)))
+    # line_4 = np.column_stack((range_x, np.tile(max_y, range_x.size)))
+    # square = np.concatenate((line_1, line_2, line_3, line_4))
+    # print(np.max(square))
+    # small_top_down_map[square[:,0], square[:,1],:] = [0,0,0]
+    # print(min_x, min_y, max_x, max_y)
     cv2.imwrite(IMAGE_DIR+"/top_down_with_semantic_overlay.png", hablab_topdown_map)
     cv2.imwrite(IMAGE_DIR+"/small_top_down.png", small_top_down_map)
     cv2.imwrite(IMAGE_DIR+"/goal_sink.png", empty_image)
@@ -352,11 +366,11 @@ def main():
         # scalar values to Python the dictionary format
         config = yaml.load(file, Loader=yaml.FullLoader)
         if (dataset == "mp3d"):
-            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz"
+            config['DATASET']['DATA_PATH'] = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz"
         elif (dataset == "gibson"):
-            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/gibson/v1/test/content/"+scene+"0.json.gz"
+            config['DATASET']['DATA_PATH'] = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/gibson/v1/test/content/"+scene+"0.json.gz"
         elif (dataset == "habitat"):
-            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/habitat-test-scenes/v1/test/content/"+scene+"0.json.gz"
+            config['DATASET']['DATA_PATH'] = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/habitat-test-scenes/v1/test/content/"+scene+"0.json.gz"
     with open("configs/tasks/pointnav_rgbd.yaml",'w') as file:
         print("Replacing the data config to the new scene ", scene)
         documents = yaml.dump(config, file)
@@ -365,11 +379,11 @@ def main():
         # scalar values to Python the dictionary format
         config = yaml.load(file, Loader=yaml.FullLoader)
         if (dataset == "mp3d"):
-            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz"
+            config['DATASET']['DATA_PATH'] = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz"
         elif (dataset == "gibson"):
-            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/gibson/v1/test/content/"+scene+"0.json.gz"
+            config['DATASET']['DATA_PATH'] = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/gibson/v1/test/content/"+scene+"0.json.gz"
         elif (dataset == "habitat"):
-            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/habitat-test-scenes/v1/test/content/"+scene+"0.json.gz"
+            config['DATASET']['DATA_PATH'] = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/habitat-test-scenes/v1/test/content/"+scene+"0.json.gz"
     
     with open("configs/tasks/pointnav_mp3d.yaml",'w') as file:
         print("Replacing the data config to the new scene ", scene)

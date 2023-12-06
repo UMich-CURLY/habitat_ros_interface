@@ -115,7 +115,10 @@ class pointnav_data():
         chosen_object = semantic_scene.objects[door_number]   
         goes_through_door = False
         path_dist = 0
+        max_tries = 200
+        try_num = 0
         while (not goes_through_door or path_dist<1.0):
+            try_num+=1
             temp_position, rot = self.get_in_band_around_door(agent_state.rotation)
             self.sim.set_agent_state(temp_position, rot)
             agent_pos = self.sim.get_agent_state(0).position
@@ -126,17 +129,26 @@ class pointnav_data():
             path = habitat_path.ShortestPath()
             path.requested_start = np.array(start_pos)
             agent_goal_pos_3d, goal_rot = self.get_in_band_around_door(agent_state.rotation)
-            
+            if (try_num > max_tries):
+                path.requested_end = agent_goal_pos_3d
+                if(not self.sim.pathfinder.find_path(path)):
+                    print("Didn't find path")
+                path_dist = path.geodesic_distance
+                print("No solution found, try a different door ")
+                door_number = -1
+                break
             if (not self.is_point_on_other_side(agent_goal_pos_3d, agent_state.position)):
                 continue
             else:
                 path.requested_end = agent_goal_pos_3d
+            
             if(not self.sim.pathfinder.find_path(path)):
                 print("Didn't find path")
                 embed()
                 continue       
             goes_through_door = self.check_path_goes_through_door(path)
             path_dist = path.geodesic_distance
+            
         print(path.points)
         return start_pos, path.points[-1], path.geodesic_distance, door_number
 
@@ -187,17 +199,20 @@ class pointnav_data():
             return False
     def is_point_on_other_side(self, p1, p2):
         transform = self.chosen_object.obb.world_to_local
+        size = np.array(self.chosen_object.aabb.sizes)
         p1_local = np.matmul(transform, np.append(p1,1.0).T)
         p2_local = np.matmul(transform, np.append(p2,1.0).T)
+        p_size = np.matmul(transform, np.append(size,1.0).T)
         y1 = p1_local[2]
         y2 = p2_local[2]
         x1 = p1_local[1]
         x2 = p2_local[1]
+        print(size)
+        x_size = np.max([size[0], size[2]])
 
-        if (np.sign(y1) == np.sign(y2)):
+        if (np.sign(y1) == np.sign(y2) or abs(y1)<5 or abs(y2) <5 or abs(x1)>x_size or abs(x2)>x_size):
             return False
         else:
-            print(p1_local, p2_local)
             return True
     def is_in_same_region(self, pos):
         region = self.chosen_object.region
@@ -214,21 +229,20 @@ class pointnav_data():
         
         count_episodes = 0
         for ep in self.dset.episodes:
-            start, goal, dist, door = self.get_start_goal()
+            door = -1 
+            max_tries = 20
+            try_num = 0
+            while (door == -1):
+                start, goal, dist, door = self.get_start_goal()
+                try_num +=1
+                if (try_num>max_tries):
+                    print("This scene does not have the right setup for the door scenario")
+                    return False
             ep.start_position = np.float64(start)
             ep.goals = [NavigationGoal(position = goal, radius = 0.2)]
             ep.info={"geodesic_distance": dist, "door_number": np.float64(door)}
             semantic_scene = self.sim.semantic_annotations()
             chosen_object = semantic_scene.objects[int(door)] 
-            temp_position_agent = self.sim.pathfinder.get_random_navigable_point_near(chosen_object.aabb.center,1.5)
-            temp_position = chosen_object.aabb.center
-            temp_position[1] = temp_position_agent[1]
-            temp_rot = chosen_object.obb.rotation
-            quat_rot =  qt.quaternion(temp_rot[0], temp_rot[1], temp_rot[2], temp_rot[3])
-            # quat_rot = quat_rot  *qt.quaternion(0.7071,0.0,0.0,-0.7071)
-            new_quat = np.array([quat_rot.x, quat_rot.y, quat_rot.z, quat_rot.w])
-            new_quat = np.array([1,0,0,0])
-            self.sim.set_agent_state(temp_position,quat_rot)
             a = np.append(chosen_object.aabb.center+chosen_object.aabb.sizes/2, 1.0)
             b = np.append(chosen_object.aabb.center-chosen_object.aabb.sizes/2, 1.0)
             a[1] = chosen_object.aabb.center[1]
@@ -265,10 +279,18 @@ class pointnav_data():
                 f.write(self.dset.to_json())
         else:
             print("No dataset found")
-            exit(0)
+            return False
         
-        draw_agent_in_top_down(self.sim, map_path = "agent_pos_in_dataset.png", line = line)
-        
+        draw_agent_in_top_down(self.sim, map_path = "agent_pos_in_dataset.png", line = line, goal = goal)
+        # points = []
+        # for i in range(1000):
+        #     point, a = self.get_in_band_around_door()
+        #     if (self.is_point_on_other_side(point, start)):
+        #         points.append(point)
+        # print("Length of points is ", len(points))
+        # draw_agent_in_top_down(self.sim, map_path = "door_area.png", line = line, goal = goal, points_3d = points)
+        return True
+
 
 
 # scenes = glob.glob("./data/scene_datasets/mp3d/17DRP5sb8fy.glb")
@@ -281,4 +303,4 @@ class pointnav_data():
 
 if __name__ == "__main__":
     scene_data = pointnav_data()
-    scene_data._generate_fn(scene=scene, dataset = dataset)
+    success = scene_data._generate_fn(scene=scene, dataset = dataset)
