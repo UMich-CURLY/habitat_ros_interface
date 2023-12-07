@@ -36,7 +36,7 @@ scene = ARGS.scene
 meters_per_pixel = ARGS.mps
 dataset = ARGS.dataset
 MAP_DIR = "/home/catkin_ws/src/habitat_ros_interface/maps"
-IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
+IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/images/"+scene
 if not os.path.exists(MAP_DIR):
     print("Didi not find maps directory")
     os.makedirs(MAP_DIR)
@@ -208,7 +208,6 @@ def get_topdown_map(sim, map_name, selected_door_number = None, select_min= Fals
     semantic_img = semantic_img.convert("RGBA")
     semantic_img = np.asarray(semantic_img)
     cv2.imwrite(IMAGE_DIR+"/semantic_img.png", semantic_img)
-    cv2.imwrite(IMAGE_DIR+"rgb_img.png", np.asarray(observations['rgb']))
     semantic_img = cv2.imread(IMAGE_DIR+"/semantic_img.png")
     hablab_topdown_map = maps.get_topdown_map_from_sim(
                 cast("HabitatSim", sim), meters_per_pixel= 0.025

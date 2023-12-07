@@ -36,6 +36,10 @@ scene = ARGS.scene
 dataset = ARGS.dataset
 num_episodes_per_scene = 1
 GOAL_BAND = (1.0, 1.5)
+IMG_OUT_PATH = "data/datasets/pointnav/mp3d/v1/test/images/"+scene
+if not os.path.exists(IMG_OUT_PATH):
+    print("Didi not find maps directory")
+    os.makedirs(IMG_OUT_PATH)
 '''
 Create N Number of episodes for each scene. Specify the correct scene in arguments
 '''
@@ -117,7 +121,8 @@ class pointnav_data():
         path_dist = 0
         max_tries = 200
         try_num = 0
-        while (not goes_through_door or path_dist<1.0):
+        is_same_floor = False
+        while (not goes_through_door or path_dist<1.0 or not is_same_floor):
             try_num+=1
             temp_position, rot = self.get_in_band_around_door(agent_state.rotation)
             self.sim.set_agent_state(temp_position, rot)
@@ -148,7 +153,7 @@ class pointnav_data():
                 continue       
             goes_through_door = self.check_path_goes_through_door(path)
             path_dist = path.geodesic_distance
-            
+            is_same_floor = self.is_same_floor(agent_goal_pos_3d, agent_state.position)
         print(path.points)
         return start_pos, path.points[-1], path.geodesic_distance, door_number
 
@@ -225,6 +230,12 @@ class pointnav_data():
             return True
         else:
             return False
+
+    def is_same_floor(self, p1, p2):
+        if abs(p1[1]-p2[1])>1.0:
+            return False
+        else:
+            return True
     def _generate_fn(self, scene, dataset, start = None, goal = None):
         
         count_episodes = 0
@@ -281,7 +292,7 @@ class pointnav_data():
             print("No dataset found")
             return False
         
-        draw_agent_in_top_down(self.sim, map_path = "agent_pos_in_dataset.png", line = line, goal = goal)
+        draw_agent_in_top_down(self.sim, map_path = IMG_OUT_PATH+"/"+scene+"_ep.png", line = line, goal = goal)
         # points = []
         # for i in range(1000):
         #     point, a = self.get_in_band_around_door()
