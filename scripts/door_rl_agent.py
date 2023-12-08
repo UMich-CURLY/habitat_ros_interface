@@ -73,7 +73,7 @@ PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scen
 ARGS = PARSER.parse_args()
 scene = ARGS.scene
 USE_RVO = False
-IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
+IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/images/"+scene
 GOAL_BAND = (1.5, 2.5)
 
 
@@ -529,7 +529,6 @@ class sim_env(threading.Thread):
             device=self.ppo.device,
             dtype=torch.bool,
         )
-        embed()
         print("created habitat_plant succsefully")
 
     def get_in_band_around_door(self, agent_rotation = None):

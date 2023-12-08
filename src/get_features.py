@@ -24,10 +24,12 @@ from rospy_tutorials.msg import Floats
 import yaml
 import cv2 
 from IPython import embed
+myargv = rospy.myargv(argv=sys.argv)
 
-
+scene = myargv[1]
 OUT_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/irl/"
-
+IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/images/"+scene
+print(IMAGE_DIR)
 max_num = 0
 for foldername in os.listdir(OUT_DIR):
     number_str = "_"
@@ -120,7 +122,6 @@ def transform_pose(input_pose, from_frame, to_frame):
 
 
 
-IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
 
 Step = namedtuple('Step','cur_state next_state')
 class FeatureExpect():
@@ -181,13 +182,13 @@ class FeatureExpect():
                     raise
             episode_path = sim_config["DATASET"]["DATA_PATH"]
             __ = os.system("cp " + episode_path + " " + FULL_PATH)
-            if (self.is_point_in_band(robot_pose_2d)):
-                print("Found the first robot pose")
-                self.start_point = True
-                self.traj.append(robot_pose_2d)
-                self.get_current_feature()
-                self.semantic_img[robot_pose_2d[0], robot_pose_2d[1]] = [0,0,0]
-                return robot_pose_2d
+            # if (self.is_point_in_band(robot_pose_2d)):
+            print("Found the first robot pose")
+            self.start_point = True
+            self.traj.append(robot_pose_2d)
+            self.get_current_feature()
+            self.semantic_img[robot_pose_2d[0], robot_pose_2d[1]] = [0,0,0]
+            return robot_pose_2d
         else:
 
             robot_pos_3d = [msg.position.x, msg.position.y, msg.position.z]
@@ -206,8 +207,11 @@ class FeatureExpect():
             
             robot_start_pose = self.traj[0]
             robot_start_coord = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_start_pose[0], robot_start_pose[1], self.robot_height)
-            if(self.is_point_in_band(robot_pose_2d,[1.0,2.5]) and len(self.traj)>8):
-                if(not self.is_point_on_other_side(robot_start_coord, robot_pos_3d)):
+            
+            print("Is in band? ", self.is_point_in_band(robot_pose_2d,[0.8,2.5]) )
+            print("Is on other side? ", self.is_point_on_other_side(robot_start_coord, world_coordinates))
+            if(self.is_point_in_band(robot_pose_2d,[0.8,2.5])):
+                if(self.is_point_on_other_side(robot_start_coord, world_coordinates)):
                     self.end_point = True
                     print("saving image", len(self.traj))
                     cv2.imwrite(FULL_PATH+ "/traj_feat.png",self.semantic_img)
@@ -240,7 +244,7 @@ class FeatureExpect():
         cv2.imwrite(FULL_PATH+ "/goal_sink.png", self.goal_sink)
 
 
-    def get_goal_sink_feature(self, goal_band = [1.5,2.5]):
+    def get_goal_sink_feature(self, goal_band = [1.0,1.5]):
         empty_image = 0*np.ones(self.semantic_img.shape)
         robot_start_pose = self.traj[0]
         robot_start_coord = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_start_pose[0], robot_start_pose[1], self.robot_height)
@@ -291,7 +295,7 @@ class FeatureExpect():
         x1 = p1_local[1]
         x2 = p2_local[1]
 
-        if (np.sign(y1) == np.sign(y2)):
+        if (np.sign(y1) == np.sign(y2) or abs(y1) <5 or abs(y2)<5):
             return False
         else:
             # print(p1_local, p2_local)
