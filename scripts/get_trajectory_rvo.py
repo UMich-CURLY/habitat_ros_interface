@@ -10,7 +10,7 @@ import numpy as np
 import yaml
 import itertools
 from IPython import embed
-import tf
+# import tf
 from habitat.utils.visualizations import maps
 import toml
 import matplotlib.pyplot as plt
@@ -103,7 +103,7 @@ class ped_rvo():
         self.max_neighbors = self.num_pedestrians
         self.time_horizon = self.config.get('orca_time_horizon', 2.0)
         self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 4.0)
-        self.orca_radius = self.config.get('orca_radius', 0.35)
+        self.orca_radius = self.config.get('orca_radius', 0.2)
         self.orca_max_speed = self.config.get('orca_max_speed', 0.5)
         self.dt = my_env.human_time_step
         self.orca_sim = rvo2.PyRVOSimulator(
@@ -118,7 +118,7 @@ class ped_rvo():
         self.load_obs_from_map(map_path, resolution)
         self.fig, self.ax = plt.subplots()
         self.plot_obstacles()
-        self.max_counter = int(20/my_env.human_time_step)
+        self.max_counter = int(100/my_env.human_time_step)
         self.update_number = 0
         self.orca_ped = []
         initial_state = my_env.initial_state

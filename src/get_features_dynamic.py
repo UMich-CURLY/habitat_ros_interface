@@ -128,7 +128,7 @@ class FeatureExpect():
         # self.traj_sub = rospy.Subscriber("traj_matrix", numpy_msg(Floats), self.traj_callback,queue_size=100)
 
         ### Replace with esfm
-        self.sub_people = rospy.Subscriber("agent_poses", PoseArray, self.people_callback, queue_size=100)
+        self.sub_people = rospy.Subscriber("human_pose_in_sim", Pose, self.people_callback, queue_size=1)
         self.sub_robot = rospy.Subscriber("robot_pose_in_sim", Pose, self.get_robot_pose, queue_size=1)
         # self.sub_goal = rospy.Subscriber("move_base_simple/goal", PoseStamped, self.goal_callback, queue_size=100)
         self.robot_pose = [0.0, 0.0]
@@ -184,7 +184,7 @@ class FeatureExpect():
             print("Found the first robot pose")
             self.start_point = True
             self.traj.append(robot_pose_2d)
-            # self.get_current_feature()
+            self.get_current_feature()
             __ = os.system("cp "+ IMAGE_DIR+"/goal_sink.png " + FULL_PATH)
             __ = os.system("cp "+ IMAGE_DIR+"/semantic_img.png " + FULL_PATH)
             self.semantic_img[robot_pose_2d[0], robot_pose_2d[1]] = [0,0,0]
@@ -224,20 +224,21 @@ class FeatureExpect():
     def traj_callback(self,data):
         self.traj_feature = [[cell] for cell in data.data]
 
-    def people_callback(self,data):
+    def people_callback(self,msg):
             # print(percent_change)
-        agent_poses = data.poses
-        # people_stamped = np.array([transform_pose(people, "my_map_frame", "map") for people in agent_poses])
-        self.pose_people = np.array([[people.position.x,people.position.y, people.position.z, people.orientation.x, people.orientation.y, people.orientation.z, people.orientation.w] for people in agent_poses])
-        self.pose_people_tf = np.empty((0,4 ,4), float)
-        for people_pose in self.pose_people:
-            rot = people_pose[3:]
-            pose_people_tf = quaternion_matrix(rot)
-            pose_people_tf[0][3] = people_pose[0]
-            pose_people_tf[1][3] = people_pose[1]
-            pose_people_tf[2][3] = people_pose[2]
-            self.pose_people_tf = np.append(self.pose_people_tf, np.array([pose_people_tf]), axis=0)
+        
+        human_pos_3d = [msg.position.x, msg.position.y, msg.position.z]
+        self.human_height = human_pos_3d[1]
+        self.update_num+=1
+        human_pose_2d = world_to_sem_img(self.semantic_img_proj_mat, self.semantic_img_camera_mat, human_pos_3d, self.semantic_img.shape[0], self.semantic_img.shape[1])
+
+        world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1],human_pose_2d[0],human_pose_2d[1], self.human_height)
+        self.semantic_img[human_pose_2d[0], human_pose_2d[1]] = [255,0,0]
+        
     
+    def get_people_feature():
+        pass
+
     def get_current_feature(self):
         # self.goal_sink = self.get_goal_sink_feature()
         print("Saving feature")

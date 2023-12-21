@@ -27,6 +27,8 @@ import numpy as np
 import quaternion as qt
 from IPython import embed
 from get_topdown_map_rl import draw_agent_in_top_down
+from get_trajectory import *
+from get_trajectory_rvo import *
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 PARSER.add_argument('-d', '--dataset', default="mp3d", type=str, help='dataset')
@@ -78,8 +80,9 @@ class pointnav_data():
         non_obs_candidate_doors = []
         sdfs = []
         for candidate_door in candidate_doors_index:
-            chosen_object = semantic_scene.objects[candidate_door]    
-            if self.sim.distance_to_closest_obstacle(chosen_object.aabb.center) <0.25:
+            chosen_object = semantic_scene.objects[candidate_door]
+            dist = self.sim.distance_to_closest_obstacle(chosen_object.aabb.center) 
+            if dist <0.3 or dist>0.8:
                 continue
             # if (not np.allclose(goal_rot, np.array([0,0,0,1]), atol = 0.1)) or (not np.allclose(goal_rot, np.array([-0.499,0.499,0.499,0.499]), atol = 0.1)):
             #     embed()
@@ -243,6 +246,7 @@ class pointnav_data():
             door = -1 
             max_tries = 20
             try_num = 0
+            
             while (door == -1):
                 start, goal, dist, door = self.get_start_goal()
                 try_num +=1

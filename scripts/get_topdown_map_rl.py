@@ -316,34 +316,34 @@ def get_topdown_map(sim, map_name, selected_door_number = None, select_min= Fals
     b[1] = chosen_object.aabb.center[1]
     line = np.linspace(a,b,50)
     draw_agent_in_top_down(sim, map_path = "agent_pos.png", line = line)
-    if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
-        meters_per_pixel =0.025
-        hablab_topdown_map = maps.get_topdown_map_from_sim(
-                cast("HabitatSim", sim), meters_per_pixel= meters_per_pixel
-            )
-        recolor_map = np.array(
-            [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
+    # if (not os.path.isfile("./maps/resolution_"+scene+"_"+str(meters_per_pixel)+".pgm")): 
+    meters_per_pixel =0.025
+    hablab_topdown_map = maps.get_topdown_map_from_sim(
+            cast("HabitatSim", sim), meters_per_pixel= meters_per_pixel
         )
-        hablab_topdown_map = recolor_map[hablab_topdown_map]
-        square_map_resolution = 5000
-        map_resolution = [5000,5000]
-        top_down_map = hablab_topdown_map
-        grid_dimensions = (top_down_map.shape[0]*meters_per_pixel, top_down_map.shape[1]*meters_per_pixel)
-        # Image containing 0 if occupied, 1 if unoccupied, and 2 if border (if
-        # the flag is set)
-        top_down_map[np.where(top_down_map == 0)] = 125
-        top_down_map[np.where(top_down_map == 1)] = 255
-        top_down_map[np.where(top_down_map == 2)] = 0
-        imageio.imsave(os.path.join(MAP_DIR, map_name + ".pgm"), hablab_topdown_map)
-        print("writing Yaml file! ")
-        complete_name = os.path.join(MAP_DIR, map_name + ".yaml")
-        f = open(complete_name, "w+")
+    recolor_map = np.array(
+        [[128, 128, 128], [255, 255, 255], [0, 0, 0]], dtype=np.uint8
+    )
+    hablab_topdown_map = recolor_map[hablab_topdown_map]
+    square_map_resolution = 5000
+    map_resolution = [5000,5000]
+    top_down_map = hablab_topdown_map
+    grid_dimensions = (top_down_map.shape[0]*meters_per_pixel, top_down_map.shape[1]*meters_per_pixel)
+    # Image containing 0 if occupied, 1 if unoccupied, and 2 if border (if
+    # the flag is set)
+    top_down_map[np.where(top_down_map == 0)] = 125
+    top_down_map[np.where(top_down_map == 1)] = 255
+    top_down_map[np.where(top_down_map == 2)] = 0
+    imageio.imsave(os.path.join(MAP_DIR, map_name + ".pgm"), hablab_topdown_map)
+    print("writing Yaml file! ")
+    complete_name = os.path.join(MAP_DIR, map_name + ".yaml")
+    f = open(complete_name, "w+")
 
-        f.write("image: " + map_name + ".pgm\n")
-        f.write("resolution: " + str(meters_per_pixel) + "\n")
-        f.write("origin: [" + str(-1) + "," + str(-grid_dimensions[0]+1) + ", 0.000000]\n")
-        f.write("negate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.196")
-        f.close()
+    f.write("image: " + map_name + ".pgm\n")
+    f.write("resolution: " + str(meters_per_pixel) + "\n")
+    f.write("origin: [" + str(-1) + "," + str(-grid_dimensions[0]+1) + ", 0.000000]\n")
+    f.write("negate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.196")
+    f.close()
     return len(candidate_doors_index), door_number
 
 def from_json(json_str: str):

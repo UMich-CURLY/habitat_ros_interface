@@ -26,7 +26,7 @@
 		<remap from="third_rgb_1" to="sim/third_rgb"/>
 	</node>
 	<arg name="scene" default="17DRP5sb8fy"/>
-	<node pkg="habitat_ros_interface" type="get_features.py" name="Feature_expect" output="screen" args="$(arg scene)">
+	<node pkg="habitat_ros_interface" type="get_features_dynamic.py" name="Feature_expect" output="screen" args="$(arg scene)">
 	</node>
 	<!-- <node pkg="habitat_ros_interface" type="get_sdf_grid.py" name="get_sdf_grid" output="screen">
 		<param name = "scene" value = "$(arg scene)" />

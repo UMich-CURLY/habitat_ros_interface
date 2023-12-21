@@ -9,7 +9,7 @@ import numpy as np
 import yaml
 import itertools
 from IPython import embed
-import tf
+# import tf
 from habitat.utils.visualizations import maps
 import matplotlib.pyplot as plt
 
@@ -39,7 +39,7 @@ class social_force():
         self.save_plot = True
         if (self.save_plot):
             self.plot_obstacles()
-        self.max_counter = int(20/my_env.human_time_step)
+        self.max_counter = int(100/my_env.human_time_step)
         self.update_number = 0
         self.dt = my_env.human_time_step
         self.s.peds.step_width = 0.4*my_env.human_time_step
@@ -127,7 +127,7 @@ class social_force():
             velx = (x - initial_state[j][0])/self.dt
             vely = (y - initial_state[j][1])/self.dt
             computed_velocity.append([velx,vely])
-            if (self.update_number < self.max_counter and self.save_plot):
+            if (self.save_plot):
                 self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
                 self.ax.plot(initial_state[j][4], initial_state[j][5], "-x", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
         if (self.update_number == self.max_counter and self.save_plot):
@@ -139,6 +139,21 @@ class social_force():
         # print("Velocity returned is ", computed_velocity)
         # print("State of the agent is ", self.s.peds.state)
         return np.array(computed_velocity)
+    
+    def get_full_traj(self,initial_state):
+        self.s.peds.state[:,0:6] = initial_state[:][0:6]
+        lin_vel = np.linalg.norm(self.s.peds.state[1,2:4])
+        states = []
+        update_num = 0
+        while (not (lin_vel == 0)) and update_num<100:               
+            self.s.step(1)
+            lin_vel = np.linalg.norm(self.s.peds.state[1,2:4])
+            states.append(self.s.peds.state[1,0:2].copy())
+            # print(states[-1])
+            # print(lin_vel)
+            update_num+=1
+        return states
+
     
     def plot_obstacles(self):
         self.fig.set_tight_layout(True)

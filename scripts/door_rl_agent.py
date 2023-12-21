@@ -184,6 +184,7 @@ def set_object_state_from_agent(
     obj.rotation = orientation
 
 
+
 class sim_env(threading.Thread):
     _x_axis = 0
     _y_axis = 1
@@ -269,6 +270,7 @@ class sim_env(threading.Thread):
         self._pub_all_agents = rospy.Publisher("~agent_poses", PoseArray, queue_size = 1)
         self._pub_goal_marker = rospy.Publisher("~goal", Marker, queue_size = 1)
         self._pub_robot_sem = rospy.Publisher("robot_pose_in_sim", Pose, queue_size = 1)
+        self._pub_human_sem = rospy.Publisher("human_pose_in_sim", Pose, queue_size = 1)
         self.br = tf.TransformBroadcaster()
         self.br_tf_2 = tf2_ros.TransformBroadcaster()
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
@@ -302,10 +304,10 @@ class sim_env(threading.Thread):
         # robot_pos_in_2d = to_grid(self.env._sim.pathfinder, self.env._sim.robot.base_pos, self.grid_dimensions)
         # print(robot_pos_in_2d)
         ### Add human objects and groups here! 
-        self.N = 0
+        self.N = 1
         
         # self.groups = [[0,1,2], [3], [4],[5],[6],[7]]
-        self.groups = [[0]]
+        self.groups = [[0],[1]]
 
         ##### Initiating objects for other humans #####
 
@@ -388,10 +390,12 @@ class sim_env(threading.Thread):
             while (not goes_through_door):
                 while(not self.is_point_on_other_side(start_pos_3d, agent_state.position)):
                     start_pos_3d, a = self.get_in_band_around_door()
-                # start_pos = from_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
+                start_pos = to_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
+                print("selected start")
                 temp_goal_pos_3d, a = self.get_in_band_around_door()
                 while(not self.is_point_on_other_side(start_pos_3d, temp_goal_pos_3d)):
                     temp_goal_pos_3d, a = self.get_in_band_around_door()
+                print("selected goal")
                 goal_pos_3d = temp_goal_pos_3d
                 self.final_goals_3d[k+1,:] = goal_pos_3d
                 path = habitat_path.ShortestPath()
@@ -402,7 +406,7 @@ class sim_env(threading.Thread):
                     continue
                 goes_through_door = self.check_path_goes_through_door(path)
             humans_initial_pos_3d.append(path.points[0])
-            humans_goal_pos_3d.append(path.points[1])
+            humans_goal_pos_3d.append(path.points[-1])
             human_initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
             human_initial_pos = [pos*0.025 for pos in human_initial_pos]
             goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[-1], self.grid_dimensions))
@@ -410,7 +414,7 @@ class sim_env(threading.Thread):
             self.initial_state.append(human_initial_pos+agents_initial_velocity+goal_pos)
             agent_state = self.env.sim.get_agent_state(0).position
             offset = humans_initial_pos_3d[k]-agent_state
-            offset[1] += 1.0
+            offset[1] += 1
             orientation_x = 90   # @param {type:"slider", min:-180, max:180, step:1}
             orientation_y = (np.pi/2-0.97)*180/np.pi  # @param {type:"slider", min:-180, max:180, step:1}
             orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}
@@ -421,7 +425,7 @@ class sim_env(threading.Thread):
             set_object_state_from_agent(self.env._sim, file_obj, offset=offset, orientation = object_orientation)
             agent_transform = self.env.sim.agents[0].scene_node.transformation_matrix()
             ob_translation = agent_transform.transform_point(offset)
-            file_obj.translation = mn.Vector3([human_initial_pos[k][0], human_initial_pos[k][1]+1, human_initial_pos[k][2]])
+            file_obj.translation = mn.Vector3([humans_initial_pos_3d[k][0], humans_initial_pos_3d[k][1]+1, humans_initial_pos_3d[k][2]])
             vel_control_obj = file_obj.velocity_control
             vel_control_obj.controlling_lin_vel = True
             vel_control_obj.controlling_ang_vel = True
@@ -436,11 +440,37 @@ class sim_env(threading.Thread):
             self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
         
         if USE_RVO:
-            self.sfm = ped_rvo(self, map_path = "./images/current_scene/small_top_down.png", resolution = 0.025)
+            self.sfm = ped_rvo(self, map_path = IMAGE_DIR+"/small_top_down.png", resolution = 0.025)
             self.sfm.fig.savefig("Initial_plot.png")
             print("Initialized rvo2 sim")
         else:
-            self.sfm = social_force(self, map_path = "./images/current_scene/small_top_down.png", resolution = 0.025, groups = self.groups)
+            possible = False
+            self.sfm = social_force(self, map_path = IMAGE_DIR+"/small_top_down.png", resolution = 0.025, groups = self.groups)
+            try_num = 0
+            while not possible:
+                # temp_state = self.initial_state
+                # self.initial_state = [self.initial_state[1]]
+                # self.sfm = social_force(self, map_path = IMAGE_DIR+"/small_top_down.png", resolution = 0.025, groups = [[0]])
+                states = self.sfm.get_full_traj(self.initial_state)
+                if (np.linalg.norm(self.sfm.s.peds.state[1][0:2]-self.sfm.s.peds.state[1][4:6]) < 1.0):
+                    possible = True
+                try_num+=1
+                self.reset_human_pos(index = 0)
+                print("Try number is ", try_num)
+                if (try_num>5):
+                    exit(10)
+
+            # empty_map = np.zeros([self.semantic_img.shape[0], self.semantic_img.shape[1]])
+            # max_val = len(states)
+            # increment = (255-50)/max_val
+            # for i in range(max_val):
+            #     p = states[i]                
+            #     point_3d = from_grid(self.env._sim.pathfinder, [p[0]/0.025, p[1]/0.025], self.grid_dimensions)
+            #     point_sem = world_to_sem_img(self.semantic_img_proj_mat, self.semantic_img_camera_mat, point_3d, self.semantic_img_W, self.semantic_img_H)
+            #     empty_map[int(point_sem[0]), int(point_sem[1])] = 255-i*increment
+            # cv2.imwrite(IMAGE_DIR+"/people_traj.png", empty_map)
+            self.sfm = social_force(self, map_path = IMAGE_DIR+"/small_top_down.png", resolution = 0.025, groups = self.groups)
+            
             self.sfm.fig.savefig("Initial_plot.png")
             print("Initialized ESFM sim")
         print(self.initial_state)
@@ -529,6 +559,8 @@ class sim_env(threading.Thread):
             device=self.ppo.device,
             dtype=torch.bool,
         )
+        goal_sink_img = self.get_goal_sink_feature()
+        cv2.imwrite(IMAGE_DIR+"/goal_sink.png", goal_sink_img)
         print("created habitat_plant succsefully")
 
     def get_in_band_around_door(self, agent_rotation = None):
@@ -536,13 +568,13 @@ class sim_env(threading.Thread):
         diff_vec = temp_position - self.chosen_object.aabb.center
         diff_vec[1] = 0
         temp_dist = np.linalg.norm(diff_vec)
-        print("Diff vector ", diff_vec)
+        
         while (temp_dist < 1.0 or temp_dist >1.5):
             temp_position = self.env.sim.pathfinder.get_random_navigable_point_near(self.chosen_object.aabb.center,5)
             diff_vec = temp_position - self.chosen_object.aabb.center
             diff_vec[1] = 0
             temp_dist = np.linalg.norm(diff_vec)
-        
+        print("Temp dist is ", temp_dist)
         if (agent_rotation):
             agent_door = self.chosen_object.aabb.center - temp_position
             agent_door[2] = -agent_door[2]
@@ -559,7 +591,54 @@ class sim_env(threading.Thread):
         else:
             return temp_position, None
     
-        
+    def reset_human_pos(self, index):
+        agent_state = self.env.sim.get_agent_state(0)
+        humans_initial_pos_3d = []
+        humans_goal_pos_3d= []
+        agents_initial_velocity = [0.5,0.0]
+        k = index
+        start_pos_3d, a = self.get_in_band_around_door()
+        goes_through_door = False
+        while (not goes_through_door):
+            while(not self.is_point_on_other_side(start_pos_3d, agent_state.position)):
+                start_pos_3d, a = self.get_in_band_around_door()
+            start_pos = to_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
+            print("selected start")
+            temp_goal_pos_3d, a = self.get_in_band_around_door()
+            while(not self.is_point_on_other_side(start_pos_3d, temp_goal_pos_3d)):
+                temp_goal_pos_3d, a = self.get_in_band_around_door()
+            print("selected goal")
+            goal_pos_3d = temp_goal_pos_3d
+            self.final_goals_3d[k+1,:] = goal_pos_3d
+            path = habitat_path.ShortestPath()
+            path.requested_start = np.array(start_pos_3d)
+            path.requested_end = goal_pos_3d
+            if(not self.env._sim.pathfinder.find_path(path)):
+                print("Watch this one Tribhi!!!!")
+                continue
+            goes_through_door = self.check_path_goes_through_door(path)
+        humans_initial_pos_3d.append(path.points[0])
+        humans_goal_pos_3d.append(path.points[-1])
+        human_initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
+        human_initial_pos = [pos*0.025 for pos in human_initial_pos]
+        goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[-1], self.grid_dimensions))
+        goal_pos = [pos*0.025 for pos in goal_pos]
+        self.initial_state[k+1] = human_initial_pos+agents_initial_velocity+goal_pos
+        agent_state = self.env.sim.get_agent_state(0).position
+        offset = humans_initial_pos_3d[-1]-agent_state
+        offset[1] += 1
+        orientation_x = 90   # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_y = (np.pi/2-0.97)*180/np.pi  # @param {type:"slider", min:-180, max:180, step:1}
+        orientation_z = 180  # @param {type:"slider", min:-180, max:180, step:1}
+        rotation_x = mn.Quaternion.rotation(mn.Deg(orientation_x), mn.Vector3(1.0, 0, 0))
+        rotation_y = mn.Quaternion.rotation(mn.Deg(orientation_y), mn.Vector3(0.0, 1.0, 0))
+        rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
+        object_orientation = rotation_z * rotation_y * rotation_x
+        set_object_state_from_agent(self.env._sim, self.objs[k], offset=offset, orientation = object_orientation)
+        agent_transform = self.env.sim.agents[0].scene_node.transformation_matrix()
+        ob_translation = agent_transform.transform_point(offset)
+        self.objs[k].translation = mn.Vector3([humans_initial_pos_3d[-1][0], humans_initial_pos_3d[-1][1]+1, humans_initial_pos_3d[-1][2]])
+            
     def is_point_on_other_side(self, p1, p2):
         transform = self.chosen_object.obb.world_to_local
         size = np.array(self.chosen_object.aabb.sizes)
@@ -570,8 +649,9 @@ class sim_env(threading.Thread):
         y2 = p2_local[2]
         x1 = p1_local[1]
         x2 = p2_local[1]
-        x_size = size[0]
-        if (np.sign(y1) == np.sign(y2) or abs(y1)<5 or abs(y2) <5 or abs(x1)>x_size or abs(x2)>x_size):
+        x_size = max([size[0], size[2]])
+        if (np.sign(y1) == np.sign(y2) or abs(y1)<5 or abs(y2) <5 or abs(x1)>x_size or abs(x2) >x_size):
+            print("Not on the other side")
             return False
         else:
             print(p1_local, p2_local)
@@ -586,7 +666,7 @@ class sim_env(threading.Thread):
         if ((center - 1/2*sizes < agent_loc).all()  and (agent_loc < center + 1/2*sizes).all()):
             return True
         else:
-            return False
+            return False    
 
     def check_path_goes_through_door(self, path):
         diff = path.points[0]-self.chosen_object.aabb.center
@@ -775,10 +855,15 @@ class sim_env(threading.Thread):
         base_vel = [lin_vel, ang_vel]
         # self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
         # if (self.env.)
+        if (self.human_update_counter<=13):
+            self.env.sim.step_physics(self.time_step)
+            self.observations.update(self.env._task._sim.get_sensor_observations())
+            print(self.initial_state)
+            return
         if(not self.env.episode_over):
             action = self._eval_checkpoint()
-            self.observations.update(self.env.step(action[0]))
-
+            print("Human update counter is ", self.human_update_counter)
+            self.observations.update(self.env.step(action[0]))                
             # self.all_obs.append(self.observations)
             batch = batch_obs(  # type: ignore
                 [self.observations],
@@ -793,7 +878,21 @@ class sim_env(threading.Thread):
                 device=self.device,
             )
         else:
+            final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[1,:], self.grid_dimensions))
+            goal_pos = [pos*0.025 for pos in final_goal_grid]
+            if ((self.initial_state[1][2:4] == [0.0,0.0] or np.isnan(self.initial_state[1][2:4]).all()) and self.env.episode_over and np.allclose(self.initial_state[1][4:6],goal_pos, atol = 0.4) ):
+                print(self.initial_state, goal_pos)
+                self.sfm.fig.savefig("Finished_demo.png")
+                plt.close(self.sfm.fig)
+                exit(0)
+            if (self.human_update_counter>80):
+                print("human failed to reach in 80 steps")
+                self.sfm.fig.savefig("Failed_demo.png")
+                plt.close(self.sfm.fig)
+                exit(0)
+                sys.exit()
             self.env.sim.step_physics(self.time_step)
+            
         # rewards = torch.tensor(
         #     rewards_l, dtype=torch.float, device="cpu"
         # ).unsqueeze(1)
@@ -801,7 +900,6 @@ class sim_env(threading.Thread):
         ##### For teleop human/follower 
         # self.follower_velocity_control.linear_velocity = self.linear_velocity
         # self.follower_velocity_control.angular_velocity = self.angular_velocity
-        origin = mn.Vector3(0.0, 0.0, 0.0)
         #### Forward simulate
         # self.env.sim.step_physics(self.time_step)
         self.observations.update(self.env._task._sim.get_sensor_observations())
@@ -993,6 +1091,19 @@ class sim_env(threading.Thread):
             # pose.orientation.z = agent_rot[2]
             # pose.orientation.w = agent_rot[3]
             self._pub_robot_sem.publish(pose)
+            pose = Pose()
+            human_state = self.objs[0].rigid_state
+            pose.position.x = human_state.translation[0]
+            pose.position.y = human_state.translation[1]
+            pose.position.z = human_state.translation[2]
+            
+            human_rot = self.objs[0].rigid_state.rotation
+            # print("rot is ", human_rot)
+            # pose.orientation.x = human_rot[0]
+            # pose.orientation.y = human_rot[1]
+            # pose.orientation.z = human_rot[2]
+            # pose.orientation.w = human_rot[3]
+            self._pub_human_sem.publish(pose)
             # self._pub_rgb.publish(np.float32(rgb_with_res))
             self._pub_semantic.publish(np.float32(semantic_with_res))
             # self._pub_depth.publish(np.float32(depth_with_res))
@@ -1006,6 +1117,10 @@ class sim_env(threading.Thread):
             # self.initial_state[0][2:4] = vel
             self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
             self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.get_object_heading(self.env.sim.get_agent(0).scene_node.transformation)})
+            final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[1,:], self.grid_dimensions))
+            goal_pos = [pos*0.025 for pos in final_goal_grid]
+            if ((self.initial_state[1][2:4] == [0.0,0.0] or np.isnan(self.initial_state[1][2:4]).all()) and self.env.episode_over and np.allclose(self.initial_state[1][4:6],goal_pos, atol = 0.4) ):
+                break
             lock.release()
             self._r_sensor.sleep()
             
@@ -1063,7 +1178,42 @@ class sim_env(threading.Thread):
             self.current_goal = self._nodes[self._current_episode+1]
             self._current_episode = self._current_episode+1
             self.new_goal=True
-
+    def get_goal_sink_feature(self, goal_band = [1.0,1.5]):
+        empty_image = 0*np.ones(self.semantic_img.shape)
+        robot_start_coord = self.env.episodes[0].start_position
+        robot_goal_coord = self.env.episodes[0].goals[0].position
+        diff = self.chosen_object.aabb.center - robot_start_coord
+        diff[1] = 0
+        robot_dist = np.linalg.norm(diff) 
+        goal_band[0] = robot_dist - 0.1
+        goal_band[1] = robot_dist + 0.1
+        self.ep_goal_band = goal_band
+        for i in range(0,self.semantic_img.shape[0],1):
+            for j in range(0,self.semantic_img.shape[1], 1):
+                world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1],i,j)
+                # print("Coords", world_coordinates[2], world_coordinates[0])
+                # reverse = world_to_sem_img(self.semantic_img_proj_mat, self.semantic_img_camera_mat, world_coordinates, self.semantic_img.shape[0], self.semantic_img.shape[1])
+                # print([i,j], reverse)
+                if(self.is_point_in_band([i,j], goal_band)):
+                    if(self.is_point_on_other_side(robot_start_coord, world_coordinates)):
+                        empty_image[i,j] = [255,0,0]
+                    else:
+                        if(self.is_point_on_other_side(robot_goal_coord, world_coordinates)):
+                            empty_image[i,j] = [0,255,0]
+        return empty_image
+    def is_point_in_band(self, point, goal_band = [1.0,1.5]):
+        dist = self.get_dist_from_door(point)
+        if (dist >goal_band[0] and dist< goal_band[1]):
+            return True
+        else:
+            return False
+    def get_dist_from_door(self,point):
+        door_center = self.chosen_object.aabb.center
+        center_gt = [door_center[2], door_center[0]]
+        world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], point[0], point[1]).T[0]
+        [x,y] = [world_coordinates[2], world_coordinates[0]]
+        dist = np.linalg.norm(np.array(center_gt)-np.array([x,y]))
+        return dist
 def callback(vel, my_env):
     #### Robot Control ####
     my_env.linear_velocity = np.array([(1.0 * vel.linear.y), 0.0, (1.0 * vel.linear.x)])
