@@ -142,7 +142,9 @@ class FeatureExpect():
         self.end_point = False
         self.update_num = 0
         self.ep_goal_band = []
-
+        self.human_pose_2d = None
+        self.robot_pose_2d = None
+        self.last_pose_time_stamp = None
 
     def get_robot_pose(self, msg):
         if (self.end_point):
@@ -172,6 +174,7 @@ class FeatureExpect():
             self.robot_height = robot_pos_3d[1]
             self.update_num+=1
             robot_pose_2d = world_to_sem_img(self.semantic_img_proj_mat, self.semantic_img_camera_mat, robot_pos_3d, self.semantic_img.shape[0], self.semantic_img.shape[1])
+            
             with open("/home/catkin_ws/src/habitat_ros_interface/configs/tasks/pointnav_mp3d.yaml", "r") as stream:
                 try:
                     sim_config = yaml.safe_load(stream)
@@ -183,11 +186,13 @@ class FeatureExpect():
             # if (self.is_point_in_band(robot_pose_2d)):
             print("Found the first robot pose")
             self.start_point = True
-            self.traj.append(robot_pose_2d)
+            if self.human_pose_2d is not None:
+                self.traj.append((robot_pose_2d, self.human_pose_2d))
             self.get_current_feature()
             __ = os.system("cp "+ IMAGE_DIR+"/goal_sink.png " + FULL_PATH)
             __ = os.system("cp "+ IMAGE_DIR+"/semantic_img.png " + FULL_PATH)
             self.semantic_img[robot_pose_2d[0], robot_pose_2d[1]] = [0,0,0]
+            self.robot_pose_2d = robot_pose_2d
             return robot_pose_2d
         else:
 
@@ -198,25 +203,26 @@ class FeatureExpect():
 
             world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1],robot_pose_2d[0],robot_pose_2d[1], self.robot_height)
             self.semantic_img[robot_pose_2d[0], robot_pose_2d[1]] = [0,0,0]
-            if (robot_pose_2d not in self.traj):
-                self.traj.append(robot_pose_2d)
-                print(robot_pose_2d)
+            if ((robot_pose_2d, self.human_pose_2d) not in self.traj):
+                self.traj.append((robot_pose_2d, self.human_pose_2d))
+                print("Traj is ", self.traj)
             # if (self.update_num == 1):
             #     test_pos_3d = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_pose_2d[0], robot_pose_2d[1], robot_pos_3d[1], debug = True)
             # test_pos_3d = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_pose_2d[0], robot_pose_2d[1], robot_pos_3d[1])
             
-            robot_start_pose = self.traj[0]
+            robot_start_pose = self.traj[0][0]
             robot_start_coord = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_start_pose[0], robot_start_pose[1], self.robot_height)
-            
             # print("Is in band? ", self.is_point_in_band(robot_pose_2d,[0.8,2.5]) )
             # print("Is on other side? ", self.is_point_on_other_side(robot_start_coord, world_coordinates))
             if(self.is_point_in_band(robot_pose_2d,[0.8,2.5])):
                 if(self.is_point_on_other_side(robot_start_coord, world_coordinates)):
                     self.end_point = True
-                    print("saving image", len(self.traj))
+                    print("saving image", self.traj)
                     cv2.imwrite(FULL_PATH+ "/traj_feat.png",self.semantic_img)
                     with open(FULL_PATH+ "/trajectory.npy", 'wb') as f:
                         np.save(f, np.array(self.traj))
+            self.robot_pose_2d = robot_pose_2d
+        self.last_pose_time_stamp = rospy.Time.now()
             
                 
         
@@ -234,10 +240,15 @@ class FeatureExpect():
 
         world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1],human_pose_2d[0],human_pose_2d[1], self.human_height)
         self.semantic_img[human_pose_2d[0], human_pose_2d[1]] = [255,0,0]
-        
+        self.human_pose_2d = human_pose_2d
     
-    def get_people_feature():
-        pass
+    def save_feature(self):
+        self.end_point = True
+        print("saving image", self.traj)
+        cv2.imwrite(FULL_PATH+ "/traj_feat.png",self.semantic_img)
+        with open(FULL_PATH+ "/trajectory.npy", 'wb') as f:
+            np.save(f, np.array(self.traj))
+        exit(0)
 
     def get_current_feature(self):
         # self.goal_sink = self.get_goal_sink_feature()
@@ -332,6 +343,10 @@ if __name__ == "__main__":
         update = 0
         while(not rospy.is_shutdown()):
             rospy.sleep(0.01)
+            if feature.last_pose_time_stamp is not None:
+                print((rospy.Time.now()-feature.last_pose_time_stamp).to_sec())
+                if (rospy.Time.now()-feature.last_pose_time_stamp).to_sec() >10:
+                    feature.save_feature()
             # print("Traj is ", feature.traj)
             # update +=1
             # print(update)

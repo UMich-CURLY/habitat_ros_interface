@@ -855,7 +855,7 @@ class sim_env(threading.Thread):
         base_vel = [lin_vel, ang_vel]
         # self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
         # if (self.env.)
-        if (self.human_update_counter<=13):
+        if (self.human_update_counter<=2):
             self.env.sim.step_physics(self.time_step)
             self.observations.update(self.env._task._sim.get_sensor_observations())
             print(self.initial_state)
