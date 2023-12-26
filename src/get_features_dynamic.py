@@ -205,6 +205,7 @@ class FeatureExpect():
             self.semantic_img[robot_pose_2d[0], robot_pose_2d[1]] = [0,0,0]
             if ((robot_pose_2d, self.human_pose_2d) not in self.traj):
                 self.traj.append((robot_pose_2d, self.human_pose_2d))
+                self.last_pose_time_stamp = rospy.Time.now()
                 print("Traj is ", self.traj)
             # if (self.update_num == 1):
             #     test_pos_3d = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_pose_2d[0], robot_pose_2d[1], robot_pos_3d[1], debug = True)
@@ -222,7 +223,7 @@ class FeatureExpect():
                     with open(FULL_PATH+ "/trajectory.npy", 'wb') as f:
                         np.save(f, np.array(self.traj))
             self.robot_pose_2d = robot_pose_2d
-        self.last_pose_time_stamp = rospy.Time.now()
+        
             
                 
         
@@ -345,7 +346,7 @@ if __name__ == "__main__":
             rospy.sleep(0.01)
             if feature.last_pose_time_stamp is not None:
                 print((rospy.Time.now()-feature.last_pose_time_stamp).to_sec())
-                if (rospy.Time.now()-feature.last_pose_time_stamp).to_sec() >10:
+                if (rospy.Time.now()-feature.last_pose_time_stamp).to_sec() >30:
                     feature.save_feature()
             # print("Traj is ", feature.traj)
             # update +=1

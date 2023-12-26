@@ -406,7 +406,7 @@ class sim_env(threading.Thread):
                     continue
                 goes_through_door = self.check_path_goes_through_door(path)
             humans_initial_pos_3d.append(path.points[0])
-            humans_goal_pos_3d.append(path.points[-1])
+            humans_goal_pos_3d.append(path.points[1])
             human_initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
             human_initial_pos = [pos*0.025 for pos in human_initial_pos]
             goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[-1], self.grid_dimensions))
@@ -451,7 +451,11 @@ class sim_env(threading.Thread):
                 # temp_state = self.initial_state
                 # self.initial_state = [self.initial_state[1]]
                 # self.sfm = social_force(self, map_path = IMAGE_DIR+"/small_top_down.png", resolution = 0.025, groups = [[0]])
-                states = self.sfm.get_full_traj(self.initial_state)
+                temp_state = self.initial_state
+                full_goal = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[1,:], self.grid_dimensions))
+                full_goal = [pos*0.025 for pos in full_goal]
+                temp_state[1][4:6] = full_goal
+                states = self.sfm.get_full_traj(temp_state)
                 if (np.linalg.norm(self.sfm.s.peds.state[1][0:2]-self.sfm.s.peds.state[1][4:6]) < 1.0):
                     possible = True
                 try_num+=1
@@ -618,7 +622,7 @@ class sim_env(threading.Thread):
                 continue
             goes_through_door = self.check_path_goes_through_door(path)
         humans_initial_pos_3d.append(path.points[0])
-        humans_goal_pos_3d.append(path.points[-1])
+        humans_goal_pos_3d.append(path.points[1])
         human_initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
         human_initial_pos = [pos*0.025 for pos in human_initial_pos]
         goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[-1], self.grid_dimensions))
@@ -965,6 +969,7 @@ class sim_env(threading.Thread):
                 dist = np.linalg.norm(np.array(goal_pos) - np.array(self.initial_state[k+1][4:6]))
                 path = habitat_path.ShortestPath()
                 path.requested_start = np.array(human_state.translation)
+                print("Final goal is", goal_pos)
                 #### If it isn't a intermediate goal, sample a new goal for the agent 
                 # if dist<=GOAL_THRESHOLD:
                 #     new_goal_pos_3d = self.env._sim.pathfinder.get_random_navigable_point_near(human_state.translation, 10)
@@ -989,7 +994,7 @@ class sim_env(threading.Thread):
                         break
                 self.initial_state[k+1][4:6] = goal_pos
                 self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
-
+            
         # map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': mn.Rad(np.arctan2(vel[1], vel[0]))},self)
 
         self.update_counter+=1
