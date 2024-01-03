@@ -1,5 +1,5 @@
 DATASET:
-  DATA_PATH: ./data/datasets/rearrange/mp3d/v1/test/content/5ZKStnWn8Zo0.json.gz
+  DATA_PATH: ./data/datasets/rearrange/mp3d/v1/test/content/1LXtFkjw3qL0.json.gz
   SCENES_DIR: ./data/mp3d/
   SPLIT: test
   TYPE: RearrangeDataset-v0
@@ -86,14 +86,6 @@ SIMULATOR:
     WIDTH: 128
   THIRD_RGB_SENSOR:
     HEIGHT: 128
-    ORIENTATION:
-    - 1.519
-    - 0.0
-    - 0.0
-    POSITION:
-    - 0
-    - 5.25
-    - 0
     WIDTH: 128
   TILT_ANGLE: 15
   TURN_ANGLE: 10

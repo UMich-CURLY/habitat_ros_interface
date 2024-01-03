@@ -43,7 +43,7 @@ while scene_not_valid and num_tries<10:
         documents = yaml.dump(config, file)
 
     x = os.system('python ./scripts/door_rl_agent.py --scene '+ scene)
-    if x == 10:
+    if x == 256:
         scene_not_valid = True
         print("Trying to use a different door!")
         y = 1

@@ -153,8 +153,7 @@ SIMULATOR:
     THIRD_RGB_SENSOR:
         WIDTH: 128
         HEIGHT: 128
-        ORIENTATION: [1.519,0.0, 0.0]
-        POSITION: [0, 5.25, 0]
+        
     HEAD_DEPTH_SENSOR:
         WIDTH: 128
         HEIGHT: 128

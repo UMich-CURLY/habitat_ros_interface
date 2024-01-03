@@ -202,10 +202,10 @@ class sim_env(threading.Thread):
     current_orientation = []
     follower = []
     new_goal = False
-    control_frequency = 2
+    control_frequency = 5
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
-    human_control_frequency = 2
+    human_control_frequency = 1
     human_time_step = 1/human_control_frequency
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
@@ -226,7 +226,7 @@ class sim_env(threading.Thread):
         self.env_config_file = env_config_file
         config=habitat.get_config(self.env_config_file)
         self.env = habitat.Env(config)
-        # self.env._sim.robot.params.arm_init_params = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
+        self.env._sim.robot.params.arm_init_params = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         floor_y = 0.0
         top_down_map = maps.get_topdown_map(
             self.env._sim.pathfinder, height=floor_y, meters_per_pixel=0.025
@@ -239,7 +239,7 @@ class sim_env(threading.Thread):
         agent_state = self.env.sim.get_agent_state(0)
         self.observations = self.env.reset()
         arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
-        # self.env._sim.robot.arm_joint_pos = arm_joint_positions
+        self.env._sim.robot.arm_joint_pos = arm_joint_positions
         
         with open(IMAGE_DIR+"/image_config.yaml", "r") as stream:
             try:
@@ -302,8 +302,8 @@ class sim_env(threading.Thread):
 
         config=habitat.get_config(self.env_config_file)
         
-        # robot_pos_in_2d = to_grid(self.env._sim.pathfinder, self.env._sim.robot.base_pos, self.grid_dimensions)
-        # print(robot_pos_in_2d)
+        robot_pos_in_2d = to_grid(self.env._sim.pathfinder, self.env._sim.robot.base_pos, self.grid_dimensions)
+        print(robot_pos_in_2d)
         ### Add human objects and groups here! 
         self.N = 1
         
@@ -326,7 +326,7 @@ class sim_env(threading.Thread):
         # temp_position, rot = self.get_in_band_around_door(agent_state.rotation)
         temp_position, rot = self.env.episodes[0].start_position, self.env.episodes[0].start_rotation
         self.env.sim.set_agent_state(temp_position, rot)
-        # self.env._sim.robot.base_pos = mn.Vector3(temp_position)
+        self.env._sim.robot.base_pos = mn.Vector3(temp_position)
         agent_state = self.env.sim.get_agent_state(0)
 
         #### Initiating robot in the esfm state ####
@@ -340,7 +340,7 @@ class sim_env(threading.Thread):
         #     agent_goal_pos_3d, goal_rot = self.get_in_band_around_door(agent_state.rotation)
         #     if (self.is_point_on_other_side(agent_goal_pos_3d, agent_state.position)):
         #         break
-        agent_goal_pos_3d = self.env.episodes[0].goals[0].position
+        agent_goal_pos_3d = self.env.episodes[0].goals[0]['position']
         path.requested_end = agent_goal_pos_3d
         self.final_goals_3d[0,:] = agent_goal_pos_3d
         if(not self.env._sim.pathfinder.find_path(path)):
@@ -350,20 +350,6 @@ class sim_env(threading.Thread):
         agents_goal_pos_3d = []
         agents_initial_pos_3d.append(path.points[0])
         agents_goal_pos_3d.append(path.points[-1])
-        # sphere_template_id = obj_template_mgr.load_configs('./scripts/sphere')[0]
-        # file_obj = rigid_obj_mgr.add_object_by_template_id(sphere_template_id)
-        # self.objs.append(obj)
-        
-        # obj_template_handle = './scripts/sphere.object_config.json'
-        # obj_template = obj_template_mgr.get_template_by_handle(obj_template_handle)
-        # print(obj_template)
-        # file_obj = rigid_obj_mgr.add_object_by_template_handle(obj_template_handle) 
-        # print(file_obj)
-        # file_obj.motion_type = habitat_sim.physics.MotionType.STATIC
-        # sphere_pos = agents_goal_pos_3d[-1]
-        # file_obj.translation = mn.Vector3(sphere_pos[0],sphere_pos[1], sphere_pos[2])
-        # sphere_offset = file_obj.translation - agent_state.position
-        # set_object_state_from_agent(self.env._sim, file_obj, np.array(sphere_offset - sphere), orientation = object_orientation2)
         agents_initial_velocity = [0.5,0.0]
         initial_pos = list(to_grid(self.env._sim.pathfinder, agents_initial_pos_3d[0], self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
@@ -388,23 +374,14 @@ class sim_env(threading.Thread):
             #### Pick a random start location for this agent ####
             start_pos_3d, a = self.get_in_band_around_door()
             goes_through_door = False
-            num_tries = 0
             while (not goes_through_door):
-                num_tries = 0
                 while(not self.is_point_on_other_side(start_pos_3d, agent_state.position)):
                     start_pos_3d, a = self.get_in_band_around_door()
-                    num_tries+=1
-                    if num_tries>20:
-                        exit(1)
                 start_pos = to_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
                 print("selected start")
                 temp_goal_pos_3d, a = self.get_in_band_around_door()
-                num_tries = 10
                 while(not self.is_point_on_other_side(start_pos_3d, temp_goal_pos_3d)):
                     temp_goal_pos_3d, a = self.get_in_band_around_door()
-                    num_tries+=1
-                    if num_tries>20:
-                        exit(1)
                 print("selected goal")
                 goal_pos_3d = temp_goal_pos_3d
                 self.final_goals_3d[k+1,:] = goal_pos_3d
@@ -472,7 +449,7 @@ class sim_env(threading.Thread):
                 self.reset_human_pos(index = 0)
                 print("Try number is ", try_num)
                 if (try_num>5):
-                    exit(1)
+                    exit(10)
 
             # empty_map = np.zeros([self.semantic_img.shape[0], self.semantic_img.shape[1]])
             # max_val = len(states)
@@ -491,88 +468,88 @@ class sim_env(threading.Thread):
         # self.initial_state.append(robot_pos_in_2d+humans_initial_velocity[0]+humans_goal_pos_2d[2])
         # self.groups.append([self.N])
         agent_state = self.env.sim.get_agent_state(0)
-        self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.get_object_heading(self.env.sim.get_agent(0).scene_node.transformation)})
+        self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot})
         self.initial_pos = initial_pos
         # computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter), save_anim= True)
         self.prev_human_update_time = rospy.Time.now()
         agent_config = get_baselines_config(
         "./configs/rl/ppo_pointnav.yaml"
         )
-        ppo = baseline_registry.get_trainer(agent_config.TRAINER_NAME)
-        checkpoint_path = agent_config.EVAL_CKPT_PATH_DIR
-        # ckpt_dict = ppo.load_checkpoint(
+        # ppo = baseline_registry.get_trainer(agent_config.TRAINER_NAME)
+        # checkpoint_path = agent_config.EVAL_CKPT_PATH_DIR
+        # # ckpt_dict = ppo.load_checkpoint(
+        # #         checkpoint_path, map_location="cpu"
+        # #     )
+        # # if agent_config.EVAL.USE_CKPT_CONFIG:
+        # #     agent_config = ppo._setup_eval_config(ckpt_dict["config"])
+        # # else:
+        # #     agent_config = ppo.config.clone()
+        # self.ppo = ppo(agent_config)
+        # ckpt_dict = self.ppo.load_checkpoint(
         #         checkpoint_path, map_location="cpu"
         #     )
-        # if agent_config.EVAL.USE_CKPT_CONFIG:
-        #     agent_config = ppo._setup_eval_config(ckpt_dict["config"])
-        # else:
-        #     agent_config = ppo.config.clone()
-        self.ppo = ppo(agent_config)
-        ckpt_dict = self.ppo.load_checkpoint(
-                checkpoint_path, map_location="cpu"
-            )
         
-        ppo_cfg = agent_config.RL.PPO
-        action_space = self.env.action_space
-        self.ppo.policy_action_space = action_space
-        if torch.cuda.is_available():
-            self.device = torch.device("cuda", agent_config.TORCH_GPU_ID)
-            torch.cuda.set_device(self.device)
-        else:
-            self.device = torch.device("cpu")
-        self.ppo.device = self.device
-        self.ppo.obs_space = self.env.observation_space
-        # if self.using_velocity_ctrl:
-        #     # For navigation using a continuous action space for a task that
-        #     # may be asking for discrete actions
-        #     self.policy_action_space = action_space["VELOCITY_CONTROL"]
-        #     action_shape = (2,)
-        #     discrete_actions = False
+        # ppo_cfg = agent_config.RL.PPO
+        # action_space = self.env.action_space
+        # self.ppo.policy_action_space = action_space
+        # if torch.cuda.is_available():
+        #     self.device = torch.device("cuda", agent_config.TORCH_GPU_ID)
+        #     torch.cuda.set_device(self.device)
         # else:
-        #     self.policy_action_space = action_space
-        #     if is_continuous_action_space(action_space):
-        #         # Assume NONE of the actions are discrete
-        #         action_shape = (get_num_actions(action_space),)
-        #         discrete_actions = False
-        #     else:
-        # For discrete pointnav
-        action_shape = (1,)
-        discrete_actions = True
+        #     self.device = torch.device("cpu")
+        # self.ppo.device = self.device
+        # self.ppo.obs_space = self.env.observation_space
+        # # if self.using_velocity_ctrl:
+        # #     # For navigation using a continuous action space for a task that
+        # #     # may be asking for discrete actions
+        # #     self.policy_action_space = action_space["VELOCITY_CONTROL"]
+        # #     action_shape = (2,)
+        # #     discrete_actions = False
+        # # else:
+        # #     self.policy_action_space = action_space
+        # #     if is_continuous_action_space(action_space):
+        # #         # Assume NONE of the actions are discrete
+        # #         action_shape = (get_num_actions(action_space),)
+        # #         discrete_actions = False
+        # #     else:
+        # # For discrete pointnav
+        # action_shape = (1,)
+        # discrete_actions = True
 
-        self.ppo._setup_actor_critic_agent(ppo_cfg)
+        # self.ppo._setup_actor_critic_agent(ppo_cfg)
 
-        if self.ppo.agent.actor_critic.should_load_agent_state:
-            self.ppo.agent.load_state_dict(ckpt_dict["state_dict"])
-        self.ppo.actor_critic = self.ppo.agent.actor_critic
-        self.all_obs= []
-        self.all_obs.append(self.observations)
-        batch = batch_obs(
-            self.all_obs, device=self.ppo.device, cache=self.ppo._obs_batching_cache
-        )
-        self.batch = apply_obs_transforms_batch(batch, self.ppo.obs_transforms)  # type: ignore
+        # if self.ppo.agent.actor_critic.should_load_agent_state:
+        #     self.ppo.agent.load_state_dict(ckpt_dict["state_dict"])
+        # self.ppo.actor_critic = self.ppo.agent.actor_critic
+        # self.all_obs= []
+        # self.all_obs.append(self.observations)
+        # batch = batch_obs(
+        #     self.all_obs, device=self.ppo.device, cache=self.ppo._obs_batching_cache
+        # )
+        # self.batch = apply_obs_transforms_batch(batch, self.ppo.obs_transforms)  # type: ignore
 
-        self.current_episode_reward = torch.zeros(
-            1, 1, device="cpu"
-        )
+        # self.current_episode_reward = torch.zeros(
+        #     1, 1, device="cpu"
+        # )
 
-        self.test_recurrent_hidden_states = torch.zeros(
-            1,
-            self.ppo.actor_critic.num_recurrent_layers,
-            ppo_cfg.hidden_size,
-            device=self.ppo.device,
-        )
-        self.prev_actions = torch.zeros(
-            1,
-            *action_shape,
-            device=self.ppo.device,
-            dtype=torch.long if discrete_actions else torch.float,
-        )
-        self.not_done_masks = torch.zeros(
-            1,
-            1,
-            device=self.ppo.device,
-            dtype=torch.bool,
-        )
+        # self.test_recurrent_hidden_states = torch.zeros(
+        #     1,
+        #     self.ppo.actor_critic.num_recurrent_layers,
+        #     ppo_cfg.hidden_size,
+        #     device=self.ppo.device,
+        # )
+        # self.prev_actions = torch.zeros(
+        #     1,
+        #     *action_shape,
+        #     device=self.ppo.device,
+        #     dtype=torch.long if discrete_actions else torch.float,
+        # )
+        # self.not_done_masks = torch.zeros(
+        #     1,
+        #     1,
+        #     device=self.ppo.device,
+        #     dtype=torch.bool,
+        # )
         goal_sink_img = self.get_goal_sink_feature()
         cv2.imwrite(IMAGE_DIR+"/goal_sink.png", goal_sink_img)
         print("created habitat_plant succsefully")
@@ -588,6 +565,7 @@ class sim_env(threading.Thread):
             diff_vec = temp_position - self.chosen_object.aabb.center
             diff_vec[1] = 0
             temp_dist = np.linalg.norm(diff_vec)
+        print("Temp dist is ", temp_dist)
         if (agent_rotation):
             agent_door = self.chosen_object.aabb.center - temp_position
             agent_door[2] = -agent_door[2]
@@ -664,6 +642,7 @@ class sim_env(threading.Thread):
         x2 = p2_local[1]
         x_size = max([size[0], size[2]])
         if (np.sign(y1) == np.sign(y2) or abs(y1)<5 or abs(y2) <5 or abs(x1)>x_size or abs(x2) >x_size):
+            print("Not on the other side")
             return False
         else:
             print(p1_local, p2_local)
@@ -855,6 +834,7 @@ class sim_env(threading.Thread):
         if(self.agent_update_counter/self.update_multiple == self.human_update_counter):
             self.update_pos_vel()
             agent_pos = self.env.sim.get_agent_state(0).position
+            agent_pos = self.env.sim.robot.base_pos
             start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
             initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
             initial_pos = [pos*0.025 for pos in initial_pos]
@@ -865,48 +845,31 @@ class sim_env(threading.Thread):
         lin_vel = self.linear_velocity[2]
         ang_vel = self.angular_velocity[1]
         base_vel = [lin_vel, ang_vel]
-        # self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
+        print("Driving velocity  is ", base_vel)
         # if (self.env.)
         if (self.human_update_counter<=2):
             self.env.sim.step_physics(self.time_step)
             self.observations.update(self.env._task._sim.get_sensor_observations())
             print(self.initial_state)
             return
-        if(not self.env.episode_over):
-            action = self._eval_checkpoint()
-            print("Human update counter is ", self.human_update_counter)
-            self.observations.update(self.env.step(action[0]))                
-            # self.all_obs.append(self.observations)
-            batch = batch_obs(  # type: ignore
-                [self.observations],
-                device=self.device,
-                cache=self.ppo._obs_batching_cache,
-            )
-            self.batch = apply_obs_transforms_batch(batch, self.ppo.obs_transforms)  # type: ignore
-
-            self.not_done_masks = torch.tensor(
-                [[True]],
-                dtype=torch.bool,
-                device=self.device,
-            )
-        else:
-            final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[1,:], self.grid_dimensions))
-            goal_pos = [pos*0.025 for pos in final_goal_grid]
-            if ((self.initial_state[1][2:4] == [0.0,0.0] or np.isnan(self.initial_state[1][2:4]).all()) and self.env.episode_over and np.allclose(self.initial_state[1][4:6],goal_pos, atol = 0.4) ):
-                print(self.initial_state, goal_pos)
-                self.sfm.fig.savefig("Finished_demo.png")
-                plt.close(self.sfm.fig)
-                self.end_run = True
-                exit(0)
-            if (self.human_update_counter>80):
-                print("human failed to reach in 80 steps")
-                self.sfm.fig.savefig("Failed_demo.png")
-                plt.close(self.sfm.fig)
-                self.end_run = True
-                exit(0)
-            
-                sys.exit()
-            self.env.sim.step_physics(self.time_step)
+        self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
+        final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[1,:], self.grid_dimensions))
+        goal_pos = [pos*0.025 for pos in final_goal_grid]
+        if ((self.initial_state[1][2:4] == [0.0,0.0] or np.isnan(self.initial_state[1][2:4]).all()) and self.env.episode_over and np.allclose(self.initial_state[1][4:6],goal_pos, atol = 0.4) ):
+            print(self.initial_state, goal_pos)
+            self.sfm.fig.savefig("Finished_demo.png")
+            plt.close(self.sfm.fig)
+            self.end_run = True
+            exit(0)
+        if (self.human_update_counter>180):
+            print("human failed to reach in 80 steps")
+            self.sfm.fig.savefig("Failed_demo.png")
+            plt.close(self.sfm.fig)
+            self.end_run = True
+            exit(0)
+        
+            sys.exit()
+        # self.env.sim.step_physics(self.time_step)
             
         # rewards = torch.tensor(
         #     rewards_l, dtype=torch.float, device="cpu"
@@ -917,7 +880,7 @@ class sim_env(threading.Thread):
         # self.follower_velocity_control.angular_velocity = self.angular_velocity
         #### Forward simulate
         # self.env.sim.step_physics(self.time_step)
-        self.observations.update(self.env._task._sim.get_sensor_observations())
+        # self.observations.update(self.env._task._sim.get_sensor_observations())
 
     def update_pos_vel(self):
         time_now = rospy.Time.now()
@@ -925,10 +888,12 @@ class sim_env(threading.Thread):
         self.prev_human_update_time = time_now
         #### Update agent state 
         agent_pos = self.env.sim.get_agent_state(0).position
+        agent_pos = self.env.sim.robot.base_pos
         start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
         initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
         a = self.env.sim.get_agent(0).scene_node.transformation
+        a = self.env.sim.robot.base_transformation
         b = a.transform_point([-0.2,0.0,0.0])
         point_behind = np.array(to_grid(self.env._sim.pathfinder, [b[0],b[1],b[2]], self.grid_dimensions))
         point_behind = [pos*0.025 for pos in point_behind]
@@ -960,11 +925,9 @@ class sim_env(threading.Thread):
             rotation_z = mn.Quaternion.rotation(mn.Deg(orientation_z), mn.Vector3(0.0, 0, 1.0))
             object_orientation2 = rotation_z * rotation_y * rotation_x
             agent_state = self.env.sim.get_agent_state(0).position
-            print("Human is at ", human_state.translation)
             if(not np.isnan(angle).any()):
                 set_object_state_from_agent(self.env._sim, self.objs[k], offset= human_state.translation - agent_state, orientation = object_orientation2)
                 self.vel_control_objs[k].linear_velocity = [computed_velocity[k+1,0], 0.0,  computed_velocity[k+1,1]]
-                print("setting linear velocity for extra agent", self.vel_control_objs[k].linear_velocity)
             else:
                 self.vel_control_objs[k].linear_velocity = [0.0,0.0,0.0]
                 self.vel_control_objs[k].angular_velocity = [0.0,0.0,0.0]
@@ -1024,50 +987,50 @@ class sim_env(threading.Thread):
             lock.acquire()
             third_rgb_with_res = np.concatenate(
                 (
-                    np.float32(self.observations["rgb"][:,:,0:3].ravel()),
+                    np.float32(self.observations["robot_third_rgb"][:,:,0:3].ravel()),
                     np.array(
-                        [256,256]
+                        [128,128]
                     ),
                 )
             )
-            # rgb_with_res = np.concatenate(
+            rgb_with_res = np.concatenate(
+                (
+                    np.float32(self.observations["robot_head_rgb"][:,:,0:3].ravel()),
+                    np.array(
+                        [128,128]
+                    ),
+                )
+            )
+            # multiply by 10 to get distance in meters
+            depth_with_res = np.concatenate(
+                (
+                    np.float32(self.observations["robot_head_depth"].ravel() ),
+                    np.array(
+                        [
+                            128,
+                            128
+                        ]
+                    ),
+                )
+            )   
+            # semantic_img =self.semantic_img
+            # agent_pos = self.env.sim.robot.base_pos
+            # agent_pixel = world_to_sem_img(self.semantic_img_proj_mat, self.semantic_img_camera_mat, agent_pos, self.semantic_img_W, self.semantic_img_H)
+            
+            # try:
+            #     u,v = int(agent_pixel[0]), int(agent_pixel[1])
+            #     semantic_img[u, v] = [0,0,0]
+            # except:
+            #     print("not in image Frame!!!!")
+            #     pass 
+            # semantic_with_res = np.concatenate(
             #     (
-            #         np.float32(self.observations["robot_head_rgb"][:,:,0:3].ravel()),
+            #         np.float32(semantic_img[:, :, 0:3].ravel()),
             #         np.array(
-            #             [128,128]
+            #             [semantic_img.shape[0], semantic_img.shape[1]]
             #         ),
             #     )
             # )
-            # # multiply by 10 to get distance in meters
-            # depth_with_res = np.concatenate(
-            #     (
-            #         np.float32(self.observations["robot_head_depth"].ravel() ),
-            #         np.array(
-            #             [
-            #                 128,
-            #                 128
-            #             ]
-            #         ),
-            #     )
-            # )   
-            
-            semantic_img =self.semantic_img
-            agent_pos = self.env.sim.get_agent_state(0).position
-            agent_pixel = world_to_sem_img(self.semantic_img_proj_mat, self.semantic_img_camera_mat, agent_pos, self.semantic_img_W, self.semantic_img_H)
-            
-            try:
-                u,v = int(agent_pixel[0]), int(agent_pixel[1])
-                semantic_img[u, v] = [0,0,0]
-            except:
-                pass 
-            semantic_with_res = np.concatenate(
-                (
-                    np.float32(semantic_img[:, :, 0:3].ravel()),
-                    np.array(
-                        [semantic_img.shape[0], semantic_img.shape[1]]
-                    ),
-                )
-            )
             # points = []
             # for i in range(0,semantic_img.shape[0],5):
             #     for j in range(0,semantic_img.shape[1], 5):
@@ -1097,6 +1060,8 @@ class sim_env(threading.Thread):
             # pc2.header.stamp = rospy.Time.now()
             # self.cloud_pub.publish(pc2)
             # cv2.imwrite("semantic_image.png", semantic_img)
+            agent_pos = self.env.sim.get_agent_state(0).position
+            agent_pos = self.env.sim.robot.base_pos
             pose = Pose()
             pose.position.x = agent_pos[0]
             pose.position.y = agent_pos[1]
@@ -1120,25 +1085,28 @@ class sim_env(threading.Thread):
             # pose.orientation.z = human_rot[2]
             # pose.orientation.w = human_rot[3]
             self._pub_human_sem.publish(pose)
-            # self._pub_rgb.publish(np.float32(rgb_with_res))
-            self._pub_semantic.publish(np.float32(semantic_with_res))
-            # self._pub_depth.publish(np.float32(depth_with_res))
+            self._pub_rgb.publish(np.float32(rgb_with_res))
+            
+            # self._pub_semantic.publish(np.float32(semantic_with_res))
+            self._pub_depth.publish(np.float32(depth_with_res))
             self._pub_third_rgb.publish(np.float32(third_rgb_with_res))
             #### Publish pose and transform
             agent_pos = self.env.sim.get_agent_state(0).position
+            agent_pos = self.env.sim.robot.base_pos
             start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
             initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
             initial_pos = [pos*0.025 for pos in initial_pos]
             self.initial_state[0][0:2] = initial_pos
             # self.initial_state[0][2:4] = vel
             self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
-            self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.get_object_heading(self.env.sim.get_agent(0).scene_node.transformation)})
+            self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot})
             final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[1,:], self.grid_dimensions))
             goal_pos = [pos*0.025 for pos in final_goal_grid]
-            if ((self.initial_state[1][2:4] == [0.0,0.0] or np.isnan(self.initial_state[1][2:4]).all()) and self.env.episode_over and np.allclose(self.initial_state[1][4:6],goal_pos, atol = 0.4) ):
-                break
+            # if (np.allclose(self.initial_state[:][2:4] == 0.0) or np.isnan(self.initial_state[:][2:4]).all()) and np.allclose(self.initial_state[1][4:6],goal_pos, atol = 0.4) :
+            #     break
             if (self.end_run):
                 break
+            
             lock.release()
             self._r_sensor.sleep()
             
@@ -1199,7 +1167,7 @@ class sim_env(threading.Thread):
     def get_goal_sink_feature(self, goal_band = [1.0,1.5]):
         empty_image = 0*np.ones(self.semantic_img.shape)
         robot_start_coord = self.env.episodes[0].start_position
-        robot_goal_coord = self.env.episodes[0].goals[0].position
+        robot_goal_coord = self.env.episodes[0].goals[0]['position']
         diff = self.chosen_object.aabb.center - robot_start_coord
         diff[1] = 0
         robot_dist = np.linalg.norm(diff) 
@@ -1244,7 +1212,7 @@ def callback(vel, my_env):
 
 def main():
 
-    my_env = sim_env(env_config_file="configs/tasks/pointnav_mp3d.yaml")
+    my_env = sim_env(env_config_file="configs/tasks/custom_rearrange.yml")
     # start the thread that publishes sensor readings
     my_env.start()
 

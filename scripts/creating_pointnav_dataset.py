@@ -59,16 +59,19 @@ class pointnav_data():
             print("No dataset found")
             exit(0)
         cfg.SIMULATOR.AGENT_0.SENSORS = []
+        # cfg.SIMULATOR.AGENT_0.RADIUS = 0.3
+        # cfg.SIMULATOR.CONCUR_RENDER = True
         cfg.freeze()
-
         self.sim = habitat.sims.make_sim("Sim-v0", config=cfg.SIMULATOR)
-
+        # self.sim.agents[0].agent_config.radius = 0.3
+        
         self.dset = habitat.datasets.make_dataset("PointNav-v1")
         self.dset.episodes = list(
             generate_pointnav_episode(
                 self.sim, num_episodes_per_scene, is_gen_shortest_path=False
             )
         )
+        
 
     def get_start_goal(self, selected_door_number = None, select_min= False):
         semantic_scene = self.sim.semantic_annotations()
@@ -137,6 +140,7 @@ class pointnav_data():
             path = habitat_path.ShortestPath()
             path.requested_start = np.array(start_pos)
             agent_goal_pos_3d, goal_rot = self.get_in_band_around_door(agent_state.rotation)
+            min_dist = 1000
             if (try_num > max_tries):
                 path.requested_end = agent_goal_pos_3d
                 if(not self.sim.pathfinder.find_path(path)):
@@ -153,11 +157,17 @@ class pointnav_data():
             if(not self.sim.pathfinder.find_path(path)):
                 print("Didn't find path")
                 embed()
-                continue       
+                continue 
+            else:
+                for k in path.points:
+                    min_dist = min(min_dist, self.sim.distance_to_closest_obstacle(k))
+                if min_dist <0.3:
+                    continue
             goes_through_door = self.check_path_goes_through_door(path)
             path_dist = path.geodesic_distance
             is_same_floor = self.is_same_floor(agent_goal_pos_3d, agent_state.position)
         print(path.points)
+
         return start_pos, path.points[-1], path.geodesic_distance, door_number
 
     def get_in_band_around_door(self, agent_rotation = None):

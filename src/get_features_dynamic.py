@@ -25,9 +25,13 @@ import yaml
 import cv2 
 from IPython import embed
 myargv = rospy.myargv(argv=sys.argv)
-
 scene = myargv[1]
-OUT_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/irl/"
+driving = myargv[2]
+if driving:
+    OUT_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/irl/driving/"
+else:
+    OUT_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/irl/rl"
+
 IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/images/"+scene
 print(IMAGE_DIR)
 max_num = 0
