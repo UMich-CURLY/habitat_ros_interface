@@ -1,5 +1,5 @@
 DATASET:
-  DATA_PATH: ./data/datasets/rearrange/mp3d/v1/test/content/1LXtFkjw3qL0.json.gz
+  DATA_PATH: ./data/datasets/rearrange/mp3d/v1/test/content/UwV83HsGsw30.json.gz
   SCENES_DIR: ./data/mp3d/
   SPLIT: test
   TYPE: RearrangeDataset-v0

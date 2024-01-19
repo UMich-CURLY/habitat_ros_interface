@@ -12,14 +12,14 @@ invalid_scenes = []
 for foldername in os.listdir(DATA_PATH):
     scene = foldername
 
-    x = os.system('python ./scripts/creating_pointnav_dataset.py --scene '+ scene+' --dataset ' + dataset)
+    # x = os.system('python ./scripts/creating_pointnav_dataset.py --scene '+ scene+' --dataset ' + dataset)
 
-    if (x == 0):
-        __ = os.system('python ./scripts/get_topdown_map_rl.py --scene '+ scene )
-        __ = os.system('python ./maps/get_outline.py --scene '+ scene)
-        __ = os.system('python ./scripts/get_sdf.py --scene '+ scene)
-    else:
-        invalid_scenes.append(foldername)
+    # if (x == 0):
+    __ = os.system('python ./scripts/get_topdown_map_rl.py --scene '+ scene )
+    __ = os.system('python ./maps/get_outline.py --scene '+ scene)
+    __ = os.system('python ./scripts/get_sdf.py --scene '+ scene)
+    # else:
+    #     invalid_scenes.append(foldername)
 print("These scenes did not have a solution ", invalid_scenes)
 # __ = os.system('python ./scripts/get_topdown_map_old.py --scene '+ scene + ' --mps 0.025')
 # __ = os.system('python ./scripts/get_topdown_map.py --scene '+ scene + ' --mps 0.025 --dataset ' + dataset)

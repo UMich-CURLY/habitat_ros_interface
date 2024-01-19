@@ -52,6 +52,7 @@ import yaml
 from habitat_baselines.common.baseline_registry import baseline_registry
 from habitat_baselines.config.default import get_config as get_baselines_config
 import torch
+
 lock = threading.Lock()
 rospy.init_node("sim", anonymous=False)
 from habitat_baselines.common.obs_transformers import (
@@ -72,7 +73,7 @@ PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 ARGS = PARSER.parse_args()
 scene = ARGS.scene
-USE_RVO = False
+USE_RVO = True
 IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/images/"+scene
 GOAL_BAND = (1.5, 2.5)
 
@@ -205,7 +206,7 @@ class sim_env(threading.Thread):
     control_frequency = 5
     time_step = 1.0 / (control_frequency)
     _r_control = rospy.Rate(control_frequency)
-    human_control_frequency = 1
+    human_control_frequency = 5
     human_time_step = 1/human_control_frequency
     linear_velocity = np.array([0.0,0.0,0.0])
     angular_velocity = np.array([0.0,0.0,0.0])
@@ -240,7 +241,9 @@ class sim_env(threading.Thread):
         self.observations = self.env.reset()
         arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         self.env._sim.robot.arm_joint_pos = arm_joint_positions
-        
+        random.seed(time.clock())
+        self.random_start = random.randint(0, 20)
+        self.random_start = 35
         with open(IMAGE_DIR+"/image_config.yaml", "r") as stream:
             try:
                 image_config = yaml.safe_load(stream)
@@ -272,6 +275,7 @@ class sim_env(threading.Thread):
         self._pub_goal_marker = rospy.Publisher("~goal", Marker, queue_size = 1)
         self._pub_robot_sem = rospy.Publisher("robot_pose_in_sim", Pose, queue_size = 1)
         self._pub_human_sem = rospy.Publisher("human_pose_in_sim", Pose, queue_size = 1)
+        self._pub_ep_start = rospy.Publisher("start_ep", Bool, queue_size = 1)
         self.br = tf.TransformBroadcaster()
         self.br_tf_2 = tf2_ros.TransformBroadcaster()
         # self._pub_pose = rospy.Publisher("~pose", PoseStamped, queue_size=1)
@@ -370,18 +374,32 @@ class sim_env(threading.Thread):
             file_obj = rigid_obj_mgr.add_object_by_template_id(human_template_id)
             file_obj.motion_type = habitat_sim.physics.MotionType.KINEMATIC
             self.objs.append(file_obj)
-            
+            try_num  = 0
+            max_tries = 30
+            try_num_extra = 0
             #### Pick a random start location for this agent ####
-            start_pos_3d, a = self.get_in_band_around_door()
+            start_pos_3d, a = self.get_in_band_around_door(goal_band = [1.5,2.5])
             goes_through_door = False
             while (not goes_through_door):
                 while(not self.is_point_on_other_side(start_pos_3d, agent_state.position)):
-                    start_pos_3d, a = self.get_in_band_around_door()
+                    start_pos_3d, a = self.get_in_band_around_door(goal_band = [1.5,2.5])
+                    try_num = try_num+1
+                    if (try_num>max_tries):
+                        embed()
                 start_pos = to_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
                 print("selected start")
-                temp_goal_pos_3d, a = self.get_in_band_around_door()
+                temp_goal_pos_3d, a = self.get_in_band_around_door(goal_band=[3.0,3.5])
                 while(not self.is_point_on_other_side(start_pos_3d, temp_goal_pos_3d)):
-                    temp_goal_pos_3d, a = self.get_in_band_around_door()
+                    temp_goal_pos_3d, a = self.get_in_band_around_door(goal_band=[3.0,3.5])
+                    try_num = try_num+1
+                    
+                    if (try_num>max_tries):
+                        try_num_extra+=1
+                        temp_goal_pos_3d, a = self.get_in_band_around_door(goal_band=[1.0,3.5])
+                        while(not self.is_point_on_other_side(start_pos_3d, temp_goal_pos_3d)):
+                            temp_goal_pos_3d, a = self.get_in_band_around_door(goal_band=[1.0,3.5])
+                        if (try_num_extra>max_tries):
+                            embed()
                 print("selected goal")
                 goal_pos_3d = temp_goal_pos_3d
                 self.final_goals_3d[k+1,:] = goal_pos_3d
@@ -391,9 +409,12 @@ class sim_env(threading.Thread):
                 if(not self.env._sim.pathfinder.find_path(path)):
                     print("Watch this one Tribhi!!!!")
                     continue
-                goes_through_door = self.check_path_goes_through_door(path)
+                # goes_through_door = self.check_path_goes_through_door(path)
+                goes_through_door = True
+                print(goes_through_door)
             humans_initial_pos_3d.append(path.points[0])
             humans_goal_pos_3d.append(path.points[1])
+            self.final_goals_3d[k+1,:] = path.points[-1]
             human_initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
             human_initial_pos = [pos*0.025 for pos in human_initial_pos]
             goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[-1], self.grid_dimensions))
@@ -431,25 +452,25 @@ class sim_env(threading.Thread):
             self.sfm.fig.savefig("Initial_plot.png")
             print("Initialized rvo2 sim")
         else:
-            possible = False
-            self.sfm = social_force(self, map_path = IMAGE_DIR+"/small_top_down.png", resolution = 0.025, groups = self.groups)
-            try_num = 0
-            while not possible:
-                # temp_state = self.initial_state
-                # self.initial_state = [self.initial_state[1]]
-                # self.sfm = social_force(self, map_path = IMAGE_DIR+"/small_top_down.png", resolution = 0.025, groups = [[0]])
-                temp_state = self.initial_state
-                full_goal = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[1,:], self.grid_dimensions))
-                full_goal = [pos*0.025 for pos in full_goal]
-                temp_state[1][4:6] = full_goal
-                states = self.sfm.get_full_traj(temp_state)
-                if (np.linalg.norm(self.sfm.s.peds.state[1][0:2]-self.sfm.s.peds.state[1][4:6]) < 1.0):
-                    possible = True
-                try_num+=1
-                self.reset_human_pos(index = 0)
-                print("Try number is ", try_num)
-                if (try_num>5):
-                    exit(10)
+            # possible = False
+            # self.sfm = social_force(self, map_path = IMAGE_DIR+"/small_top_down.png", resolution = 0.025, groups = self.groups)
+            # try_num = 0
+            # while not possible:
+            #     # temp_state = self.initial_state
+            #     # self.initial_state = [self.initial_state[1]]
+            #     # self.sfm = social_force(self, map_path = IMAGE_DIR+"/small_top_down.png", resolution = 0.025, groups = [[0]])
+            #     temp_state = self.initial_state
+            #     full_goal = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[1,:], self.grid_dimensions))
+            #     full_goal = [pos*0.025 for pos in full_goal]
+            #     temp_state[1][4:6] = full_goal
+            #     states = self.sfm.get_full_traj(temp_state)
+            #     if (np.linalg.norm(self.sfm.s.peds.state[1][0:2]-self.sfm.s.peds.state[1][4:6]) < 1.0):
+            #         possible = True
+            #     try_num+=1
+            #     # self.reset_human_pos(index = 0)
+            #     print("Try number is ", try_num)
+            #     if (try_num>5):
+                    # exit(10)
 
             # empty_map = np.zeros([self.semantic_img.shape[0], self.semantic_img.shape[1]])
             # max_val = len(states)
@@ -554,18 +575,19 @@ class sim_env(threading.Thread):
         cv2.imwrite(IMAGE_DIR+"/goal_sink.png", goal_sink_img)
         print("created habitat_plant succsefully")
 
-    def get_in_band_around_door(self, agent_rotation = None):
+    def get_in_band_around_door(self, agent_rotation = None, goal_band= None):
         temp_position = self.env.sim.pathfinder.get_random_navigable_point_near(self.chosen_object.aabb.center,5)
         diff_vec = temp_position - self.chosen_object.aabb.center
         diff_vec[1] = 0
         temp_dist = np.linalg.norm(diff_vec)
-        
-        while (temp_dist < 1.0 or temp_dist >1.5):
+        if goal_band is None:
+            goal_band = [1.0,1.5]
+            
+        while (temp_dist < goal_band[0] or temp_dist > goal_band[1]):
             temp_position = self.env.sim.pathfinder.get_random_navigable_point_near(self.chosen_object.aabb.center,5)
             diff_vec = temp_position - self.chosen_object.aabb.center
             diff_vec[1] = 0
             temp_dist = np.linalg.norm(diff_vec)
-        print("Temp dist is ", temp_dist)
         if (agent_rotation):
             agent_door = self.chosen_object.aabb.center - temp_position
             agent_door[2] = -agent_door[2]
@@ -595,9 +617,9 @@ class sim_env(threading.Thread):
                 start_pos_3d, a = self.get_in_band_around_door()
             start_pos = to_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
             print("selected start")
-            temp_goal_pos_3d, a = self.get_in_band_around_door()
+            temp_goal_pos_3d, a = self.get_in_band_around_door(goal_band=[3.0,3.5])
             while(not self.is_point_on_other_side(start_pos_3d, temp_goal_pos_3d)):
-                temp_goal_pos_3d, a = self.get_in_band_around_door()
+                temp_goal_pos_3d, a = self.get_in_band_around_door(goal_band=[3.0,3.5])
             print("selected goal")
             goal_pos_3d = temp_goal_pos_3d
             self.final_goals_3d[k+1,:] = goal_pos_3d
@@ -610,6 +632,7 @@ class sim_env(threading.Thread):
             goes_through_door = self.check_path_goes_through_door(path)
         humans_initial_pos_3d.append(path.points[0])
         humans_goal_pos_3d.append(path.points[1])
+        self.final_goals_3d = path.points[-1]
         human_initial_pos = list(to_grid(self.env._sim.pathfinder, humans_initial_pos_3d[-1], self.grid_dimensions))
         human_initial_pos = [pos*0.025 for pos in human_initial_pos]
         goal_pos = list(to_grid(self.env._sim.pathfinder, humans_goal_pos_3d[-1], self.grid_dimensions))
@@ -642,7 +665,6 @@ class sim_env(threading.Thread):
         x2 = p2_local[1]
         x_size = max([size[0], size[2]])
         if (np.sign(y1) == np.sign(y2) or abs(y1)<5 or abs(y2) <5 or abs(x1)>x_size or abs(x2) >x_size):
-            print("Not on the other side")
             return False
         else:
             print(p1_local, p2_local)
@@ -845,30 +867,35 @@ class sim_env(threading.Thread):
         lin_vel = self.linear_velocity[2]
         ang_vel = self.angular_velocity[1]
         base_vel = [lin_vel, ang_vel]
-        print("Driving velocity  is ", base_vel)
+        
         # if (self.env.)
-        if (self.human_update_counter<=2):
+        print("Human velocity should be ", self.vel_control_objs[0].linear_velocity)
+        print("Step {} of {}", self.human_update_counter, self.random_start)
+        if (self.human_update_counter<=self.random_start):
             self.env.sim.step_physics(self.time_step)
             self.observations.update(self.env._task._sim.get_sensor_observations())
             print(self.initial_state)
             return
+        print("Velocity is ", base_vel)
         self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
         final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[1,:], self.grid_dimensions))
         goal_pos = [pos*0.025 for pos in final_goal_grid]
-        if ((self.initial_state[1][2:4] == [0.0,0.0] or np.isnan(self.initial_state[1][2:4]).all()) and self.env.episode_over and np.allclose(self.initial_state[1][4:6],goal_pos, atol = 0.4) ):
-            print(self.initial_state, goal_pos)
-            self.sfm.fig.savefig("Finished_demo.png")
-            plt.close(self.sfm.fig)
-            self.end_run = True
-            exit(0)
-        if (self.human_update_counter>180):
-            print("human failed to reach in 80 steps")
+        print("final goal is", goal_pos)
+        # if (((self.initial_state[1][2:4] == [0.0,0.0]) or np.isnan(self.initial_state[1][2:4]).all()) and np.allclose(self.initial_state[1][4:6],goal_pos, atol = 0.4) ):
+        #     print("Human reached the goal, saving figure", self.initial_state, goal_pos)
+        #     self.sfm.fig.savefig("Finished_demo.png")
+        #     plt.close(self.sfm.fig)
+        #     self.end_run = True
+
+        #     embed()
+        if (self.human_update_counter>250):
+            print("human failed to reach in 250 steps")
             self.sfm.fig.savefig("Failed_demo.png")
             plt.close(self.sfm.fig)
             self.end_run = True
             exit(0)
         
-            sys.exit()
+            # sys.exit()
         # self.env.sim.step_physics(self.time_step)
             
         # rewards = torch.tensor(
@@ -1100,6 +1127,9 @@ class sim_env(threading.Thread):
             # self.initial_state[0][2:4] = vel
             self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
             self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot})
+            start_msg = Bool()
+            start_msg.data = self.human_update_counter>=self.random_start
+            self._pub_ep_start.publish(start_msg)
             final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[1,:], self.grid_dimensions))
             goal_pos = [pos*0.025 for pos in final_goal_grid]
             # if (np.allclose(self.initial_state[:][2:4] == 0.0) or np.isnan(self.initial_state[:][2:4]).all()) and np.allclose(self.initial_state[1][4:6],goal_pos, atol = 0.4) :

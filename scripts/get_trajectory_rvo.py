@@ -52,13 +52,13 @@ class ped_rvo():
         """
         self.num_steps_stop = [0] * self.num_pedestrians
         self.neighbor_stop_radius = self.config.get(
-            'neighbor_stop_radius', 1.0)
+            'neighbor_stop_radius', 2.0)
         # By default, stop 2 seconds if stuck
         self.num_steps_stop_thresh = self.config.get(
-            'num_steps_stop_thresh', 20)
+            'num_steps_stop_thresh', 10)
         # backoff when angle is greater than 135 degrees
         self.backoff_radian_thresh = self.config.get(
-            'backoff_radian_thresh', np.deg2rad(135.0))
+            'backoff_radian_thresh', np.deg2rad(95.0))
 
         """
         Parameters for ORCA
@@ -99,9 +99,9 @@ class ped_rvo():
         maxSpeed        The default maximum speed of a new agent.
                         Must be non-negative.
         """
-        self.neighbor_dist = self.config.get('orca_neighbor_dist', 2)
+        self.neighbor_dist = self.config.get('orca_neighbor_dist', 3.0)
         self.max_neighbors = self.num_pedestrians
-        self.time_horizon = self.config.get('orca_time_horizon', 2.0)
+        self.time_horizon = self.config.get('orca_time_horizon', 7.0)
         self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 4.0)
         self.orca_radius = self.config.get('orca_radius', 0.2)
         self.orca_max_speed = self.config.get('orca_max_speed', 0.5)

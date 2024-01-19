@@ -898,8 +898,8 @@ class sim_env(threading.Thread):
                 plt.close(self.sfm.fig)
                 self.end_run = True
                 exit(0)
-            if (self.human_update_counter>80):
-                print("human failed to reach in 80 steps")
+            if (self.human_update_counter>150):
+                print("human failed to reach in 150 steps")
                 self.sfm.fig.savefig("Failed_demo.png")
                 plt.close(self.sfm.fig)
                 self.end_run = True
