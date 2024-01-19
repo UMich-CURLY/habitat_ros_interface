@@ -35,8 +35,8 @@ print(ARGS)
 scene = ARGS.scene
 meters_per_pixel = ARGS.mps
 dataset = ARGS.dataset
-MAP_DIR = "/home/catkin_ws/src/habitat_ros_interface/maps"
-IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/images/current_scene"
+MAP_DIR = "/home/fetch/Documents/habitat_02/habitat_ros_interface/maps"
+IMAGE_DIR = "/home/fetch/Documents/habitat_02/habitat_ros_interface/images/current_scene"
 if not os.path.exists(MAP_DIR):
     print("Didi not find maps directory")
     os.makedirs(MAP_DIR)
@@ -333,12 +333,12 @@ def main():
         # The FullLoader parameter handles the conversion from YAML
         # scalar values to Python the dictionary format
         config = yaml.load(file, Loader=yaml.FullLoader)
-        if (dataset == "mp3d"):
-            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/mp3d/v1/test/content/"+scene+"0.json.gz"
+        if (dataset == "mp3d"): #KL
+            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/mp3d/v1/train/content/"+scene+"0.json.gz"
         elif (dataset == "gibson"):
-            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/gibson/v1/test/content/"+scene+"0.json.gz"
+            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/gibson/v1/train/content/"+scene+"0.json.gz"
         elif (dataset == "habitat"):
-            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/habitat-test-scenes/v1/test/content/"+scene+"0.json.gz"
+            config['DATASET']['DATA_PATH'] = "./data/datasets/pointnav/habitat-test-scenes/v1/train/content/"+scene+"0.json.gz"
     
     with open("configs/tasks/pointnav_rgbd.yaml",'w') as file:
         print("Replacing the data config to the new scene ", scene)

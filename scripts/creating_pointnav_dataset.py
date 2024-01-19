@@ -34,7 +34,7 @@ PARSER.add_argument('-d', '--dataset', default="mp3d", type=str, help='dataset')
 ARGS = PARSER.parse_args()
 scene = ARGS.scene
 dataset = ARGS.dataset
-num_episodes_per_scene = 1
+num_episodes_per_scene = 10 #KL prev:1
 GOAL_BAND = (1.5, 2.5)
 '''
 Create N Number of episodes for each scene. Specify the correct scene in arguments
@@ -44,11 +44,11 @@ class pointnav_data():
         cfg = habitat.get_config()
         cfg.defrost()
         if (dataset == "mp3d"):
-            cfg.SIMULATOR.SCENE = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/"+scene+"/"+scene+".glb"
+            cfg.SIMULATOR.SCENE = "/habitat_ros_interface/data/mp3d/"+scene+"/"+scene+".glb"
         elif(dataset == "gibson"):
-            cfg.SIMULATOR.SCENE = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/gibson/"+scene+".glb"
+            cfg.SIMULATOR.SCENE = "/habitat_ros_interface/data/scene_datasets/gibson/"+scene+".glb"
         elif (dataset == "habitat"):
-            cfg.SIMULATOR.SCENE = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/habitat-test-scenes/"+scene+".glb"
+            cfg.SIMULATOR.SCENE = "/habitat_ros_interface/data/scene_datasets/habitat-test-scenes/"+scene+".glb"
         else:
             print("No dataset found")
             exit(0)
@@ -83,6 +83,7 @@ class pointnav_data():
         sdfs = np.array(sdfs)
         candidate_doors_index = np.array(non_obs_candidate_doors)
         if not selected_door_number:
+            print("examine: ", candidate_doors_index)#FIXME: no candidate_door_index
             door_number = np.random.choice(candidate_doors_index)
         else:
             door_number = candidate_doors_index[selected_door_number]
@@ -210,21 +211,22 @@ class pointnav_data():
             line = np.linspace(a,b,50)
             # ep.extra_info = {}
         if (dataset == "mp3d"):
+            print("----------------TEST generat json dataset: ------------")
             for ep in self.dset.episodes:
-                ep.scene_id = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/"+scene+"/"+scene+".glb"
-                ep.scene_dataset_config = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/mp3d/mp3d.scene_dataset_config.json"
+                ep.scene_id = "/habitat_ros_interface/data/mp3d/"+scene+"/"+scene+".glb"
+                ep.scene_dataset_config = "/habitat_ros_interface/data/mp3d/mp3d.scene_dataset_config.json"
             print(self.dset.episodes)
             scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
-            out_file = f"/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content/"+scene + str(count_episodes)+".json.gz"
+            out_file = f"/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/train/content/"+scene + str(count_episodes)+".json.gz"
             os.makedirs(osp.dirname(out_file), exist_ok=True)
             with gzip.open(out_file, "wt") as f:
                 f.write(self.dset.to_json())
         elif (dataset == "gibson"):
             for ep in self.dset.episodes:
-                ep.scene_id = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/gibson/"+scene+".glb"
+                ep.scene_id = "/habitat_ros_interface/data/gibson/"+scene+".glb"
             print(self.dset.episodes)
             scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
-            out_file = f"./data/datasets/pointnav/gibson/v1/test/content/"+scene + str(count_episodes)+".json.gz"
+            out_file = f"./data/datasets/pointnav/gibson/v1/train/content/"+scene + str(count_episodes)+".json.gz"
             os.makedirs(osp.dirname(out_file), exist_ok=True)
             with gzip.open(out_file, "wt") as f:
                 f.write(self.dset.to_json())
@@ -233,7 +235,7 @@ class pointnav_data():
                 ep.scene_id = "data/scene_datasets/habitat-test-scenes/"+scene+".glb"
             print(self.dset.episodes)
             scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
-            out_file = f"./data/datasets/pointnav/habitat-test-scenes/v1/test/content/"+scene + str(count_episodes)+".json.gz"
+            out_file = f"./data/datasets/pointnav/habitat-test-scenes/v1/train/content/"+scene + str(count_episodes)+".json.gz"
             os.makedirs(osp.dirname(out_file), exist_ok=True)
             with gzip.open(out_file, "wt") as f:
                 f.write(self.dset.to_json())

@@ -24,7 +24,7 @@ TASK:
   SUCCESS:
     SUCCESS_DISTANCE: 0.2
 DATASET:
-  DATA_PATH: /home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content/Vvot9Ly1tCj0.json.gz
-  SCENES_DIR: /home/catkin_ws/src/habitat_ros_interface/data/scene_datasets
+  DATA_PATH: /habitat_ros_interface/data/datasets/pointnav/mp3d/v1/full_data.json.gz
+  SCENES_DIR: /habitat_ros_interface/data/scene_datasets
   SPLIT: test
   TYPE: PointNav-v1

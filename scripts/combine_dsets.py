@@ -67,7 +67,8 @@ class pointnav_data():
 
 if __name__ == "__main__":
     data = pointnav_data()
-    data.get_json_files("/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content")
-    outfile = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/full_data.json.gz"
+    data.get_json_files("/home/fetch/Documents/habitat_02/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/train/content")
+    outfile = "/home/fetch/Documents/habitat_02/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/full_data.json.gz"
     with gzip.open(outfile, "wt") as f:
         f.write(data.dset.to_json())
+    print("Done!")

@@ -1,0 +1,1 @@
+$python -u habitat_baselines/run.py --exp-config habitat_baselines/config/pointnav/ppo_pointnav[_custom].yaml --run-type train
