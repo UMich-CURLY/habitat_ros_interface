@@ -299,15 +299,15 @@ class FeatureExpect():
         world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1],human_pose_2d[0],human_pose_2d[1], self.human_height)
         self.semantic_img[human_pose_2d[0], human_pose_2d[1]] = [0,self.counter,0]
         self.human_pose_2d = human_pose_2d
-        if self.episode_start:
-            if (self.human_pose_2d not in self.human_future_traj):
-                self.human_future_traj.append(self.human_pose_2d)
-        else:
-            if (self.human_pose_2d not in self.human_past_traj):
-                self.human_past_traj.append(self.human_pose_2d)
+        # if self.episode_start:
+        #     if (self.human_pose_2d not in self.human_future_traj):
+        #         self.human_future_traj.append(self.human_pose_2d)
+        # else:
+        if (self.human_pose_2d not in self.human_past_traj):
+            self.human_past_traj.append(self.human_pose_2d)
     
     def save_feature(self):
-        self.end_point = True
+        # self.end_point = True
         print("saving image", self.traj)
         cv2.imwrite(TEMP_PATH+ "/traj_feat.png",self.semantic_img)
         msg = Int32MultiArray()

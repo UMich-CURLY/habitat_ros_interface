@@ -51,6 +51,6 @@ if (x == 256):
 __ = os.system('python ./scripts/get_topdown_map.py --scene '+ scene + ' --mps 0.025 --dataset ' + dataset)
 __ = os.system('python ./scripts/rearrangement_episode.py --scene '+ scene +' --dataset ' + dataset)
 
-os.system('python ./scripts/door_driving_agent.py --scene '+ scene)
+os.system('python ./scripts/door_irl_agent.py --scene '+ scene)
     
     
