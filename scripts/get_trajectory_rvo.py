@@ -20,6 +20,7 @@ def my_ceil(a, precision=2):
 
 def my_floor(a, precision=2):
     return np.true_divide(np.floor(a * 10**precision), 10**precision)
+#### Run everything x number of steps and see the human will backoff, in which case, the human goal should be set to same side of the door!  
 
 class ped_rvo():
     
@@ -33,7 +34,7 @@ class ped_rvo():
             'num_sqrt_meter_per_ped', 8)
         self.num_pedestrians = max(1, int(
             num_sqrt_meter / self.num_sqrt_meter_per_ped))
-
+        self.num_pedestrians = 2
         """
         Parameters for our mechanism of preventing pedestrians to back up.
         Instead, stop them and then re-sample their goals.
@@ -51,14 +52,16 @@ class ped_rvo():
                                then the pedestrian is considered backing off.
         """
         self.num_steps_stop = [0] * self.num_pedestrians
+        self.computed_vel = [0, 0] * self.num_pedestrians
+        self.prev_vel = [0, 0] * self.num_pedestrians
         self.neighbor_stop_radius = self.config.get(
             'neighbor_stop_radius', 2.0)
         # By default, stop 2 seconds if stuck
         self.num_steps_stop_thresh = self.config.get(
-            'num_steps_stop_thresh', 10)
+            'num_steps_stop_thresh', 0.0)
         # backoff when angle is greater than 135 degrees
         self.backoff_radian_thresh = self.config.get(
-            'backoff_radian_thresh', np.deg2rad(95.0))
+            'backoff_radian_thresh', np.deg2rad(135.0))
 
         """
         Parameters for ORCA
@@ -101,7 +104,7 @@ class ped_rvo():
         """
         self.neighbor_dist = self.config.get('orca_neighbor_dist', 3.0)
         self.max_neighbors = self.num_pedestrians
-        self.time_horizon = self.config.get('orca_time_horizon', 7.0)
+        self.time_horizon = self.config.get('orca_time_horizon', 200.0)
         self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 4.0)
         self.orca_radius = self.config.get('orca_radius', 0.2)
         self.orca_max_speed = self.config.get('orca_max_speed', 0.5)
@@ -124,7 +127,7 @@ class ped_rvo():
         initial_state = my_env.initial_state
         for i in range(len(initial_state)):
             if i==0:
-                self.orca_ped.append(self.orca_sim.addAgent((initial_state[i][0],initial_state[i][1]), velocity = (initial_state[i][2], initial_state[i][3]), radius = 0.55))
+                self.orca_ped.append(self.orca_sim.addAgent((initial_state[i][0],initial_state[i][1]), velocity = (initial_state[i][2], initial_state[i][3]), radius = 0.2))
             else:
                 self.orca_ped.append(self.orca_sim.addAgent((initial_state[i][0],initial_state[i][1]), velocity = (initial_state[i][2], initial_state[i][3])))
             desired_vel = np.array([initial_state[i][4] - initial_state[i][0], initial_state[i][5]-initial_state[i][1]]) 
@@ -244,17 +247,19 @@ class ped_rvo():
             if (self.update_number < self.max_counter):
                 self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
                 self.ax.plot(initial_state[j][4], initial_state[j][5], "-x", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
-        print("Initial state is ",initial_state[1])
-        print("Point reaches in this step is ", [x,y])
-        print("Time step in rvo2 sim is", self.dt)
+        
         if (self.update_number == self.max_counter):
                 print("saving the offline plot!!")
                 self.fig.savefig("save_stepwise_rvo2"+".png", dpi=300)
                 plt.close(self.fig)
         self.update_number+=1
         
-        print("Computed velocity by rvo2 is ",computed_velocity)
-        print("Given velocity by rvo2 is ", actual_velocity)
+        self.computed_vel = computed_velocity
+        if (self.update_number == 0):
+            self.prev_vel = computed_velocity
+        backoff_ped = self.detect_backoff(1)
+        print("Back off ped ?", backoff_ped)
+        self.prev_vel = computed_velocity
         
         if save_anim:
             self.plot_obstacles()
@@ -321,6 +326,29 @@ class ped_rvo():
     #         plt.close(self.fig)
     #     return np.array(computed_velocity)
 
+    def detect_backoff(self, index):
+        """
+        Detects if the pedestrian is attempting to perform a backoff
+        due to some form of imminent collision
+
+        :param ped: the pedestrain object
+        :param orca_ped: the pedestrian id in the orca simulator
+        :return: whether the pedestrian is backing off
+        """
+        
+
+        # Computing the directional vectors from yaw, prev_vel 
+        prev_dir = np.array(self.prev_vel[index])
+        # Current computed_vel
+        next_dir = np.array(self.computed_vel[index])
+
+        if np.linalg.norm(next_dir) == 0.0 or np.linalg.norm(prev_dir) == 0.0:
+            return False
+
+        next_normalized_dir = next_dir / np.linalg.norm(next_dir)
+        prev_normalized_dir = prev_dir / np.linalg.norm(prev_dir)
+        angle = np.arccos(np.dot(prev_normalized_dir, next_normalized_dir))
+        return angle >= self.backoff_radian_thresh
     
     def plot_obstacles(self):
         self.fig.set_tight_layout(True)

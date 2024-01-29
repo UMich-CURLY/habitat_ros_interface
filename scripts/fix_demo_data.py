@@ -140,6 +140,8 @@ for foldername in os.listdir(DATA_PATH):
     semantic_img[past_traj_data[:,0], past_traj_data[:,1]] = [255,0,0]
     semantic_img[new_human_data[:,0], new_human_data[:,1]] = [0,255,0]
     cv2.imwrite(folder_path+ "/traj_fixed_trajs.png", semantic_img)
+    if foldername == "demo_36":
+        embed()
 #     if (x == 0):
 #         __ = os.system('python ./scripts/get_topdown_map_rl.py --scene '+ scene )
 #         __ = os.system('python ./maps/get_outline.py --scene '+ scene)

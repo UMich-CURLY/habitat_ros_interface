@@ -455,6 +455,7 @@ class sim_env(threading.Thread):
         
         if USE_RVO:
             self.sfm = ped_rvo(self, map_path = IMAGE_DIR+"/small_top_down.png", resolution = 0.025)
+            self.only_map = self.sfm.fig
             self.sfm.fig.savefig("Initial_plot.png")
             print("Initialized rvo2 sim")
         else:
@@ -773,6 +774,7 @@ class sim_env(threading.Thread):
             t.transform.translation.x = 0.0
             t.transform.translation.y = 0.0
             t.transform.translation.z = 0.0
+            
             q = tf.transformations.quaternion_from_euler(0, 0, -theta)
             t.transform.rotation.x = q[0]
             t.transform.rotation.y = q[1]
@@ -888,14 +890,14 @@ class sim_env(threading.Thread):
     def update_agent_pos_vel(self): 
         if(self.agent_update_counter/self.update_multiple == self.human_update_counter):
             self.update_pos_vel()
-            agent_pos = self.env.sim.get_agent_state(0).position
             agent_pos = self.env.sim.robot.base_pos
             start_pos = [agent_pos[0], agent_pos[1], agent_pos[2]]
             initial_pos = list(to_grid(self.env._sim.pathfinder, start_pos, self.grid_dimensions))
             initial_pos = [pos*0.025 for pos in initial_pos]
-            vel = [(self.initial_pos[0]-initial_pos[0])/self.human_time_step,(self.initial_pos[1]-initial_pos[1])/self.human_time_step]
+            vel = [(initial_pos[0]-self.initial_pos[0])/self.human_time_step,(initial_pos[1]-self.initial_pos[1])/self.human_time_step]
             self.initial_state[0][2:4] = vel
             self.initial_pos = initial_pos
+            print("Initial state is ", self.initial_state)
         self.agent_update_counter +=1
         lin_vel = self.linear_velocity[2]
         ang_vel = self.angular_velocity[1]
@@ -925,8 +927,7 @@ class sim_env(threading.Thread):
             print("human failed to reach in 250 steps")
             self.sfm.fig.savefig("Failed_demo.png")
             plt.close(self.sfm.fig)
-            self.end_run = True
-            exit(0)
+            # self.end_run = True
         
             # sys.exit()
         # self.env.sim.step_physics(self.time_step)
@@ -1159,11 +1160,10 @@ class sim_env(threading.Thread):
             self.initial_state[0][0:2] = initial_pos
             # self.initial_state[0][2:4] = vel
             self.goal_dist[0] = np.linalg.norm((np.array(self.initial_state[0][0:2])-np.array(self.initial_state[0][4:6])))
-            self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.env.sim.robot.base_rot})
+            self.map_to_base_link({'x': initial_pos[0], 'y': initial_pos[1], 'theta': self.get_object_heading(self.env._sim.robot.base_transformation)})
             start_msg = Bool()
             start_msg.data = self.human_update_counter>=self.random_start
             self._pub_ep_start.publish(start_msg)
-            print("Inside run!!! ", self.path_msg)
             self._pub_path_msg.publish(self.path_msg)
             final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[1,:], self.grid_dimensions))
             goal_pos = [pos*0.025 for pos in final_goal_grid]
@@ -1211,6 +1211,10 @@ class sim_env(threading.Thread):
         return mn.Rad(np.arctan2(vel[1], vel[0]))
 
     def point_callback(self,point):
+        for pose in self.path_msg.poses:
+            x,y = [pose.position.x, pose.position.y]
+            self.only_map[x,y] = [255,0,0]
+        self.only_map.savefig("Predicted_traj.png")
         # depot = self.rtab_pose
         # self.start_time = rospy.get_time()
         # self.tour_plan.plan(depot)

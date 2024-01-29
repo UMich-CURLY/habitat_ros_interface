@@ -130,7 +130,7 @@ class pointnav_data():
         is_same_floor = False
         while (not goes_through_door or path_dist<1.0 or not is_same_floor):
             try_num+=1
-            temp_position, rot = self.get_in_band_around_door(agent_state.rotation)
+            temp_position, rot = self.get_in_band_around_door(agent_state.rotation, [0.1, 2.0])
             self.sim.set_agent_state(temp_position, rot)
             agent_pos = self.sim.get_agent_state(0).position
             agent_state = self.sim.get_agent_state(0)
@@ -170,12 +170,12 @@ class pointnav_data():
 
         return start_pos, path.points[-1], path.geodesic_distance, door_number
 
-    def get_in_band_around_door(self, agent_rotation = None):
+    def get_in_band_around_door(self, agent_rotation = None, goal_band = [1.0,1.5]):
         temp_position = self.sim.pathfinder.get_random_navigable_point_near(self.chosen_object.aabb.center,5)
         diff_vec = temp_position - self.chosen_object.aabb.center
         diff_vec[1] = 0
         temp_dist = np.linalg.norm(diff_vec)
-        while (temp_dist < 1.0 or temp_dist >1.5):
+        while (temp_dist < goal_band[0] or temp_dist > goal_band[1]):
             temp_position = self.sim.pathfinder.get_random_navigable_point_near(self.chosen_object.aabb.center,5)
             diff_vec = temp_position - self.chosen_object.aabb.center
             diff_vec[1] = 0

@@ -7,7 +7,7 @@ import sys
 from pyparsing import empty
 # from laser2density import Laser2density
 import rospy
-from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray, Pose
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray, Pose, PointStamped
 import numpy as np
 from numpy import cos, sin
 import matplotlib.pyplot as plt
@@ -153,6 +153,7 @@ class FeatureExpect():
         self.sub_ep_start = rospy.Subscriber("start_ep", Bool, self.is_start, queue_size=1)
         self._pub_all_agents = rospy.Publisher("~human_traj", Int32MultiArray, queue_size = 1)
         self._pub_robot = rospy.Publisher("~robot_traj", Int32MultiArray, queue_size = 1)
+        self.sub_click = rospy.Subscriber("/clicked_point", PointStamped,self.point_callback, queue_size=1)
         # self.sub_goal = rospy.Subscriber("move_base_simple/goal", PoseStamped, self.goal_callback, queue_size=100)
         self.robot_pose = [0.0, 0.0]
         self.previous_robot_pose = []
@@ -285,6 +286,9 @@ class FeatureExpect():
             self.save_feature()
         self.counter = 0
 
+    def point_callback(self, data):
+        print("getting continued data")
+
     def traj_callback(self,data):
         self.traj_feature = [[cell] for cell in data.data]
 
@@ -350,7 +354,6 @@ class FeatureExpect():
             np.save(f, np.array(self.human_past_traj))
         # with open(FULL_PATH+ "/human_traj.npy", 'wb') as f:
         #     np.save(f, np.array(self.human_future_traj))
-        exit(0)
 
 
     

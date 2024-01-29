@@ -7,7 +7,7 @@ import sys
 from pyparsing import empty
 # from laser2density import Laser2density
 import rospy
-from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray, Pose
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray, Pose, PointStamped
 import numpy as np
 from numpy import cos, sin
 import matplotlib.pyplot as plt
@@ -136,6 +136,7 @@ class FeatureExpect():
         self.sub_people = rospy.Subscriber("human_pose_in_sim", Pose, self.people_callback, queue_size=1)
         self.sub_robot = rospy.Subscriber("robot_pose_in_sim", Pose, self.get_robot_pose, queue_size=1)
         self.sub_ep_start = rospy.Subscriber("start_ep", Bool, self.is_start, queue_size=1)
+        self.sub_click = rospy.Subscriber("/clicked_point", PointStamped,self.point_callback, queue_size=1)
         # self.sub_goal = rospy.Subscriber("move_base_simple/goal", PoseStamped, self.goal_callback, queue_size=100)
         self.robot_pose = [0.0, 0.0]
         self.previous_robot_pose = []
@@ -221,7 +222,7 @@ class FeatureExpect():
                 self.counter = self.counter+1
                 self.traj.append((robot_pose_2d, self.human_pose_2d))
                 self.last_pose_time_stamp = rospy.Time.now()
-                print("Traj is ", self.traj)
+                # print("Traj is ", self.traj)
             # if (self.update_num == 1):
             #     test_pos_3d = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_pose_2d[0], robot_pose_2d[1], robot_pos_3d[1], debug = True)
             # test_pos_3d = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_pose_2d[0], robot_pose_2d[1], robot_pos_3d[1])
@@ -274,15 +275,16 @@ class FeatureExpect():
             np.save(f, np.array(self.traj))
         with open(FULL_PATH+ "/robot_traj.npy", 'wb') as f:
             np.save(f, np.array(self.robot_traj))
+        print ("whats is the issue ", self.human_past_traj)
         with open(FULL_PATH+ "/human_past_traj.npy", 'wb') as f:
             np.save(f, np.array(self.human_past_traj))
         with open(FULL_PATH+ "/human_traj.npy", 'wb') as f:
             np.save(f, np.array(self.human_future_traj))
-        exit(0)
 
     def get_current_feature(self):
         # self.goal_sink = self.get_goal_sink_feature()
         print("Saving feature")
+        
         # cv2.imwrite(FULL_PATH+ "/goal_sink.png", self.goal_sink)
 
 
@@ -308,6 +310,32 @@ class FeatureExpect():
                     else:
                         empty_image[i,j] = [0,255,0]
         return empty_image
+    def point_callback(self, data):
+        print("Saving episode till now and creating new one ")
+        self.save_feature()
+        print("human traj was ", self.human_past_traj)
+        max_num = 0
+        for foldername in os.listdir(OUT_DIR):
+            number_str = "_"
+            valid = False
+            m = foldername[5:]
+            max_num = max(max_num,int(m))
+        next_folder_name = OUT_DIR+"demo_"+str(max_num)
+        entry = os.listdir(next_folder_name)
+        if (not (len(entry) == 0)):
+            next_folder_name = OUT_DIR+"demo_"+str(max_num+1)
+            __ = os.system("mkdir " + next_folder_name)
+        print ("new folder is , continue?", next_folder_name)
+        global FULL_PATH
+        FULL_PATH = next_folder_name
+        self.robot_traj = []
+        self.traj = []
+        for pose in self.human_future_traj:
+            self.human_past_traj.append(pose)
+        print("human traj now is ", self.human_past_traj)
+        self.human_future_traj = []
+        self.end_point = False
+        self.start_point = False
 
     def is_point_in_band(self, point, goal_band = [1.0,1.5]):
         dist = self.get_dist_from_door(point)
@@ -374,9 +402,10 @@ if __name__ == "__main__":
         while(not rospy.is_shutdown()):
             rospy.sleep(0.01)
             if feature.last_pose_time_stamp is not None:
-                print((rospy.Time.now()-feature.last_pose_time_stamp).to_sec())
                 if (rospy.Time.now()-feature.last_pose_time_stamp).to_sec() >30:
+                    print("Time up")
                     feature.save_feature()
+                    exit(0)
             # print("Traj is ", feature.traj)
             # update +=1
             # print(update)
