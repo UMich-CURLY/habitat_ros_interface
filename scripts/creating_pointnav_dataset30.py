@@ -27,6 +27,9 @@ import numpy as np
 import quaternion as qt
 from IPython import embed
 from get_topdown_map_rl import draw_agent_in_top_down
+# from get_trajectory import *   #KL: remove
+# from get_trajectory_rvo import *
+from omegaconf import OmegaConf #KL: check
 PARSER = argparse.ArgumentParser(description=None)
 PARSER.add_argument('-s', '--scene', default="17DRP5sb8fy", type=str, help='scene')
 PARSER.add_argument('-d', '--dataset', default="mp3d", type=str, help='dataset')
@@ -34,35 +37,50 @@ PARSER.add_argument('-d', '--dataset', default="mp3d", type=str, help='dataset')
 ARGS = PARSER.parse_args()
 scene = ARGS.scene
 dataset = ARGS.dataset
-num_episodes_per_scene = 10 #KL prev:1
-GOAL_BAND = (1.5, 2.5)
+num_episodes_per_scene = 1  #KL: modify
+GOAL_BAND = (1.0, 1.5)
+IMG_OUT_PATH = "data/datasets/pointnav/mp3d/v1/test/images/"+scene
+if not os.path.exists(IMG_OUT_PATH):
+    print("Did not find maps directory")
+    os.makedirs(IMG_OUT_PATH)
 '''
 Create N Number of episodes for each scene. Specify the correct scene in arguments
 '''
 class pointnav_data():
     def __init__(self):
-        cfg = habitat.get_config('/habitat_ros_interface/configs/tasks/pointnav_mp3d.yaml')
-        cfg.defrost()
+        cfg = habitat.get_config("/habitat-lab/habitat-lab/habitat/config/benchmark/multi_agent/hssd_spot_human_social_nav.yaml") #.habitat.dataset #KL: FIXME
+        # cfg.defrost()
+        # OmegaConf.set_struct(cfg, False)
+        # embed()
         if (dataset == "mp3d"):
-            cfg.SIMULATOR.SCENE = "/habitat_ros_interface/data/scene_datasets/mp3d/"+scene+"/"+scene+".glb"
+            cfg = habitat.get_config("/habitat-lab/habitat-lab/habitat/config/benchmark/multi_agent/hssd_spot_human_social_nav.yaml",
+                                     overrides = [f"habitat.simulator.scene=data/scene_datasets/mp3d/{scene}/{scene}.glb",
+                                                  "habitat.simulator.agents.agent_0.sim_sensors={}"])
+            # cfg.habitat.simulator.scene = "/habitat_ros_interface/data/scene_datasets/mp3d/"+scene+"/"+scene+".glb"
         elif(dataset == "gibson"):
-            cfg.SIMULATOR.SCENE = "/habitat_ros_interface/data/scene_datasets/gibson/"+scene+".glb"
+            cfg.habitat.simulator.scene = "/habitat_ros_interface/data/scene_datasets/gibson/"+scene+".glb"
         elif (dataset == "habitat"):
-            cfg.SIMULATOR.SCENE = "/habitat_ros_interface/data/scene_datasets/habitat-test-scenes/"+scene+".glb"
+            cfg.habitat.simulator.scene = "/habitat_ros_interface/data/scene_datasets/habitat-test-scenes/"+scene+".glb"
         else:
             print("No dataset found")
             exit(0)
-        cfg.SIMULATOR.AGENT_0.SENSORS = []
-        cfg.freeze()
-
-        self.sim = habitat.sims.make_sim("Sim-v0", config=cfg.SIMULATOR)
-
-        self.dset = habitat.datasets.make_dataset("PointNav-v1")
+        # cfg.habitat.simulator.agents.agent_0.sim_sensors = []
+        # cfg.SIMULATOR.AGENT_0.SENSORS = []
+        # cfg.SIMULATOR.AGENT_0.RADIUS = 0.3
+        # cfg.SIMULATOR.CONCUR_RENDER = True
+        # cfg.freeze()
+        # OmegaConf.set_struct(cfg, True)
+        embed()
+        self.sim = habitat.sims.make_sim("Sim-v0", config=cfg.habitat.simulator)
+        # self.sim.agents[0].agent_config.radius = 0.3
+        
+        self.dset = habitat.datasets.make_dataset("PointNav-v1") #KL: FIXME
         self.dset.episodes = list(
             generate_pointnav_episode(
                 self.sim, num_episodes_per_scene, is_gen_shortest_path=False
             )
         )
+        
 
     def get_start_goal(self, selected_door_number = None, select_min= False):
         semantic_scene = self.sim.semantic_annotations()
@@ -74,8 +92,16 @@ class pointnav_data():
         non_obs_candidate_doors = []
         sdfs = []
         for candidate_door in candidate_doors_index:
-            chosen_object = semantic_scene.objects[candidate_door]    
-            if self.sim.distance_to_closest_obstacle(chosen_object.aabb.center) <0.25:
+            chosen_object = semantic_scene.objects[candidate_door]
+            dist = self.sim.distance_to_closest_obstacle(chosen_object.aabb.center) 
+            if dist <0.3 or dist>0.8:
+                continue
+            # if (not np.allclose(goal_rot, np.array([0,0,0,1]), atol = 0.1)) or (not np.allclose(goal_rot, np.array([-0.499,0.499,0.499,0.499]), atol = 0.1)):
+            #     embed()
+            temp_rot = chosen_object.obb.rotation
+            quat_rot =  qt.quaternion(temp_rot[3], temp_rot[0], temp_rot[1], temp_rot[2])
+            a =  qt.as_euler_angles(quat_rot)
+            if (int(abs(a[1]*180/3.1415))%90 > 3):
                 continue
             else:
                 non_obs_candidate_doors.append(candidate_door)
@@ -83,7 +109,6 @@ class pointnav_data():
         sdfs = np.array(sdfs)
         candidate_doors_index = np.array(non_obs_candidate_doors)
         if not selected_door_number:
-            print("examine: ", candidate_doors_index)#FIXME: no candidate_door_index
             door_number = np.random.choice(candidate_doors_index)
         else:
             door_number = candidate_doors_index[selected_door_number]
@@ -92,6 +117,15 @@ class pointnav_data():
             door_number = candidate_doors_index[int(arg_min)]
         
         self.chosen_object = semantic_scene.objects[door_number]    
+        # target_quat = mn.Quaternion(mn.Vector3([1.0,0,0]), 0.0)
+        # obj_rot = chosen_object.obb.rotation
+        # obj_quat = mn.Quaternion(mn.Vector3(obj_rot[0], obj_rot[1], obj_rot[2]), obj_rot[3])
+        # obj_quat_inv = obj_quat.inverted()
+        # x = target_quat*obj_quat_inv
+        # self.chosen_object = {'obb': None, 'aabb':None}
+        # embed()
+        # self.chosen_object.obb = chosen_object.obb.rotate(x)
+        # self.chosen_object.aabb = chosen_object.obb.to_aabb()
         # temp_rot = chosen_object.obb.rotation
         # quat_rot =  qt.quaternion(temp_rot[3], temp_rot[0], temp_rot[1], temp_rot[2])
         # quat_rot = quat_rot  *qt.quaternion(0.7071, 0, 0, -0.7071)
@@ -100,7 +134,11 @@ class pointnav_data():
         chosen_object = semantic_scene.objects[door_number]   
         goes_through_door = False
         path_dist = 0
-        while (not goes_through_door or path_dist<1.0):
+        max_tries = 200
+        try_num = 0
+        is_same_floor = False
+        while (not goes_through_door or path_dist<1.0 or not is_same_floor):
+            try_num+=1
             temp_position, rot = self.get_in_band_around_door(agent_state.rotation)
             self.sim.set_agent_state(temp_position, rot)
             agent_pos = self.sim.get_agent_state(0).position
@@ -111,17 +149,34 @@ class pointnav_data():
             path = habitat_path.ShortestPath()
             path.requested_start = np.array(start_pos)
             agent_goal_pos_3d, goal_rot = self.get_in_band_around_door(agent_state.rotation)
+            min_dist = 1000
+            if (try_num > max_tries):
+                path.requested_end = agent_goal_pos_3d
+                if(not self.sim.pathfinder.find_path(path)):
+                    print("Didn't find path")
+                path_dist = path.geodesic_distance
+                print("No solution found, try a different door ")
+                door_number = -1
+                break
             if (not self.is_point_on_other_side(agent_goal_pos_3d, agent_state.position)):
                 continue
             else:
                 path.requested_end = agent_goal_pos_3d
+            
             if(not self.sim.pathfinder.find_path(path)):
                 print("Didn't find path")
                 embed()
-                continue       
+                continue 
+            else:
+                for k in path.points:
+                    min_dist = min(min_dist, self.sim.distance_to_closest_obstacle(k))
+                if min_dist <0.3:
+                    continue
             goes_through_door = self.check_path_goes_through_door(path)
             path_dist = path.geodesic_distance
+            is_same_floor = self.is_same_floor(agent_goal_pos_3d, agent_state.position)
         print(path.points)
+
         return start_pos, path.points[-1], path.geodesic_distance, door_number
 
     def get_in_band_around_door(self, agent_rotation = None):
@@ -129,7 +184,7 @@ class pointnav_data():
         diff_vec = temp_position - self.chosen_object.aabb.center
         diff_vec[1] = 0
         temp_dist = np.linalg.norm(diff_vec)
-        while (temp_dist < 1.5 or temp_dist >2.5):
+        while (temp_dist < 1.0 or temp_dist >1.5):
             temp_position = self.sim.pathfinder.get_random_navigable_point_near(self.chosen_object.aabb.center,5)
             diff_vec = temp_position - self.chosen_object.aabb.center
             diff_vec[1] = 0
@@ -171,17 +226,20 @@ class pointnav_data():
             return False
     def is_point_on_other_side(self, p1, p2):
         transform = self.chosen_object.obb.world_to_local
+        size = np.array(self.chosen_object.aabb.sizes)
         p1_local = np.matmul(transform, np.append(p1,1.0).T)
         p2_local = np.matmul(transform, np.append(p2,1.0).T)
+        p_size = np.matmul(transform, np.append(size,1.0).T)
         y1 = p1_local[2]
         y2 = p2_local[2]
         x1 = p1_local[1]
         x2 = p2_local[1]
+        print(size)
+        x_size = np.max([size[0], size[2]])
 
-        if (np.sign(y1) == np.sign(y2)):
+        if (np.sign(y1) == np.sign(y2) or abs(y1)<5 or abs(y2) <5 or abs(x1)>x_size or abs(x2)>x_size):
             return False
         else:
-            print(p1_local, p2_local)
             return True
     def is_in_same_region(self, pos):
         region = self.chosen_object.region
@@ -194,39 +252,54 @@ class pointnav_data():
             return True
         else:
             return False
+
+    def is_same_floor(self, p1, p2):
+        if abs(p1[1]-p2[1])>1.0:
+            return False
+        else:
+            return True
+
     def _generate_fn(self, scene, dataset, start = None, goal = None):
         
         count_episodes = 0
         for ep in self.dset.episodes:
-            start, goal, dist, door = self.get_start_goal()
+            door = -1 
+            max_tries = 20
+            try_num = 0
+            
+            while (door == -1):
+                start, goal, dist, door = self.get_start_goal()
+                try_num +=1
+                if (try_num>max_tries):
+                    print("This scene does not have the right setup for the door scenario")
+                    return False
             ep.start_position = np.float64(start)
             ep.goals = [NavigationGoal(position = goal, radius = 0.2)]
             ep.info={"geodesic_distance": dist, "door_number": np.float64(door)}
             semantic_scene = self.sim.semantic_annotations()
             chosen_object = semantic_scene.objects[int(door)] 
-            a = np.append(chosen_object.aabb.center+chosen_object.aabb.sizes/10, 1.0)
-            b = np.append(chosen_object.aabb.center-chosen_object.aabb.sizes/10, 1.0)
+            a = np.append(chosen_object.aabb.center+chosen_object.aabb.sizes/2, 1.0)
+            b = np.append(chosen_object.aabb.center-chosen_object.aabb.sizes/2, 1.0)
             a[1] = chosen_object.aabb.center[1]
             b[1] = chosen_object.aabb.center[1]
             line = np.linspace(a,b,50)
             # ep.extra_info = {}
         if (dataset == "mp3d"):
-            print("----------------TEST generat json dataset: ------------")
             for ep in self.dset.episodes:
                 ep.scene_id = "/habitat_ros_interface/data/scene_datasets/mp3d/"+scene+"/"+scene+".glb"
                 ep.scene_dataset_config = "/habitat_ros_interface/data/scene_datasets/mp3d/mp3d.scene_dataset_config.json"
             print(self.dset.episodes)
             scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
-            out_file = f"/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/train/content/"+scene + str(count_episodes)+".json.gz"
+            out_file = f"/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content/"+scene + str(count_episodes)+".json.gz"
             os.makedirs(osp.dirname(out_file), exist_ok=True)
             with gzip.open(out_file, "wt") as f:
                 f.write(self.dset.to_json())
         elif (dataset == "gibson"):
             for ep in self.dset.episodes:
-                ep.scene_id = "/habitat_ros_interface/data/gibson/"+scene+".glb"
+                ep.scene_id = "/home/catkin_ws/src/habitat_ros_interface/data/scene_datasets/gibson/"+scene+".glb"
             print(self.dset.episodes)
             scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
-            out_file = f"./data/datasets/pointnav/gibson/v1/train/content/"+scene + str(count_episodes)+".json.gz"
+            out_file = f"./data/datasets/pointnav/gibson/v1/test/content/"+scene + str(count_episodes)+".json.gz"
             os.makedirs(osp.dirname(out_file), exist_ok=True)
             with gzip.open(out_file, "wt") as f:
                 f.write(self.dset.to_json())
@@ -235,16 +308,24 @@ class pointnav_data():
                 ep.scene_id = "data/scene_datasets/habitat-test-scenes/"+scene+".glb"
             print(self.dset.episodes)
             scene_key = osp.basename(osp.dirname(osp.dirname(scene)))
-            out_file = f"./data/datasets/pointnav/habitat-test-scenes/v1/train/content/"+scene + str(count_episodes)+".json.gz"
+            out_file = f"./data/datasets/pointnav/habitat-test-scenes/v1/test/content/"+scene + str(count_episodes)+".json.gz"
             os.makedirs(osp.dirname(out_file), exist_ok=True)
             with gzip.open(out_file, "wt") as f:
                 f.write(self.dset.to_json())
         else:
             print("No dataset found")
-            exit(0)
+            return False
         
-        draw_agent_in_top_down(self.sim, map_path = "agent_pos_in_dataset.png", line = line)
-        
+        draw_agent_in_top_down(self.sim, map_path = IMG_OUT_PATH+"/"+scene+"_ep.png", line = line, goal = goal)
+        # points = []
+        # for i in range(1000):
+        #     point, a = self.get_in_band_around_door()
+        #     if (self.is_point_on_other_side(point, start)):
+        #         points.append(point)
+        # print("Length of points is ", len(points))
+        # draw_agent_in_top_down(self.sim, map_path = "door_area.png", line = line, goal = goal, points_3d = points)
+        return True
+
 
 
 # scenes = glob.glob("./data/scene_datasets/mp3d/17DRP5sb8fy.glb")
@@ -257,4 +338,4 @@ class pointnav_data():
 
 if __name__ == "__main__":
     scene_data = pointnav_data()
-    scene_data._generate_fn(scene=scene, dataset = dataset)
+    success = scene_data._generate_fn(scene=scene, dataset = dataset)

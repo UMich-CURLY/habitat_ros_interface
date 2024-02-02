@@ -9,3 +9,17 @@ tour_planning/__pycache__/
 tour_planning/temp/
 temp/
 maps/
+
+
+# habitat_ros_interface
+data
+video_dir
+
+# habitat-lab: include in subfolder
+
+videos/
+video_dir/
+train_dir/
+tb/
+outputs/
+
