@@ -1,5 +1,5 @@
 DATASET:
-  DATA_PATH: /home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content/UwV83HsGsw30.json.gz
+  DATA_PATH: /home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/content/q9vSo1VnCiC0.json.gz
   SCENES_DIR: /home/catkin_ws/src/habitat_ros_interface/data/scene_datasets
   SPLIT: test
   TYPE: PointNav-v1

@@ -61,7 +61,7 @@ class ped_rvo():
             'num_steps_stop_thresh', 0.0)
         # backoff when angle is greater than 135 degrees
         self.backoff_radian_thresh = self.config.get(
-            'backoff_radian_thresh', np.deg2rad(135.0))
+            'backoff_radian_thresh', np.deg2rad(95.0))
 
         """
         Parameters for ORCA
@@ -104,9 +104,9 @@ class ped_rvo():
         """
         self.neighbor_dist = self.config.get('orca_neighbor_dist', 3.0)
         self.max_neighbors = self.num_pedestrians
-        self.time_horizon = self.config.get('orca_time_horizon', 200.0)
+        self.time_horizon = self.config.get('orca_time_horizon', 2.0)
         self.time_horizon_obst = self.config.get('orca_time_horizon_obst', 4.0)
-        self.orca_radius = self.config.get('orca_radius', 0.2)
+        self.orca_radius = self.config.get('orca_radius', 0.3)
         self.orca_max_speed = self.config.get('orca_max_speed', 0.5)
         self.dt = my_env.human_time_step
         self.orca_sim = rvo2.PyRVOSimulator(
@@ -221,16 +221,19 @@ class ped_rvo():
         print("building the obstacle tree")
         self.orca_sim.processObstacles()
 
-    def get_velocity(self,initial_state, current_heading = None, groups = None, filename = None, save_anim = False):
+    def get_velocity(self,initial_state, current_heading = None, groups = None, filename = None, save_anim = False, get_backoff = False):
         for i in range(len(initial_state)):
             self.orca_sim.setAgentPosition(self.orca_ped[i], tuple(np.array([initial_state[i][0], initial_state[i][1]])))
             self.orca_sim.setAgentVelocity(self.orca_ped[i], tuple(np.array([initial_state[i][2], initial_state[i][3]])))
             desired_vel = np.array([initial_state[i][4] - initial_state[i][0], initial_state[i][5]-initial_state[i][1]]) 
             goal_dist = np.linalg.norm(desired_vel)
-            if goal_dist<0.3:
+            if goal_dist<0.2:
                 desired_vel = np.array([0.0,0.0])
                 print("Agent ", i, " has reached its goal")
-            desired_vel = desired_vel/np.linalg.norm(desired_vel) * self.orca_max_speed
+            if np.linalg.norm(desired_vel) == 0.0:
+                desired_vel = np.array([0.0,0.0])
+            else:
+                desired_vel = desired_vel/np.linalg.norm(desired_vel) * self.orca_max_speed
             self.orca_sim.setAgentPrefVelocity(self.orca_ped[i], tuple(desired_vel))
         self.orca_sim.doStep()
         colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))
@@ -281,7 +284,53 @@ class ped_rvo():
                     break
             self.fig.savefig(filename+".png", dpi=300)
             plt.close(self.fig)
-        return np.array(computed_velocity)
+        if not get_backoff:
+            return np.array(computed_velocity)
+        else:
+            return np.array(computed_velocity), backoff_ped
+            
+    def get_full_traj(self,initial_state, current_heading = None, groups = None, filename = None, save_anim = False, get_backoff = False):
+        for i in range(len(initial_state)):
+            self.orca_sim.setAgentPosition(self.orca_ped[i], tuple(np.array([initial_state[i][0], initial_state[i][1]])))
+            self.orca_sim.setAgentVelocity(self.orca_ped[i], tuple(np.array([initial_state[i][2], initial_state[i][3]])))
+            desired_vel = np.array([initial_state[i][4] - initial_state[i][0], initial_state[i][5]-initial_state[i][1]]) 
+            goal_dist = np.linalg.norm(desired_vel)
+            if goal_dist<0.3:
+                desired_vel = np.array([0.0,0.0])
+                print("Agent ", i, " has reached its goal")
+            if np.linalg.norm(desired_vel) == 0.0:
+                desired_vel = np.array([0.0,0.0])
+            else:
+                desired_vel = desired_vel/np.linalg.norm(desired_vel) * self.orca_max_speed
+            self.orca_sim.setAgentPrefVelocity(self.orca_ped[i], tuple(desired_vel))
+        for jk in range(30):
+            self.orca_sim.doStep()
+            colors = plt.cm.rainbow(np.linspace(0, 1, len(initial_state)))
+            alpha = np.linspace(0.5,1,self.max_counter+1)
+            computed_velocity=[]
+            actual_velocity = []
+            for j in range(len(initial_state)):
+                [x,y] = self.orca_sim.getAgentPosition(self.orca_ped[j])
+                velx = (x - initial_state[j][0])/self.dt
+                vely = (y - initial_state[j][1])/self.dt
+                computed_velocity.append([velx,vely])
+                [velx, vely] = self.orca_sim.getAgentVelocity(self.orca_ped[j])
+                actual_velocity.append([velx,vely])
+                if (self.update_number < self.max_counter):
+                    self.ax.plot(x, y, "-o", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
+                    self.ax.plot(initial_state[j][4], initial_state[j][5], "-x", label=f"ped {j}", markersize=2.5, color=colors[j], alpha = alpha[self.update_number])
+            self.computed_vel = computed_velocity
+            if (self.update_number == 0):
+                self.prev_vel = computed_velocity
+            backoff_ped = self.detect_backoff(1)
+            print("Back off ped ?", backoff_ped)
+            self.prev_vel = computed_velocity
+        
+        print("saving the offline plot!!")
+        self.fig.savefig("save_stepwise_rvo2"+".png", dpi=300)
+        plt.close(self.fig)
+            
+            
             
     # def get_position(self,initial_state, current_heading = None, groups = None, filename = None, save_anim = False):
     #     self.orca_ped = []

@@ -51,6 +51,7 @@ import tf2_ros
 import yaml
 from habitat_baselines.common.baseline_registry import baseline_registry
 from habitat_baselines.config.default import get_config as get_baselines_config
+from habitat_baselines.agents.simple_agents import GoalFollower
 import torch
 from std_msgs.msg import Bool, Int32MultiArray, MultiArrayLayout, MultiArrayDimension
 from nav_msgs.msg import Path
@@ -244,7 +245,9 @@ class sim_env(threading.Thread):
         arm_joint_positions  = [1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
         self.env._sim.robot.arm_joint_pos = arm_joint_positions
         random.seed(time.clock())
-        self.random_start = random.randint(0, 20)
+        # steps = [0,10,20,30]
+        # self.random_start = steps[random.randint(0, len(steps))]
+        self.random_start = 20
         with open(IMAGE_DIR+"/image_config.yaml", "r") as stream:
             try:
                 image_config = yaml.safe_load(stream)
@@ -299,11 +302,13 @@ class sim_env(threading.Thread):
         self.path_msg = Path()
         self.path_msg.header.frame_id = "my_map_frame"
         self.path_msg.header.stamp = rospy.Time.now()
+        self.irl_path_sim = []
         self.env._sim.enable_physics = True
         # self.tour_plan = tour_planner()
         print("before initialized object")
         
-            
+        self.backoff_mode = False
+        self.backoffs_req = 0
         global rigid_obj_mgr
         rigid_obj_mgr = self.env._sim.get_rigid_object_manager()
         global obj_template_mgr
@@ -360,7 +365,7 @@ class sim_env(threading.Thread):
         agents_goal_pos_3d = []
         agents_initial_pos_3d.append(path.points[0])
         agents_goal_pos_3d.append(path.points[-1])
-        agents_initial_velocity = [0.5,0.0]
+        agents_initial_velocity = [0.0,0.0]
         initial_pos = list(to_grid(self.env._sim.pathfinder, agents_initial_pos_3d[0], self.grid_dimensions))
         initial_pos = [pos*0.025 for pos in initial_pos]
         
@@ -391,7 +396,7 @@ class sim_env(threading.Thread):
                     start_pos_3d, a = self.get_in_band_around_door(goal_band = [1.5,2.5])
                     try_num = try_num+1
                     if (try_num>max_tries):
-                        embed()
+                        exit(1)
                 start_pos = to_grid(self.env._sim.pathfinder, start_pos_3d, self.grid_dimensions)
                 print("selected start")
                 temp_goal_pos_3d, a = self.get_in_band_around_door(goal_band=[3.0,3.5])
@@ -405,7 +410,7 @@ class sim_env(threading.Thread):
                         while(not self.is_point_on_other_side(start_pos_3d, temp_goal_pos_3d)):
                             temp_goal_pos_3d, a = self.get_in_band_around_door(goal_band=[1.0,3.5])
                         if (try_num_extra>max_tries):
-                            embed()
+                            exit(1)
                 print("selected goal")
                 goal_pos_3d = temp_goal_pos_3d
                 self.final_goals_3d[k+1,:] = goal_pos_3d
@@ -454,8 +459,11 @@ class sim_env(threading.Thread):
             self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
         
         if USE_RVO:
+            # self.sfm = ped_rvo(self, map_path = IMAGE_DIR+"/small_top_down.png", resolution = 0.025)
+            # self.sfm.get_full_traj(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
             self.sfm = ped_rvo(self, map_path = IMAGE_DIR+"/small_top_down.png", resolution = 0.025)
-            self.only_map = self.sfm.fig
+            self.only_map_ax = self.sfm.ax
+            self.only_map_fig = self.sfm.fig
             self.sfm.fig.savefig("Initial_plot.png")
             print("Initialized rvo2 sim")
         else:
@@ -580,6 +588,10 @@ class sim_env(threading.Thread):
         # )
         goal_sink_img = self.get_goal_sink_feature()
         cv2.imwrite(IMAGE_DIR+"/goal_sink.png", goal_sink_img)
+        self.goal_agent = GoalFollower(
+                config.TASK.SUCCESS.SUCCESS_DISTANCE,
+                "object_to_agent_gps_compass",
+            )
         print("created habitat_plant succsefully")
 
     def get_irl_traj(self, data):
@@ -589,9 +601,14 @@ class sim_env(threading.Thread):
         for i in range(length):
             point = irl_traj_sem[i]
             world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], point[0], point[1]).T[0]
+            self.irl_path_sim.append(world_coordinates)
             point_map =  list(to_grid(self.env._sim.pathfinder, world_coordinates, self.grid_dimensions))
             point_map = [pos*0.025 for pos in point_map]
             irl_traj_map.append(point_map)
+        if len(self.irl_path_sim) > 3:
+            self.env.task.nav_target_pos = self.irl_path_sim[3]
+        else:
+            self.env.task.nav_target_pos = self.irl_path_sim[-1]
         self.path_msg = Path()
         self.path_msg.header.frame_id = "my_map_frame"
         self.path_msg.header.stamp = rospy.Time.now()
@@ -607,6 +624,7 @@ class sim_env(threading.Thread):
             pose.pose.orientation.z = 0.0
             pose.pose.orientation.w = 1.0
             self.path_msg.poses.append(pose)
+        
         
 
     def get_in_band_around_door(self, agent_rotation = None, goal_band= None):
@@ -899,6 +917,7 @@ class sim_env(threading.Thread):
             self.initial_pos = initial_pos
             print("Initial state is ", self.initial_state)
         self.agent_update_counter +=1
+        ### Velocity driving external control ###
         lin_vel = self.linear_velocity[2]
         ang_vel = self.angular_velocity[1]
         base_vel = [lin_vel, ang_vel]
@@ -906,13 +925,35 @@ class sim_env(threading.Thread):
         # if (self.env.)
         print("Human velocity should be ", self.vel_control_objs[0].linear_velocity)
         print("Step {} of {}", self.human_update_counter, self.random_start)
+        print("chosen action is ", self.goal_agent.act(self.observations))
+        print("Goal for robot is ", self.env.task.nav_target_pos)
         if (self.human_update_counter<=self.random_start):
             self.env.sim.step_physics(self.time_step)
             self.observations.update(self.env._task._sim.get_sensor_observations())
             print(self.initial_state)
             return
         print("Velocity is ", base_vel)
+        discrete_action = self.goal_agent.act(self.observations)['action']
+        if discrete_action == 0:
+            lin_vel = 0.0
+            ang_vel = 0.0
+        elif discrete_action == 1:
+            lin_vel = 0.5
+            ang_vel = 0.0
+        elif discrete_action == 2:
+            lin_vel = 0.0
+            ang_vel = -1.0
+        elif discrete_action == 3:
+            lin_vel = 0.0
+            ang_vel = 1.0
+        else:
+            lin_vel = 0.0
+            ang_vel = 0.0
+        base_vel = [lin_vel, ang_vel]
+        
+        ### Asign velocity based on action here 
         self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
+        # self.observations.update(self.env.step(self.goal_agent.act(self.observations)))
         final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[1,:], self.grid_dimensions))
         goal_pos = [pos*0.025 for pos in final_goal_grid]
         print("final goal is", goal_pos)
@@ -969,7 +1010,20 @@ class sim_env(threading.Thread):
             self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
         #### Calculate new velocity
         
-        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
+        computed_velocity, agent_backoff = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter), get_backoff= True)
+        print("Back off requested here ", agent_backoff, self.backoffs_req)
+        if agent_backoff and not self.backoff_mode:
+            if (self.backoffs_req>1):
+                backoff_goal = self.get_backoff_goal_ped()
+                backoff_goal_grid = to_grid(self.env._sim.pathfinder, backoff_goal, self.grid_dimensions)
+                [x,y] = [pos*0.025 for pos in backoff_goal_grid]
+                self.initial_state[1][4:6] = [x,y]
+                self.only_map_ax.plot(x, y, "-x", label=f"ped {1}", markersize=2.5, color = "green")
+                self.only_map_fig.savefig("Sample_backoff_goals.png")
+                self.backoff_goal = backoff_goal
+                self.backoff_mode = True
+            self.backoffs_req +=1
+
         print(computed_velocity)
         #### Setting velocity for the other humans 
         for k in range(self.N):
@@ -998,7 +1052,7 @@ class sim_env(threading.Thread):
             #### Update to next topogoal if reached the first one 
             GOAL_THRESHOLD = 0.5
             print("Goal dist is", self.goal_dist[k+1])
-            if (self.goal_dist[k+1]<= GOAL_THRESHOLD):
+            if (self.goal_dist[k+1]<= GOAL_THRESHOLD and not self.backoff_mode):
                 final_goal_grid = list(to_grid(self.env._sim.pathfinder, self.final_goals_3d[k+1,:], self.grid_dimensions))
                 goal_pos = [pos*0.025 for pos in final_goal_grid]
                 dist = np.linalg.norm(np.array(goal_pos) - np.array(self.initial_state[k+1][4:6]))
@@ -1037,7 +1091,35 @@ class sim_env(threading.Thread):
         
         
         
-
+    def get_backoff_goal_ped (self):
+        valid_goal = False
+        for k in range(self.N):
+            a = self.objs[k].transformation
+            d = a.transform_point([0.0,0.0,0.0])
+            dist_now = self.env.sim.distance_to_closest_obstacle(d) 
+            transform = self.chosen_object.obb.world_to_local
+            p2_local = np.matmul(transform, np.append(d,1.0).T)
+            for i in range(100):
+                min_dist = 10
+                while(not valid_goal):
+                    dist = (0 - (-0.8)) * np.random.random_sample() + (-0.8)
+                    b = a.transform_point([dist,0.0,0.0])
+                    d = a.transform_point([0.0,0.0,0.0])
+                    dist_now = self.env.sim.distance_to_closest_obstacle(d) 
+                    dist_temp = self.env.sim.distance_to_closest_obstacle(b) 
+                    p1_local = np.matmul(transform, np.append(b,1.0).T)
+                    p2_local = np.matmul(transform, np.append(d,1.0).T)
+                    y1 = p1_local[2]
+                    y2 = p2_local[2]
+                    if (dist_temp<dist_now) and (abs(y1) < abs(y2)):
+                        valid_goal = True
+                    temp_goal = self.env.sim.pathfinder.snap_point(b)
+                    if (dist_temp<min_dist):
+                        min_dist = dist_temp
+                        final_goal = temp_goal
+        return final_goal
+                        
+            
 
     def run(self):
         """Publish sensor readings through ROS on a different thread.

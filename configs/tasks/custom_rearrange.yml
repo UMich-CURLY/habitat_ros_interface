@@ -1,5 +1,5 @@
 DATASET:
-  DATA_PATH: ./data/datasets/rearrange/mp3d/v1/test/content/UwV83HsGsw30.json.gz
+  DATA_PATH: ./data/datasets/rearrange/mp3d/v1/test/content/q9vSo1VnCiC0.json.gz
   SCENES_DIR: ./data/mp3d/
   SPLIT: test
   TYPE: RearrangeDataset-v0
@@ -51,7 +51,7 @@ SIMULATOR:
   FORWARD_STEP_SIZE: 0.25
   GRASP_IMPULSE: 1000.0
   HABITAT_SIM_V0:
-    ALLOW_SLIDING: false
+    ALLOW_SLIDING: true
     ENABLE_PHYSICS: true
     GPU_DEVICE_ID: 0
     GPU_GPU: false
@@ -120,6 +120,14 @@ TASK:
       TYPE: BaseVelAction
     EMPTY:
       TYPE: EmptyAction
+    MOVE_FORWARD:
+      TYPE: MoveForwardAction
+    STOP:
+      TYPE: StopAction
+    TURN_LEFT:
+      TYPE: TurnLeftAction
+    TURN_RIGHT:
+      TYPE: TurnRightAction
   BASE_ANGLE_NOISE: 0.0
   BASE_NOISE: 0.0
   CONSTRAINT_VIOLATION_ENDS_EPISODE: false
@@ -175,9 +183,12 @@ TASK:
     EE_RESTING_SUCCESS_THRESHOLD: 0.15
     TYPE: RearrangePickSuccess
   POSSIBLE_ACTIONS:
+  - STOP
+  - MOVE_FORWARD
+  - TURN_LEFT
+  - TURN_RIGHT
   - ARM_ACTION
   - BASE_VELOCITY
-  - EMPTY
   RELATIVE_RESTING_POS_SENSOR:
     TYPE: RelativeRestingPositionSensor
   RENDER_TARGET: true
@@ -188,6 +199,9 @@ TASK:
     TYPE: RobotForce
   SENSORS:
   - JOINT_SENSOR
+  - TARGET_START_POINT_GOAL_SENSOR
+  TARGET_START_POINT_GOAL_SENSOR:
+    TYPE: TargetOrGoalStartPointGoalSensor
   TARGET_START_SENSOR:
     DIMENSIONALITY: 3
     GOAL_FORMAT: CARTESIAN

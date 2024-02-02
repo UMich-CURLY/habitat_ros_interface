@@ -935,7 +935,7 @@ class sim_env(threading.Thread):
             self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
         #### Calculate new velocity
         
-        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter))
+        computed_velocity, agent_backoff = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter), get_backoff=True)
         print(computed_velocity)
         #### Setting velocity for the other humans 
         for k in range(self.N):

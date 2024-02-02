@@ -25,7 +25,8 @@ TASK:
     # robot
     EASY_INIT: False
     FORCE_REGENERATE: True
-
+    TARGET_START_POINT_GOAL_SENSOR:
+        TYPE: "TargetOrGoalStartPointGoalSensor"
     TARGET_START_SENSOR:
         TYPE: "TargetStartSensor"
         GOAL_FORMAT: "CARTESIAN"
@@ -51,7 +52,7 @@ TASK:
         TYPE: "IsHoldingSensor"
     RELATIVE_RESTING_POS_SENSOR:
         TYPE: "RelativeRestingPositionSensor"
-    SENSORS: ["JOINT_SENSOR"]
+    SENSORS: ["JOINT_SENSOR", 'TARGET_START_POINT_GOAL_SENSOR']
 
     ########################
     # General measures
@@ -121,10 +122,22 @@ TASK:
             MIN_ABS_ANG_SPEED: 1.0
         EMPTY:
             TYPE: "EmptyAction"
+        MOVE_FORWARD:
+            TYPE: "MoveForwardAction"
+        TURN_LEFT:
+            TYPE:  "TurnLeftAction"
+        TURN_RIGHT:
+            TYPE: "TurnRightAction"
+        STOP:
+            TYPE: "StopAction"
+    # POSSIBLE_ACTIONS: ["STOP", "MOVE_FORWARD", "TURN_LEFT", "TURN_RIGHT", "LOOK_UP", "LOOK_DOWN"]
     POSSIBLE_ACTIONS:
+        - STOP
+        - MOVE_FORWARD
+        - TURN_LEFT
+        - TURN_RIGHT
         - ARM_ACTION
         - BASE_VELOCITY
-        - EMPTY
 
 SIMULATOR:
     ADDITIONAL_OBJECT_PATHS:
@@ -160,13 +173,14 @@ SIMULATOR:
         MIN_DEPTH: 0.0
         MAX_DEPTH: 10.0
         NORMALIZE_DEPTH: True
+    
     ARM_REST: [0.6, 0.0, 0.9]
     ARM_INIT: [1.0, 1.32, 1.40, -0.2, 1.72, 0.0, 1.66, 0.0]
     CTRL_FREQ: 120.0
     DEFAULT_AGENT_ID: 0
     FORWARD_STEP_SIZE: 0.25
     HABITAT_SIM_V0:
-        ALLOW_SLIDING: False
+        ALLOW_SLIDING: True
         ENABLE_PHYSICS: True
         GPU_DEVICE_ID: 0
         GPU_GPU: False
@@ -186,3 +200,4 @@ SIMULATOR:
     TILT_ANGLE: 15
     TURN_ANGLE: 10
     TYPE: RearrangeSim-v0
+
