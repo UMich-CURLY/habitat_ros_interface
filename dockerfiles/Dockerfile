@@ -1,5 +1,5 @@
 # Base image
-FROM nvidia/cudagl:11.2.2-devel-ubuntu16.04
+FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
 
 # Setup basic packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -39,16 +39,33 @@ RUN ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake
 RUN cmake --version
 
 # Conda environment
-RUN conda create -n habitat python=3.9 cmake=3.14.0
+RUN conda create -n habitat python=3.9 cmake=3.14.0 cudatoolkit=10.2
 
 # Setup habitat-sim
-RUN git clone --branch v0.2.2 https://github.com/facebookresearch/habitat-sim.git
-RUN /bin/bash -c ". activate habitat; cd habitat-sim; pip install -r requirements.txt; python setup.py install --bullet"
+RUN git clone --branch stable https://github.com/facebookresearch/habitat-sim.git
+#RUN /bin/bash -c ". activate habitat; cd habitat-sim; pip install -r requirements.txt; python setup.py install --bullet"
 
 # Install challenge specific habitat-lab
-RUN git clone --branch v0.2.2 https://github.com/facebookresearch/habitat-lab.git
-RUN /bin/bash -c ". activate habitat; cd habitat-lab; pip install -r requirements.txt; python setup.py develop --all; pip install pygame==2.0.1; pip install pybullet==3.0.4"
+RUN git clone --branch stable https://github.com/facebookresearch/habitat-lab.git
+# RUN /bin/bash -c ". activate habitat; cd habitat-lab; pip install -e habitat-lab/"
+RUN /bin/bash -c ". activate habitat && \
+    cd /habitat-lab && \
+    pip install -y -e habitat-lab && \
+    pip install -y -e habitat-baselines"
+
+
+#KL: Comment below if doesn't work for building docker image & download it manually
+RUN /bin/bash -c ". activate habitat ; conda install -y pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia"
+
+# For sim utils download data
+RUN /bin/bash -c ". activate habitat && \
+    curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
+    apt-get install -y git-lfs"
+
+#Run habitat-sim interactive testing
+RUN /bin/bash -c ". activate habitat ; conda install -y habitat-sim withbullet -c conda-forge -c aihabitat"
 
 # Silence habitat-sim logs
 ENV GLOG_minloglevel=2
 ENV MAGNUM_LOG="quiet"
+
