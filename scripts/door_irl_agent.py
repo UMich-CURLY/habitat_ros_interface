@@ -247,7 +247,7 @@ class sim_env(threading.Thread):
         random.seed(time.clock())
         # steps = [0,10,20,30]
         # self.random_start = steps[random.randint(0, len(steps))]
-        self.random_start = 20
+        self.random_start = random.randint(0, 30)
         with open(IMAGE_DIR+"/image_config.yaml", "r") as stream:
             try:
                 image_config = yaml.safe_load(stream)
@@ -605,9 +605,17 @@ class sim_env(threading.Thread):
             point_map =  list(to_grid(self.env._sim.pathfinder, world_coordinates, self.grid_dimensions))
             point_map = [pos*0.025 for pos in point_map]
             irl_traj_map.append(point_map)
-        if len(self.irl_path_sim) > 3:
-            self.env.task.nav_target_pos = self.irl_path_sim[3]
-        else:
+        max_dist = 0.0
+        for point in self.irl_path_sim:
+            temp = self.env.robot.base_pos - point
+            temp[1] = 0.0
+            temp_dist = np.linalg.norm(temp)
+            if temp_dist >0.3:
+                self.env.task.nav_target_pos = point
+                break
+            max_dist = max(max_dist, temp_dist)
+        
+        if (max_dist <0.3):
             self.env.task.nav_target_pos = self.irl_path_sim[-1]
         self.path_msg = Path()
         self.path_msg.header.frame_id = "my_map_frame"
@@ -918,7 +926,7 @@ class sim_env(threading.Thread):
             print("Initial state is ", self.initial_state)
         self.agent_update_counter +=1
         ### Velocity driving external control ###
-        lin_vel = self.linear_velocity[2]
+        lin_vel = self.linear_velocity[2]/0.5*np.linalg.norm(self.initial_state[1][2:4])
         ang_vel = self.angular_velocity[1]
         base_vel = [lin_vel, ang_vel]
         
@@ -927,6 +935,8 @@ class sim_env(threading.Thread):
         print("Step {} of {}", self.human_update_counter, self.random_start)
         print("chosen action is ", self.goal_agent.act(self.observations))
         print("Goal for robot is ", self.env.task.nav_target_pos)
+        print("Robot is at ", self.env.sim.robot.base_pos)
+        print("Measurement is ", self.observations["object_to_agent_gps_compass"])
         if (self.human_update_counter<=self.random_start):
             self.env.sim.step_physics(self.time_step)
             self.observations.update(self.env._task._sim.get_sensor_observations())
@@ -949,7 +959,7 @@ class sim_env(threading.Thread):
         else:
             lin_vel = 0.0
             ang_vel = 0.0
-        base_vel = [lin_vel, ang_vel]
+        # base_vel = [lin_vel, ang_vel]
         
         ### Asign velocity based on action here 
         self.observations.update(self.env.step({"action":"BASE_VELOCITY", "action_args":{"base_vel":base_vel}}))
@@ -1010,17 +1020,21 @@ class sim_env(threading.Thread):
             self.goal_dist[k+1] = np.linalg.norm((np.array(self.initial_state[k+1][0:2])-np.array(self.initial_state[k+1][4:6])))
         #### Calculate new velocity
         
-        computed_velocity, agent_backoff = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter), get_backoff= True)
+        # computed_velocity, agent_backoff = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter), get_backoff= True)
+        computed_velocity = self.sfm.get_velocity(np.array(self.initial_state), groups = self.groups, filename = "result_counter"+str(self.update_counter), get_backoff= False)
+        # if not (np.linalg.norm(computed_velocity[1]) == 0):
+        #     computed_velocity[1] = 0.1*(computed_velocity[1])/np.linalg.norm(computed_velocity[1])
+        agent_backoff = False
         print("Back off requested here ", agent_backoff, self.backoffs_req)
         if agent_backoff and not self.backoff_mode:
             if (self.backoffs_req>1):
-                backoff_goal = self.get_backoff_goal_ped()
-                backoff_goal_grid = to_grid(self.env._sim.pathfinder, backoff_goal, self.grid_dimensions)
-                [x,y] = [pos*0.025 for pos in backoff_goal_grid]
-                self.initial_state[1][4:6] = [x,y]
-                self.only_map_ax.plot(x, y, "-x", label=f"ped {1}", markersize=2.5, color = "green")
-                self.only_map_fig.savefig("Sample_backoff_goals.png")
-                self.backoff_goal = backoff_goal
+            #     backoff_goal = self.get_backoff_goal_ped()
+            #     backoff_goal_grid = to_grid(self.env._sim.pathfinder, backoff_goal, self.grid_dimensions)
+            #     [x,y] = [pos*0.025 for pos in backoff_goal_grid]
+            #     self.initial_state[1][4:6] = [x,y]
+            #     self.only_map_ax.plot(x, y, "-x", label=f"ped {1}", markersize=2.5, color = "green")
+            #     self.only_map_fig.savefig("Sample_backoff_goals.png")
+            #     self.backoff_goal = backoff_goal
                 self.backoff_mode = True
             self.backoffs_req +=1
 
@@ -1102,7 +1116,7 @@ class sim_env(threading.Thread):
             for i in range(100):
                 min_dist = 10
                 while(not valid_goal):
-                    dist = (0 - (-0.8)) * np.random.random_sample() + (-0.8)
+                    dist = (0.8 - (-0.8)) * np.random.random_sample() + (-0.8)
                     b = a.transform_point([dist,0.0,0.0])
                     d = a.transform_point([0.0,0.0,0.0])
                     dist_now = self.env.sim.distance_to_closest_obstacle(d) 

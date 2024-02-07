@@ -13,7 +13,6 @@ dataset = ARGS.dataset
 scene_not_valid = True
 num_tries = 0
 while scene_not_valid and num_tries<10:
-
     with open("configs/tasks/pointnav_rgbd.yaml",'r') as file:
         # The FullLoader parameter handles the conversion from YAML
         # scalar values to Python the dictionary format

@@ -28,10 +28,6 @@ from std_msgs.msg import Bool, Int32MultiArray, MultiArrayLayout, MultiArrayDime
 myargv = rospy.myargv(argv=sys.argv)
 scene = myargv[1]
 driving = myargv[2]
-if driving=="true" or driving =="True":
-    OUT_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/irl_jan_12/driving/"
-else:
-    OUT_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/irl_jan_12/rl/"
 
 IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/images/"+scene
 print(IMAGE_DIR)

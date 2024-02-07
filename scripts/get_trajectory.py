@@ -42,7 +42,7 @@ class social_force():
         self.max_counter = int(100/my_env.human_time_step)
         self.update_number = 0
         self.dt = my_env.human_time_step
-        self.s.peds.step_width = 0.4*my_env.human_time_step
+        self.s.peds.step_width = 0.5*my_env.human_time_step
         
         
     def load_obstacles(self, env):
@@ -112,7 +112,7 @@ class social_force():
                 if img_np[i][j]== 128:
                     space=space+1 
 
-    def get_velocity(self,initial_state, current_heading = None, groups = None, filename = None, save_anim = False):
+    def get_velocity(self,initial_state, current_heading = None, groups = None, filename = None, save_anim = False, get_backoff= False):
         # initiate the simulator,
         # update 80 steps
         for i in range(len(initial_state)):
@@ -135,10 +135,14 @@ class social_force():
             self.fig.savefig("save_stepwise_esfm"+".png", dpi=300)
             plt.close(self.fig)
         self.update_number+=1
+        backoff_ped = False
         ### Find out how to update agent positions in this ####
         # print("Velocity returned is ", computed_velocity)
         # print("State of the agent is ", self.s.peds.state)
-        return np.array(computed_velocity)
+        if not get_backoff:
+            return np.array(computed_velocity)
+        else:
+            return np.array(computed_velocity), backoff_ped
     
     def get_full_traj(self,initial_state):
         self.s.peds.state[:,0:6] = initial_state[:][0:6]
