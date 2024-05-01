@@ -12,7 +12,8 @@ from sensor_msgs.msg import Image
 import cv2
 # sys.path.append('/opt/ros/kinetic/lib/python2.7/dist-packages')
 import numpy as np
-
+from std_msgs.msg import Bool
+import os
 rospy.init_node("nprgb2ros_rgb",anonymous=False)
 
 pub_1 = rospy.Publisher("robot_1_rgb", Image, queue_size=10)
@@ -42,12 +43,17 @@ def callback_3(data):
     image_message = CvBridge().cv2_to_imgmsg(img, encoding="rgb8")
     pub_3.publish(image_message)
 
+def callback_4(msg):
+    if msg.data:
+        print("Relaunching map server")
+        # __ = os.system("rosnode kill map_server")
+        __ = os.system("rosrun map_server map_server /home/catkin_ws/src/habitat_ros_interface/maps/sample_map.yaml")
 
 def listener():
     
     rospy.Subscriber("rgb_1", numpy_msg(Floats), callback_1)
     rospy.Subscriber("rgb_2", numpy_msg(Floats), callback_2)
-    # rospy.Subscriber("rgb_3", numpy_msg(Floats), callback_3)
+    # rospy.Subscriber("/reload_map_server", Bool, callback_4)
     rospy.spin()
 
 

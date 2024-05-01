@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="map_path" default="$(find habitat_interface)/maps/sample_map.yaml"/>
+
+    <master auto="start"/>
+	<!-- <arg name="reload_map_server" default="False" />
+
+	<group if="$(arg reload_map_server)">
+    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_path)">
+    	<param name="frame_id" value="map" />
+    </node>
+	<node name="print_text" pkg="rostopic" type="rostopic"
+     args="echo /reload_map_server" output="screen" />
+	</group> -->
+    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_path)" respawn="true">
+    	<param name="frame_id" value="map" />
+    </node>
+
+    <node pkg="habitat_interface" type="start_map.py" name="start_map" output="screen" >
+	</node>
+</launch>

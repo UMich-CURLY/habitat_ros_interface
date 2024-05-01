@@ -30,44 +30,14 @@ from std_msgs.msg import Header
 import yaml
 import cv2 
 from IPython import embed
-from std_msgs.msg import Bool, Float64
+from std_msgs.msg import Bool, Int32MultiArray, MultiArrayLayout, MultiArrayDimension, Float64
 import rosbag
 from visualization_msgs.msg import Marker, MarkerArray
+from nav_msgs.msg import Path
 
 GRID_RESOLUTION = 0.1
 CLEARANCE_THRESH = 0.5/GRID_RESOLUTION
 GRID_SIZE_IN_M = 6
-# myargv = rospy.myargv(argv=sys.argv)
-# scene = myargv[1]
-# driving = myargv[2]
-# if driving=="true" or driving =="True":
-#     OUT_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/irl_feb_6/driving/"
-# else:
-#     OUT_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/irl_feb_6/rl/"
-OUT_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/irl_may_1_12/"
-# IMAGE_DIR = "/home/catkin_ws/src/habitat_ros_interface/data/datasets/pointnav/mp3d/v1/test/images/"+scene
-# print(IMAGE_DIR)
-max_num = 0
-for foldername in os.listdir(OUT_DIR):
-    number_str = "_"
-    valid = False
-    m = foldername[5:]
-    max_num = max(max_num,int(m))
-next_folder_name = OUT_DIR+"demo_"+str(max_num)
-entry = os.listdir(next_folder_name)
-if (not (len(entry) == 0)):
-    next_folder_name = OUT_DIR+"demo_"+str(max_num+1)
-    __ = os.system("mkdir " + next_folder_name)
-print ("new folder is , continue?", next_folder_name)
-FULL_PATH = next_folder_name
-# with open("/home/catkin_ws/src/habitat_ros_interface/configs/tasks/pointnav_mp3d.yaml", "r") as stream:
-#     try:
-#         sim_config = yaml.safe_load(stream)
-#     except yaml.YAMLError as exc:
-#         print(exc)
-#         raise
-# episode_path = sim_config["DATASET"]["DATA_PATH"]
-# __ = os.system("cp " + episode_path + " " + FULL_PATH)
 
 def transform_point(transformation, point_wrt_source):
     point_wrt_target = \
@@ -120,6 +90,33 @@ def has_cleared_door(current_pos, start_pos, door_pos):
     dist = get_dist_from_door(current_pos, door_pos) 
     return has_passed_door(current_pos, start_pos, door_pos) and dist > CLEARANCE_THRESH
 
+def traj_interp(c):
+    d = c.astype(int)
+    iter = len(d) - 1
+    added = 0
+    i = 0
+    while i < iter:
+        while np.sqrt((d[i+added,0]-d[i+1+added,0])**2 + (d[i+added,1]-d[i+1+added,1])**2) > np.sqrt(1):
+            d = np.insert(d, i+added+1, [0, 0], axis=0)
+            if d[i+added+2, 0] - d[i+added, 0] > 0:
+                d[i+added+1, 0] = d[i+added, 0] + 1
+                d[i+added+1, 1] = d[i+added, 1]
+            elif d[i+added+2, 0] - d[i+added, 0] < 0:
+                d[i+added+1, 0] = d[i+added, 0] - 1
+                d[i+added+1, 1] = d[i+added, 1]
+            else:
+                d[i+added+1, 0] = d[i+added, 0]
+                if d[i+added+2, 1] - d[i+added, 1] > 0:
+                    d[i+added+1, 1] = d[i+added, 1] + 1
+                elif d[i+added+2, 1] - d[i+added, 1] < 0:
+                    d[i+added+1, 1] = d[i+added, 1] - 1
+                else:
+                    d[i+added+1, 1] = d[i+added, 1]
+            added += 1
+        i += 1
+   
+    return d
+
 # Step = namedtuple('Step','cur_state next_state')
 class FeatureExpect():
     def __init__(self, gridsize=(3,3), resolution=1):
@@ -141,11 +138,15 @@ class FeatureExpect():
         self.sub_img_res = rospy.Subscriber("img_res", Float64, self.set_img_res, queue_size=1)
         self.image_sub = rospy.Subscriber("/robot_2_rgb",Image,self.img_callback)
         self.reset_sub = rospy.Subscriber("/reload_map_server", Bool, self.reset_callback)
+        self._pub_all_agents = rospy.Publisher("~human_traj", Int32MultiArray, queue_size = 1)
+        self._pub_robot = rospy.Publisher("~robot_traj", Int32MultiArray, queue_size = 1)
+        self._pub_rgb_img = rospy.Publisher("~rgb_grid", Int32MultiArray, queue_size = 1)
+        self._sub_irl_traj = rospy.Subscriber("irl_traj", Int32MultiArray, self.get_irl_traj, queue_size= 1)
+        self._pub_irl_path = rospy.Publisher("irl_path", Path, queue_size= 1)
         self.reset = False
         self.br = CvBridge()
         self.third_rgb_img = cv2.imread("/home/catkin_ws/src/habitat_ros_interface/maps/sample_img.png")
         self.map_img = cv2.imread("/home/catkin_ws/src/habitat_ros_interface/maps/sample_map.pgm")
-        self.full_path = FULL_PATH
         self.robot_pose = [0.0, 0.0]
         self.previous_robot_pose = []
         self.robot_pose_rb = [0.0, 0.0]
@@ -179,7 +180,7 @@ class FeatureExpect():
 
     def img_callback(self, msg):
         # rospy.loginfo('Image received at ')
-        self.third_rgb_img = self.br.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+        self.third_rgb_img = self.br.imgmsg_to_cv2(msg)
         
 
     def map_to_grid(self, point_2d):
@@ -251,6 +252,7 @@ class FeatureExpect():
 
     def pub_img_cloud(self):
         points = []
+        print("No door? ")
         if self.door_middle is None:
             return
         # if self.overlayed_grid_img is None:
@@ -263,8 +265,8 @@ class FeatureExpect():
                 try:
                     # print("Why ", self.third_rgb_img[y,x])
                     [r,g,b] = self.third_rgb_img[y,x]
-                    # print(i,j,int(np.round(j/self.grid_resolution)), int(np.round(i/self.grid_resolution)))
                     self.grid_img[int(np.round(j/self.grid_resolution)), int(np.round(i/self.grid_resolution))] = self.third_rgb_img[y,x]
+                    
                     if [int(np.round(i/self.grid_resolution)), int(np.round(j/self.grid_resolution))] in self.robot_past_traj:
                         [r,g,b] = [255,0,0]
                     if [int(np.round(i/self.grid_resolution)), int(np.round(j/self.grid_resolution))] in self.human_past_traj:
@@ -275,8 +277,8 @@ class FeatureExpect():
                     pt = [i, j, z, rgb]
                     points.append(pt)
                 except:
-                    print("Why ", [i,j])
                     continue
+        print("No. of valid points is ", len(points))
         fields = [PointField('x', 0, PointField.FLOAT32, 1),
         PointField('y', 4, PointField.FLOAT32, 1),
         PointField('z', 8, PointField.FLOAT32, 1),
@@ -352,8 +354,7 @@ class FeatureExpect():
             self.robot_pose_2d = self.grid_to_pix(robot_pos_grid)
             
             if (self.robot_pose_2d) is not None:
-                if self.overlayed_grid_img is not None:
-                    self.overlayed_grid_img[self.robot_pose_2d[1], self.robot_pose_2d[0]] = [255,0,0]
+                # self.overlayed_grid_img[self.robot_pose_2d[1], self.robot_pose_2d[0]] = [255,0,0]
                 if self.robot_pose_2d not in self.robot_past_traj:
                     self.robot_past_traj.append(self.robot_pose_2d)
                     self.last_pose_time_stamp = rospy.Time.now()
@@ -397,10 +398,6 @@ class FeatureExpect():
         self.end_point = True
         with open(self.full_path+ "/traj.npy", 'wb') as f:
             np.save(f, np.array(self.robot_past_traj))
-        try:
-            cv2.imwrite(self.full_path+"/final_overlayed_map.png", self.new_overlayed_grid_image)
-        except:
-            print("Probably not good demo ", self.full_path)
         max_num = 0
         for foldername in os.listdir(OUT_DIR):
             number_str = "_"
@@ -421,26 +418,104 @@ class FeatureExpect():
     def get_current_feature(self):
         # self.goal_sink = self.get_goal_sink_feature()
         # print("Saving feature")
+        ### Publish human agent position 
         self.pub_img_cloud()
-        __ = os.system("mkdir " + self.full_path+"/"+str(self.counter))
-        self.new_overlayed_grid_image = self.grid_img.copy()
-        folder_path = self.full_path+"/"+str(self.counter)
-        for robot in self.robot_past_traj:
-            self.new_overlayed_grid_image[robot[1], robot[0]] = [255,0,0]
-        for human in self.human_past_traj:
-            self.new_overlayed_grid_image[human[1], human[0]] = [0,255,0]
-        cv2.imwrite(folder_path+ "/grid_map.png",self.grid_img)
-        cv2.imwrite(folder_path+ "/new_overlayed_grid_map.png",self.new_overlayed_grid_image)
-        with open(folder_path+ "/robot_past_traj.npy", 'wb') as f:
-            np.save(f, np.array(self.robot_past_traj))
-        with open(folder_path+ "/human_past_traj.npy", 'wb') as f:
-            np.save(f, np.array(self.human_past_traj))
-        # cv2.imwrite(folder_path+ "/overlayed_grid_map.png",self.overlayed_grid_img)
-        cv2.imwrite(folder_path+ "/raw_img.png", self.third_rgb_img)
-        self.grid_img = np.zeros(self.grid_img.shape)
+        msg = Int32MultiArray()
+        data = traj_interp(np.array(self.human_past_traj))
+        layout = MultiArrayLayout()
+        dim0 = MultiArrayDimension()
+        dim1 = MultiArrayDimension()
+        dim0.label = "traj"
+        dim1.label = "xy"
+        dim0.stride = len(data)*2
+        dim0.size = len(data)
+        dim1.size = 2
+        dim1.stride = 2
+        layout.dim.append(dim0)
+        layout.dim.append(dim1)
+        layout.data_offset = 0
+        msg.layout = layout
+        data = data.reshape([1,len(data)*2])
+        msg.data = np.ndarray.tolist(data[0])
+        self._pub_all_agents.publish(msg)
+        ### Publish image array in grid 
+        msg = Int32MultiArray()
+        data = self.grid_img.astype(int)
+        layout = MultiArrayLayout()
+        dim0 = MultiArrayDimension()
+        dim1 = MultiArrayDimension()
+        dim2 = MultiArrayDimension()
+        dim0.label = "x"
+        dim1.label = "y"
+        dim2.label = "rgb"
+        dim0.stride = data.shape[0]*data.shape[1]*data.shape[2]
+        dim0.size = data.shape[0]
+        dim1.size = data.shape[1]
+        dim1.stride = data.shape[1]*data.shape[2]
+        dim2.size = data.shape[2]
+        dim2.stride = data.shape[2]
+        layout.dim.append(dim0)
+        layout.dim.append(dim1)
+        layout.dim.append(dim2)
+        layout.data_offset = 0
+        msg.layout = layout
+        data = data.reshape([1,data.shape[0]*data.shape[1]*data.shape[2]])
+        msg.data = np.ndarray.tolist(data[0])
+        self._pub_rgb_img.publish(msg)
+        
+        ### Publish robot array in grid 
+        ### Publish human agent position 
+        msg = Int32MultiArray()
+        data = traj_interp(np.array(self.robot_past_traj))
+        layout = MultiArrayLayout()
+        dim0 = MultiArrayDimension()
+        dim1 = MultiArrayDimension()
+        dim0.label = "traj"
+        dim1.label = "xy"
+        dim0.stride = len(data)*2
+        dim0.size = len(data)
+        dim1.size = 2
+        dim1.stride = 2
+        layout.dim.append(dim0)
+        layout.dim.append(dim1)
+        layout.data_offset = 0
+        msg.layout = layout
+        data = data.reshape([1,len(data)*2])
+        msg.data = np.ndarray.tolist(data[0])
+        self._pub_robot.publish(msg)
         self.counter += 1
 
-
+    def get_irl_traj(self, data):
+        length = data.layout.dim[0].size
+        irl_traj_sem = np.reshape(data.data, [length,2]).T
+        print(irl_traj_sem)
+        irl_traj_map = []
+        for i in range(length):
+            point = [irl_traj_sem[1][i], irl_traj_sem[0][i]]
+            point[0] = (point[0])*self.grid_resolution
+            point[1] = (point[1])*self.grid_resolution
+            world_coordinates = self.grid_to_map([point[0], point[1]])
+            irl_traj_map.append(world_coordinates)
+        print("Traj start in map is ",irl_traj_map[0])
+        print("Robot pose in grid is ", self.robot_pose_2d)
+        print("Traj start in grid is ", irl_traj_sem[0][0], irl_traj_sem[1][0])
+        self.path_msg = Path()
+        self.path_msg.header.frame_id = "my_map_frame"
+        self.path_msg.header.stamp = rospy.Time.now()
+        for wp in irl_traj_map:
+            pose = PoseStamped()
+            pose.header.stamp = rospy.Time.now()
+            pose.header.frame_id = "my_map_frame"
+            pose.pose.position.x = wp[0]
+            pose.pose.position.y = wp[1]
+            pose.pose.position.z = 0.0
+            pose.pose.orientation.x = 0.0
+            pose.pose.orientation.y = 0.0
+            pose.pose.orientation.z = 0.0
+            pose.pose.orientation.w = 1.0
+            self.path_msg.poses.append(pose)
+        self._pub_irl_path.publish(self.path_msg)
+        
 
     def get_goal_sink_feature(self, goal_band = [1.0,1.5]):
         empty_image = 0*np.ones(self.semantic_img.shape)
@@ -467,7 +542,6 @@ class FeatureExpect():
     
     def point_callback(self, data):
         self.episode_start = True
-        self.counter = 0
 
     def is_point_in_band(self, point, goal_band = [1.0,1.5]):
         dist = self.get_dist_from_door(point)
@@ -536,9 +610,9 @@ if __name__ == "__main__":
         while(not rospy.is_shutdown()):
             rospy.sleep(0.1)
             if (feature.reset):
-                feature.save_feature()
+                # feature.save_feature()
                 __ = os.system("rosnode kill Feature_expect")
-                __ = os.system("rosrun habitat_interface get_features.py")
+                __ = os.system("rosrun habitat_interface publish_feat.py")
             # if feature.last_pose_time_stamp is not None:
             #     print("Time is ", (rospy.Time.now()-feature.last_pose_time_stamp).to_sec())
             #     if (rospy.Time.now()-feature.last_pose_time_stamp).to_sec() >8:
@@ -555,7 +629,7 @@ if __name__ == "__main__":
             print(feature.human_past_traj)
             if(feature.either_clear_door() and not one_cleared):
                 print("Either robot or human has cleared door, saving the full traj need to post fix it here maybe")        
-                feature.save_feature()
+                # feature.save_feature()
                 one_cleared = True
                 feature.episode_start = True
             feature.either_clear_door()
@@ -564,15 +638,16 @@ if __name__ == "__main__":
             if (feature.human_cleared):
                 print("Human has cleared the door")
             if (one_cleared and feature.robot_cleared and feature.human_cleared):
-                feature.save_feature()
+                # feature.save_feature()
                 feature.episode_start = False
                 while not feature.reset:
                     continue
                 __ = os.system("rosnode kill Feature_expect")
-                __ = os.system("rosrun habitat_interface get_features.py")
+                __ = os.system("rosrun habitat_interface publish_feat.py")
                 
             
             feature.get_current_feature()
+
 
 
         ### Collecting data from bag file ### 
