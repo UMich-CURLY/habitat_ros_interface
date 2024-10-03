@@ -1,0 +1,5 @@
+title = "Social Force Default Config File"
+
+[social_force]
+num_sqrt_meter_per_ped = 8
+neighbor_stop_radius = 1.0

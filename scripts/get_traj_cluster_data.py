@@ -9,7 +9,7 @@ PARSER.add_argument('-d', '--dataset', default="mp3d", type=str, help='dataset')
 ARGS = PARSER.parse_args()
 dataset = ARGS.dataset
 
-DATA_PATH = "./data/datasets/irl_apr_25_12"
+DATA_PATH = "./data/datasets/irl_may_7_12"
 invalid_scenes = []
 
 def check_neighbor(first, second):

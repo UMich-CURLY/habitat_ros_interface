@@ -36,28 +36,34 @@ from visualization_msgs.msg import Marker, MarkerArray
 from nav_msgs.msg import Path
 import threading
 from message_filters import ApproximateTimeSynchronizer, Subscriber
+from PIL import Image as img
+from tf.transformations import euler_from_quaternion
 
 GRID_RESOLUTION = 0.1
 CLEARANCE_THRESH = 0.5/GRID_RESOLUTION
 GRID_SIZE_IN_M = 6
-# mutex = threading.Lock()
+IMG_RES = 0.052
+mutex = threading.Lock()
 def transform_point(transformation, point_wrt_source):
     point_wrt_target = \
         tf2_geometry_msgs.do_transform_point(PointStamped(point=point_wrt_source),
             transformation).point
     return [point_wrt_target.x, point_wrt_target.y]
 
-def get_transformation(source_frame, target_frame,
+def transform_pose(transformation, pose_wrt_source):
+    pose_wrt_target = tf2_geometry_msgs.do_transform_pose(pose_wrt_source, transformation).pose
+    return pose_wrt_target
+
+def get_transformation(tf_buffer, source_frame, target_frame,
                        tf_cache_duration=2.0):
-    tf_buffer = tf2_ros.Buffer(rospy.Duration(tf_cache_duration))
-    tf2_ros.TransformListener(tf_buffer)
+   
     transformation = None
 
     while transformation is None:
     # get the tf at first available time
         try:
             transformation = tf_buffer.lookup_transform(target_frame,
-                    source_frame, rospy.Time(0), rospy.Duration(0.1))
+                    source_frame, rospy.Time(0), rospy.Duration(0.4))
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException):
             
@@ -122,33 +128,14 @@ def traj_interp(c):
 # Step = namedtuple('Step','cur_state next_state')
 class FeatureExpect():
     def __init__(self, gridsize=(3,3), resolution=1):
-        
+        tf_buffer = tf2_ros.Buffer(rospy.Duration(4.0))
+        tf2_ros.TransformListener(tf_buffer)
         # self.traj_sub = rospy.Subscriber("traj_matrix", numpy_msg(Floats), self.traj_callback,queue_size=100)
-        self.transformation = get_transformation('my_map_frame', 'small_grid_frame')
-        self.inv_transform = get_transformation('small_grid_frame', 'my_map_frame')
-        self.img_transformation = get_transformation('camera_frame', 'small_grid_frame')
-        self.inv_img_transform = get_transformation('small_grid_frame', 'camera_frame')
+        self.transformation = get_transformation(tf_buffer, 'my_map_frame', 'small_grid_frame')
+        self.inv_transform = get_transformation(tf_buffer, 'small_grid_frame', 'my_map_frame')
+        self.img_transformation = get_transformation(tf_buffer, 'camera_frame', 'small_grid_frame')
+        self.inv_img_transform = get_transformation(tf_buffer, 'small_grid_frame', 'camera_frame')
         print("Got all transforms saved!")
-        ### Replace with esfm
-        # self.sub_people = Subscriber("sim/agent_poses", PoseArray, self.people_callback, queue_size=1)
-        # self.sub_robot = Subscriber("sim/robot_pose", PoseStamped, self.get_robot_pose, queue_size=1)
-        self.sub_people = Subscriber("sim/agent_poses", PoseArray)
-        self.sub_robot = Subscriber("sim/robot_pose", PoseStamped)
-        self.sub_door = rospy.Subscriber("sim/door", MarkerArray, self.get_door_pos, queue_size=1)
-        self.sub_ep_start = rospy.Subscriber("start_ep", Bool, self.is_start, queue_size=1)
-        self.sub_click = rospy.Subscriber("/clicked_point", PointStamped,self.point_callback, queue_size=1)
-        # self.sub_goal = rospy.Subscriber("move_base_simple/goal", PoseStamped, self.goal_callback, queue_size=100)
-        self.cloud_pub = rospy.Publisher("semantic_cloud", PointCloud2, queue_size=2)
-        self.sub_img_res = rospy.Subscriber("img_res", Float64, self.set_img_res, queue_size=1)
-        self.image_sub = Subscriber("/robot_2_rgb",Image)
-        self.ts = ApproximateTimeSynchronizer([self.sub_people, self.sub_robot, self.image_sub], 50, 0.1, allow_headerless=False)
-        self.ts.registerCallback(self.get_data)
-        self.reset_sub = rospy.Subscriber("/reload_map_server", Bool, self.reset_callback)
-        self._pub_all_agents = rospy.Publisher("~human_traj", Int32MultiArray, queue_size=5)
-        self._pub_robot = rospy.Publisher("~robot_traj", Int32MultiArray, queue_size=5)
-        self._pub_rgb_img = rospy.Publisher("~rgb_grid", Int32MultiArray, queue_size=5)
-        self._sub_irl_traj = rospy.Subscriber("irl_traj", Int32MultiArray, self.get_irl_traj, queue_size= 1)
-        self._pub_irl_path = rospy.Publisher("irl_path", Path, queue_size= 1)
         self.reset = False
         self.br = CvBridge()
         self.third_rgb_img = cv2.imread("/home/catkin_ws/src/habitat_ros_interface/maps/sample_img.png")
@@ -174,12 +161,43 @@ class FeatureExpect():
         self.counter = 0
         self.grid_size_in_m = GRID_SIZE_IN_M
         self.grid_resolution = GRID_RESOLUTION
-        self.img_res = None 
+        self.img_res = IMG_RES 
         self.grid_dimension = int(self.grid_size_in_m/self.grid_resolution)
         self.grid_img = np.zeros((self.grid_dimension, self.grid_dimension, 3))
         self.overlayed_grid_img = None
         self.update_freq = 1
         self.someone_crossed = False
+        self.prev_query_time = rospy.Time.now()
+        ### Replace with esfm
+        # self.sub_people = Subscriber("sim/agent_poses", PoseArray, self.people_callback, queue_size=1)
+        # self.sub_robot = Subscriber("sim/robot_pose", PoseStamped, self.get_robot_pose, queue_size=1)
+        self.sub_people = Subscriber("sim/agent_poses", PoseArray)
+        self.sub_robot = Subscriber("sim/robot_pose", PoseStamped)
+        self.sub_door = rospy.Subscriber("sim/door", MarkerArray, self.get_door_pos, queue_size=1)
+        self.sub_ep_start = rospy.Subscriber("start_ep", Bool, self.is_start, queue_size=1)
+        self.sub_click = rospy.Subscriber("/clicked_point", PointStamped,self.point_callback, queue_size=1)
+        # self.sub_goal = rospy.Subscriber("move_base_simple/goal", PoseStamped, self.goal_callback, queue_size=100)
+        self.cloud_pub = rospy.Publisher("semantic_cloud", PointCloud2, queue_size=5)
+        self.sub_img_res = rospy.Subscriber("img_res", Float64, self.set_img_res, queue_size=1)
+        self.image_sub = Subscriber("/robot_2_rgb",Image)
+        self.ts = ApproximateTimeSynchronizer([self.sub_people, self.sub_robot, self.image_sub], 5, 0.1, allow_headerless=False)
+        self.ts.registerCallback(self.get_data)
+        self.reset_sub = rospy.Subscriber("/reload_map_server", Bool, self.reset_callback)
+        self._pub_all_agents = rospy.Publisher("~human_traj", Int32MultiArray, queue_size=5)
+        self._pub_human_path = rospy.Publisher("~human_path", Path, queue_size=5)
+        self._pub_robot = rospy.Publisher("~robot_traj", Int32MultiArray, queue_size=5)
+        self._pub_robot_path = rospy.Publisher("~robot_path", Path, queue_size=5)
+        self._pub_rgb_img = rospy.Publisher("~rgb_grid", Int32MultiArray, queue_size=5)
+        self._sub_irl_traj = rospy.Subscriber("irl_traj", Int32MultiArray, self.get_irl_traj, queue_size= 1)
+        self._pub_irl_path = rospy.Publisher("irl_path", Path, queue_size= 1)
+        self._pub_get_traj = rospy.Publisher("query_irl", Bool, queue_size= 1)
+        self.pub_got_cloud = rospy.Publisher("got_cloud", Bool, queue_size= 1)
+        self._pub_robot_angle = rospy.Publisher("robot_angle", Float64, queue_size=1)
+        self._pub_human_angle = rospy.Publisher("human_angle", Float64, queue_size=1)
+        self.sub_robot_goal = rospy.Subscriber("sim/goal", Marker, self.get_robot_goal, queue_size=1)
+        self._pub_robot_goal = rospy.Publisher("~robot_goal", Pose, queue_size= 1)
+        self.robot_angle = []
+        self.human_angle = []
         
     def reset_callback(self, msg):
         self.reset = msg.data
@@ -197,7 +215,8 @@ class FeatureExpect():
                     self.grid_img[int(np.round(j/self.grid_resolution)), int(np.round(i/self.grid_resolution))] = self.third_rgb_img[y,x]
                 except:
                     continue
-        # self.pub_img_cloud()
+        # im = img.fromarray(np.uint8(self.grid_img))
+        # im.save("double_check_image.png")
         # mutex.release()
         
 
@@ -224,49 +243,35 @@ class FeatureExpect():
     
     def grid_to_pix(self, point_2d):
         point =  [int(np.round(point_2d[0]/self.grid_resolution)), int(np.round(point_2d[1]/self.grid_resolution))]
-        if point[0] <0 or point[1] <0:
-            return None
-        if point[0] >self.grid_dimension or point[1]>self.grid_dimension:
-            return None
+        if point[0] <0:
+            point[0] = 0
+        if point[1] <0:
+            point[1] = 0
+        if point[0] >self.grid_dimension:
+            point[0] = self.grid_dimension
+        if point[1] >self.grid_dimension:
+            point[1] = self.grid_dimension
         return point
     
     def either_clear_door(self):
-        self.robot_cleared = has_cleared_door(self.robot_past_traj[-1], self.robot_past_traj[0], [self.door_start, self.door_end])
-        self.human_cleared = has_cleared_door(self.human_past_traj[-1], self.human_past_traj[0], [self.door_start, self.door_end])
-        self.someone_crossed = self.robot_cleared or self.human_cleared
+        try:
+            self.robot_cleared = has_cleared_door(self.robot_past_traj[-1], self.robot_past_traj[0], [self.door_start, self.door_end])
+            self.human_cleared = has_cleared_door(self.human_past_traj[-1], self.human_past_traj[0], [self.door_start, self.door_end])
+            self.someone_crossed = self.robot_cleared or self.human_cleared
+        except:
+            False
         return self.someone_crossed
-
-    def pub_grid_map(self):
-        points = []
-        for i in np.arange(0,self.grid_size_in_m, self.grid_resolution):
-            for j in np.arange(0,self.grid_size_in_m, self.grid_resolution):
-                [x,y] = self.grid_to_map([i, j])
-                try:
-                    [r, g, b] = self.map_img[int(np.round((y+1)/0.025)), int(np.round((x+1)/0.025)), :]
-                    [u,v] = self.grid_to_pix([i,j])
-                    self.grid_img[u,v, :] = self.map_img[int(np.round((y+1)/0.025)), int(np.round((x+1)/0.025)), :]
-                    a = 255
-                    z = 0.1
-                    rgb = struct.unpack('I', struct.pack('BBBB', b, g, r, a))[0]
-                    pt = [x, y, z, rgb]
-                    points.append(pt)
-                except:
-                    continue
-
-        fields = [PointField('x', 0, PointField.FLOAT32, 1),
-        PointField('y', 4, PointField.FLOAT32, 1),
-        PointField('z', 8, PointField.FLOAT32, 1),
-        # PointField('rgb', 12, PointField.UINT32, 1),
-        PointField('rgba', 12, PointField.UINT32, 1),
-        ]
-        header = Header()
-        header.frame_id = "my_map_frame"
-        pc2 = point_cloud2.create_cloud(header, fields, points)
-        pc2.header.stamp = rospy.Time.now()
-        self.cloud_pub.publish(pc2)
 
     def set_img_res(self, msg):
         self.img_res = msg.data
+
+    def get_robot_goal(self, msg):
+        goal = self.map_to_grid([msg.pose.position.x, msg.pose.position.y])
+        self.robot_goal = self.grid_to_pix(goal)
+        goal_msg = Pose()
+        goal_msg.position.x = goal[0]
+        goal_msg.position.y = goal[1]
+        self._pub_robot_goal.publish(goal_msg)
 
     def pub_img_cloud(self):
         points = []
@@ -275,18 +280,19 @@ class FeatureExpect():
         # if self.overlayed_grid_img is None:
         #     self.overlayed_grid_img = self.grid_img.copy()
         #     print("writing overlayed map ")
-
-        for i in np.arange(0,self.grid_size_in_m, self.grid_resolution):
-            for j in np.arange(0,self.grid_size_in_m, self.grid_resolution):
+        mutex.acquire(blocking=True)
+        pub_stamp = rospy.Time.now()
+        for i in np.arange(0,GRID_SIZE_IN_M, GRID_RESOLUTION):
+            for j in np.arange(0,GRID_SIZE_IN_M, GRID_RESOLUTION):
                 [x,y] = self.grid_to_img([i, j])
                 # print("in put and then Point in Image coords is ", [i,j],  [x,y])
                 try:
                     # print("Why ", self.third_rgb_img[y,x])
                     [r,g,b] = self.third_rgb_img[y,x]
-                    if [int(np.round(i/self.grid_resolution)), int(np.round(j/self.grid_resolution))] in self.robot_past_traj:
-                        [r,g,b] = [255,0,0]
-                    if [int(np.round(i/self.grid_resolution)), int(np.round(j/self.grid_resolution))] in self.human_past_traj:
-                        [r,g,b] = [0,255,0]
+                    # if [int(np.round(i/self.grid_resolution)), int(np.round(j/self.grid_resolution))] in self.robot_past_traj:
+                    #     [r,g,b] = [255,0,0]
+                    # if [int(np.round(i/self.grid_resolution)), int(np.round(j/self.grid_resolution))] in self.human_past_traj:
+                    #     [r,g,b] = [0,255,0]
                     a = 255
                     z = 0.1
                     rgb = struct.unpack('I', struct.pack('BBBB', b, g, r, a))[0]
@@ -299,55 +305,68 @@ class FeatureExpect():
         PointField('y', 4, PointField.FLOAT32, 1),
         PointField('z', 8, PointField.FLOAT32, 1),
         # PointField('rgb', 12, PointField.UINT32, 1),
-        PointField('rgba', 12, PointField.UINT32, 1),
+        PointField('rgb', 12, PointField.UINT32, 1),
         ]
         
         header = Header()
         header.frame_id = "small_grid_frame"
         pc2 = point_cloud2.create_cloud(header, fields, points)
-        pc2.header.stamp = rospy.Time.now()
+        pc2.header.stamp = pub_stamp
         self.cloud_pub.publish(pc2)
-
-    def pub_grid_map_test(self):
-        points = []
-        if self.door_middle is None:
-            return
-        
-        for i in np.arange(0,self.grid_size_in_m, self.grid_resolution):
-            for j in np.arange(0,self.grid_size_in_m, self.grid_resolution):
-                [x,y] = self.grid_to_map([i, j])
-                try:
-                    on_same_side = has_cleared_door([i/self.grid_resolution,j/self.grid_resolution], [1,1], [self.door_start, self.door_end])
-                    if on_same_side:
-                        [r, g, b] = [255,0,0]
-                    else:
-                        [r, g, b] = [0, 255, 0]
-                    [u,v] = self.grid_to_pix([i,j])
-                    self.grid_img[u,v, :] = self.map_img[int(np.round((y+1)/0.025)), int(np.round((x+1)/0.025)), :]
-                    a = 255
-                    z = 0.1
-                    rgb = struct.unpack('I', struct.pack('BBBB', b, g, r, a))[0]
-                    pt = [x, y, z, rgb]
-                    points.append(pt)
-                except:
-                    continue
-        fields = [PointField('x', 0, PointField.FLOAT32, 1),
-        PointField('y', 4, PointField.FLOAT32, 1),
-        PointField('z', 8, PointField.FLOAT32, 1),
-        # PointField('rgb', 12, PointField.UINT32, 1),
-        PointField('rgba', 12, PointField.UINT32, 1),
-        ]
-        header = Header()
-        header.frame_id = "my_map_frame"
-        pc2 = point_cloud2.create_cloud(header, fields, points)
-        pc2.header.stamp = rospy.Time.now()
-        self.cloud_pub.publish(pc2)
-
+        self.pub_got_cloud.publish(True)
+        robot_msg = Path()
+        robot_msg.header.frame_id = "small_grid_frame"
+        robot_msg.header.stamp = pub_stamp
+        print("These should be same ", self.robot_pose_2d, self.robot_past_traj[-1])
+        if not (self.robot_pose_2d == self.robot_past_traj[-1]):
+            print("Maybe there is some looping, should stop saving only new points")
+        quat = tf.transformations.euler_from_quaternion(self.robot_angle)
+        # print("The quaternion afetr tranform is ", quat)
+        for xy in [self.robot_pose_2d]:
+            pose = PoseStamped()
+            pose.header.stamp = pub_stamp
+            pose.header.frame_id = "small_grid_frame"
+            pose.pose.position.x = xy[0]*GRID_RESOLUTION
+            pose.pose.position.y = xy[1]*GRID_RESOLUTION
+            pose.pose.position.z = 0.0
+            pose.pose.orientation.x = 0.0
+            pose.pose.orientation.y = 0.0
+            pose.pose.orientation.z = -quat[2]
+            pose.pose.orientation.w = np.sqrt(1-quat[2]**2)
+            robot_msg.poses.append(pose)
+        self._pub_robot_path.publish(robot_msg)
+        print("Published robot path")
+        human_msg = Path()
+        human_msg.header.frame_id = "small_grid_frame"
+        human_msg.header.stamp = pub_stamp
+        i = 0
+        quat = tf.transformations.euler_from_quaternion(self.human_angle[-1])
+        for xy in np.array(self.human_past_traj):
+            pose = PoseStamped()
+            pose.header.stamp = pub_stamp
+            pose.header.frame_id = "small_grid_frame"
+            pose.pose.position.x = xy[0]*GRID_RESOLUTION
+            pose.pose.position.y = xy[1]*GRID_RESOLUTION
+            pose.pose.position.z = 0.0
+            pose.pose.orientation.x = 0.0
+            pose.pose.orientation.y = 0.0
+            pose.pose.orientation.z = -quat[2]
+            pose.pose.orientation.w = np.sqrt(1-quat[2]**2)
+            human_msg.poses.append(pose)
+        self._pub_human_path.publish(human_msg)
+        print("Published human path")
+        mutex.release()
 
     def get_robot_pose(self, msg):
-        if (self.end_point):
-            return True
+        # if (self.end_point):
+        #     return True
         # rospy.loginfo('Pose received at ')
+        # mutex.acquire(blocking=True)
+        robot_pose_grid = transform_pose(self.transformation, msg)
+        orientation = [robot_pose_grid.orientation.x, robot_pose_grid.orientation.y, robot_pose_grid.orientation.z, robot_pose_grid.orientation.w]
+        self.robot_angle = orientation
+        # self._pub_robot_angle.publish(self.robot_angle)
+        print("Robot angle is ", self.robot_angle)
         if (self.start_point == False):
 
             self.last_pose_time_stamp = rospy.Time.now()
@@ -358,8 +377,7 @@ class FeatureExpect():
             self.start_point = True
             if (self.robot_pose_2d) is not None:
                 # self.overlayed_grid_img[self.robot_pose_2d[1], self.robot_pose_2d[0]] = [255,0,0]
-                if self.robot_pose_2d not in self.robot_past_traj:
-                    self.robot_past_traj.append(self.robot_pose_2d)
+                self.robot_past_traj.append(self.robot_pose_2d)
             else:
                 print("robot not in frame anymore", self.robot_pose_2d)
                 pass
@@ -371,12 +389,13 @@ class FeatureExpect():
             
             if (self.robot_pose_2d) is not None:
                 # self.overlayed_grid_img[self.robot_pose_2d[1], self.robot_pose_2d[0]] = [255,0,0]
-                if self.robot_pose_2d not in self.robot_past_traj:
+                if not self.robot_pose_2d == self.robot_past_traj[-1]:
                     self.robot_past_traj.append(self.robot_pose_2d)
                     self.last_pose_time_stamp = rospy.Time.now()
             else:
                 print("robot not in frame anymore")
                 pass
+        # mutex.release()
     
 
                 
@@ -398,39 +417,36 @@ class FeatureExpect():
         self.traj_feature = [[cell] for cell in data.data]
 
     def people_callback(self,msg):
-            # print(percent_change)
-        
+        # mutex.acquire(blocking=True)
         human_pos_map = [msg.poses[0].position.x, msg.poses[0].position.y]
         human_pos_grid = self.map_to_grid(human_pos_map)
         self.human_pose_2d = self.grid_to_pix(human_pos_grid)
+        a = PoseStamped()
+        a.header = msg.header
+        a.pose = msg.poses[0]
+        human_pose_grid = transform_pose(self.transformation, a)
+        orientation = [human_pose_grid.orientation.x, human_pose_grid.orientation.y, human_pose_grid.orientation.z, human_pose_grid.orientation.w]
+        
         if self.human_pose_2d is not None:
             # self.overlayed_grid_img[self.human_pose_2d[1], self.human_pose_2d[0]] = [0,255,0]
             if (self.human_pose_2d not in self.human_past_traj):
                 self.human_past_traj.append(self.human_pose_2d)
+                self.human_angle.append(orientation)
+            else:
+                if not (self.human_pose_2d == self.human_past_traj[-1]):
+                    self.human_past_traj.append(self.human_pose_2d)
+                    self.human_angle.append(orientation)
         else:
             print("Human not in grid anymore")
             pass
-    
-    def save_feature(self):
-        self.end_point = True
-        with open(self.full_path+ "/traj.npy", 'wb') as f:
-            np.save(f, np.array(self.robot_past_traj))
-        max_num = 0
-        for foldername in os.listdir(OUT_DIR):
-            number_str = "_"
-            valid = False
-            m = foldername[5:]
-            max_num = max(max_num,int(m))
-        next_folder_name = OUT_DIR+"demo_"+str(max_num)
-        entry = os.listdir(next_folder_name)
-        if (not (len(entry) == 0)):
-            next_folder_name = OUT_DIR+"demo_"+str(max_num+1)
-            __ = os.system("mkdir " + next_folder_name)
-        print ("new folder is , continue?", next_folder_name)
-        self.full_path = next_folder_name
-        self.end_point = False
-        self.start_point = False
-        self.counter = 0
+        # mutex.release()
+
+    def get_data(self, *msg):
+        print("No data? ", len(msg))
+        self.people_callback(msg[0])
+        self.get_robot_pose(msg[1])
+        self.img_callback(msg[2])
+        self.pub_img_cloud()
 
     def get_current_feature(self):
         # self.goal_sink = self.get_goal_sink_feature()
@@ -438,74 +454,80 @@ class FeatureExpect():
         ### Publish human agent position 
         # rospy.loginfo("Publishing start")
         # mutex.acquire(blocking=True)
+        self._pub_get_traj.publish(True)
+        print("Time between queries is ", (rospy.Time.now()-self.prev_query_time).to_sec())
+        self.prev_query_time = rospy.Time.now()
         # self.pub_img_cloud()
-        msg = Int32MultiArray()
-        data = traj_interp(np.array(self.human_past_traj))
-        layout = MultiArrayLayout()
-        dim0 = MultiArrayDimension()
-        dim1 = MultiArrayDimension()
-        dim0.label = "human_traj"
-        dim1.label = "xy1"
-        dim0.stride = len(data)*2
-        dim0.size = len(data)
-        dim1.size = 2
-        dim1.stride = 2
-        layout.dim.append(dim0)
-        layout.dim.append(dim1)
-        layout.data_offset = 0
-        msg.layout = layout
-        data = data.reshape([1,len(data)*2])
-        msg.data = np.ndarray.tolist(data[0])
-        self._pub_all_agents.publish(msg)
-        
-        
-        ### Publish robot array in grid 
-        ### Publish human agent position 
-        msg = Int32MultiArray()
-        data = (np.array(self.robot_past_traj))
-        layout = MultiArrayLayout()
-        dim0 = MultiArrayDimension()
-        dim1 = MultiArrayDimension()
-        dim0.label = "robot_traj"
-        dim1.label = "xy0"
-        dim0.stride = len(data)*2
-        dim0.size = len(data)
-        print(data, dim0)
-        dim1.size = 2
-        dim1.stride = 2
-        layout.dim.append(dim0)
-        layout.dim.append(dim1)
-        layout.data_offset = 0
-        msg.layout = layout
-        data = data.reshape([1,len(data)*2])
-        msg.data = np.ndarray.tolist(data[0])
-        self._pub_robot.publish(msg)
 
-        ### Publish image array in grid 
-        msg = Int32MultiArray()
-        data = self.grid_img.astype(int)
-        layout = MultiArrayLayout()
-        dim0 = MultiArrayDimension()
-        dim1 = MultiArrayDimension()
-        dim2 = MultiArrayDimension()
-        dim0.label = "x"
-        dim1.label = "y"
-        dim2.label = "rgb"
-        dim0.stride = data.shape[0]*data.shape[1]*data.shape[2]
-        dim0.size = data.shape[0]
-        dim1.size = data.shape[1]
-        dim1.stride = data.shape[1]*data.shape[2]
-        dim2.size = data.shape[2]
-        dim2.stride = data.shape[2]
-        layout.dim.append(dim0)
-        layout.dim.append(dim1)
-        layout.dim.append(dim2)
-        layout.data_offset = 0
-        msg.layout = layout
-        data = data.reshape([1,data.shape[0]*data.shape[1]*data.shape[2]])
-        msg.data = np.ndarray.tolist(data[0])
-        self._pub_rgb_img.publish(msg)
-        self.counter += 1
+        # msg = Int32MultiArray()
+        # data = traj_interp(np.array(self.human_past_traj))
+        # layout = MultiArrayLayout()
+        # dim0 = MultiArrayDimension()
+        # dim1 = MultiArrayDimension()
+        # dim0.label = "human_traj"
+        # dim1.label = "xy1"
+        # dim0.stride = len(data)*2
+        # dim0.size = len(data)
+        # dim1.size = 2
+        # dim1.stride = 2
+        # layout.dim.append(dim0)
+        # layout.dim.append(dim1)
+        # layout.data_offset = 0
+        # msg.layout = layout
+        # data = data.reshape([1,len(data)*2])
+        # msg.data = np.ndarray.tolist(data[0])
+        # self._pub_all_agents.publish(msg)
+        
+        
+        # ### Publish robot array in grid 
+        # ### Publish human agent position 
+        # msg = Int32MultiArray()
+        # data = (np.array(self.robot_past_traj))
+        # layout = MultiArrayLayout()
+        # dim0 = MultiArrayDimension()
+        # dim1 = MultiArrayDimension()
+        # dim0.label = "robot_traj"
+        # dim1.label = "xy0"
+        # dim0.stride = len(data)*2
+        # dim0.size = len(data)
+        # print(data, dim0)
+        # dim1.size = 2
+        # dim1.stride = 2
+        # layout.dim.append(dim0)
+        # layout.dim.append(dim1)
+        # layout.data_offset = 0
+        # msg.layout = layout
+        # data = data.reshape([1,len(data)*2])
+        # msg.data = np.ndarray.tolist(data[0])
+        # self._pub_robot.publish(msg)
+
+        # ### Publish image array in grid 
+        # msg = Int32MultiArray()
+        # data = self.grid_img.astype(int)
+        # layout = MultiArrayLayout()
+        # dim0 = MultiArrayDimension()
+        # dim1 = MultiArrayDimension()
+        # dim2 = MultiArrayDimension()
+        # dim0.label = "x"
+        # dim1.label = "y"
+        # dim2.label = "rgb"
+        # dim0.stride = data.shape[0]*data.shape[1]*data.shape[2]
+        # dim0.size = data.shape[0]
+        # dim1.size = data.shape[1]
+        # dim1.stride = data.shape[1]*data.shape[2]
+        # dim2.size = data.shape[2]
+        # dim2.stride = data.shape[2]
+        # layout.dim.append(dim0)
+        # layout.dim.append(dim1)
+        # layout.dim.append(dim2)
+        # layout.data_offset = 0
+        # msg.layout = layout
+        # data = data.reshape([1,data.shape[0]*data.shape[1]*data.shape[2]])
+        # msg.data = np.ndarray.tolist(data[0])
+        # self._pub_rgb_img.publish(msg)
+        # self.counter += 1
+
+
         # rospy.loginfo("Publishing stop")
         # mutex.release()
 
@@ -516,14 +538,14 @@ class FeatureExpect():
         irl_traj_map = []
         for i in range(length):
             point = [irl_traj_sem[0][i], irl_traj_sem[1][i]]
-            print("Points are ", point)
-            point[0] = (point[0])*self.grid_resolution
-            point[1] = (point[1])*self.grid_resolution
+            # print("Points are ", point)
+            point[0] = (point[0])*GRID_RESOLUTION
+            point[1] = (point[1])*GRID_RESOLUTION
             world_coordinates = self.grid_to_map([point[0], point[1]])
             irl_traj_map.append(world_coordinates)
-        print("Traj start in map is ",irl_traj_map[0])
-        print("Robot pose in grid is ", self.robot_pose_2d)
-        print("Traj start in grid is ", irl_traj_sem[0][0], irl_traj_sem[1][0])
+        # print("Traj start in map is ",irl_traj_map[0])
+        # print("Robot pose in grid is ", self.robot_pose_2d)
+        # print("Traj start in grid is ", irl_traj_sem[0][0], irl_traj_sem[1][0])
         self.path_msg = Path()
         self.path_msg.header.frame_id = "my_map_frame"
         self.path_msg.header.stamp = rospy.Time.now()
@@ -542,94 +564,16 @@ class FeatureExpect():
         self._pub_irl_path.publish(self.path_msg)
         
 
-    def get_goal_sink_feature(self, goal_band = [1.0,1.5]):
-        empty_image = 0*np.ones(self.semantic_img.shape)
-        robot_start_pose = self.traj[0]
-        robot_start_coord = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], robot_start_pose[0], robot_start_pose[1], self.robot_height)
-        robot_dist = self.get_dist_from_door(robot_start_pose)
-        goal_band[0] = robot_dist - 0.05
-        goal_band[1] = robot_dist + 0.05
-        self.ep_goal_band = goal_band
-        print(goal_band)
-        for i in range(0,self.semantic_img.shape[0],1):
-            for j in range(0,self.semantic_img.shape[1], 1):
-                world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1],i,j, self.robot_height)
-                # print("Coords", world_coordinates[2], world_coordinates[0])
-                world_coordinates[1] = self.robot_height
-                # reverse = world_to_sem_img(self.semantic_img_proj_mat, self.semantic_img_camera_mat, world_coordinates, self.semantic_img.shape[0], self.semantic_img.shape[1])
-                # print([i,j], reverse)
-                if(self.is_point_in_band([i,j], goal_band)):
-                    if(self.is_point_on_other_side(robot_start_coord, world_coordinates)):
-                        empty_image[i,j] = [255,0,0]
-                    else:
-                        empty_image[i,j] = [0,255,0]
-        return empty_image
+    
     
     def point_callback(self, data):
         self.episode_start = True
 
-    def is_point_in_band(self, point, goal_band = [1.0,1.5]):
-        dist = self.get_dist_from_door(point)
-        if (dist >goal_band[0] and dist< goal_band[1]):
-            return True
-        else:
-            return False
-    def get_dist_from_door(self,point):
-        center_gt = [self.door_center[2], self.door_center[0]]
-        world_coordinates = sem_img_to_world(self.semantic_img_proj_mat, self.semantic_img_camera_mat, self.semantic_img.shape[0], self.semantic_img.shape[1], point[0], point[1], self.robot_height)
-        [x,y] = [world_coordinates[2], world_coordinates[0]]
-        dist = np.linalg.norm(np.array(center_gt)-np.array([x,y]))
-        return dist
+
     
-    def get_dist_from_door_3d(self,point3d):
-        center_gt = [self.door_center[2], self.door_center[0]]
-        [x,y] = [point3d[2], point3d[0]]
-        dist = np.linalg.norm(np.array(center_gt)-np.array([x,y]))
-        return dist
     
-    def is_point_on_other_side(self, p1, p2):
-        transform = self.world_to_door
-        p1_local = np.matmul(transform, np.append(p1,1.0).T)
-        p2_local = np.matmul(transform, np.append(p2,1.0).T)
-        y1 = p1_local[2]
-        y2 = p2_local[2]
-        x1 = p1_local[1]
-        x2 = p2_local[1]
-
-        if (np.sign(y1) == np.sign(y2) or abs(y1) <5 or abs(y2)<5):
-            return False
-        else:
-            # print(p1_local, p2_local)
-            return True
-        
-
-
-    def rot2eul(self, R) :
-
-        sy = np.sqrt(R[0,0] * R[0,0] + R[1,0] * R[1,0])
-
-        singular = sy < 1e-6
-
-        if not singular :
-            z = np.arctan2(R[1,0], R[0,0])
-        else :
-            z = 0
-
-        return z
-
-    # def reset_robot(self):
-    #     self.initpose_pub.publish(self.initpose)
-        # print("Publish successfully")
-
-        
-    def get_data(self, *msg):
-        print("No data? ", len(msg))
-        self.people_callback(msg[0])
-        self.get_robot_pose(msg[1])
-        self.img_callback(msg[2])
-
-
-
+    
+   
 if __name__ == "__main__":
         rospy.init_node("Feature_expect",anonymous=False)
         # initpose_pub = rospy.Publisher("/initialpose", PoseWithCovarianceStamped, queue_size=1)
@@ -638,11 +582,12 @@ if __name__ == "__main__":
         one_cleared = False
         ### Collecting real-time data ###
         while(not rospy.is_shutdown()):
-            rospy.sleep(0.2)
+            
             if (feature.reset):
                 # feature.save_feature()
+                print("Resetting  1")
                 __ = os.system("rosnode kill Feature_expect")
-                __ = os.system("rosrun habitat_interface publish_feat.py")
+                __ = os.system("rosrun habitat_interface pub_feat.py")
             # if feature.last_pose_time_stamp is not None:
             #     print("Time is ", (rospy.Time.now()-feature.last_pose_time_stamp).to_sec())
             #     if (rospy.Time.now()-feature.last_pose_time_stamp).to_sec() >8:
@@ -654,7 +599,11 @@ if __name__ == "__main__":
             
             if feature.door_start is None:
                 continue
-            if len(feature.robot_past_traj) <2 and len(feature.human_past_traj) <2:
+            if len(feature.robot_past_traj) <1 or len(feature.human_past_traj) <1:
+                continue
+            # feature.get_current_feature()
+            rospy.sleep(0.1)
+            if len(feature.robot_past_traj) <2 or len(feature.human_past_traj) <2:
                 continue
             print(feature.human_past_traj)
             if(feature.either_clear_door() and not one_cleared):
@@ -672,13 +621,11 @@ if __name__ == "__main__":
                 feature.episode_start = False
                 while not feature.reset:
                     continue
+                print("Resetting  2")
                 __ = os.system("rosnode kill Feature_expect")
-                __ = os.system("rosrun habitat_interface publish_feat.py")
+                __ = os.system("rosrun habitat_interface pub_feat.py")
                 
-            if feature.robot_pose_2d is not None:
-                feature.get_current_feature()
             
-
 
 
         ### Collecting data from bag file ### 

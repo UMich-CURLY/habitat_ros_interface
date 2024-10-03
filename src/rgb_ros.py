@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 from std_msgs.msg import Bool
 import os
+import std_msgs
 rospy.init_node("nprgb2ros_rgb",anonymous=False)
 
 pub_1 = rospy.Publisher("robot_1_rgb", Image, queue_size=10)
@@ -25,6 +26,9 @@ def callback_1(data):
     img_size = data.data[-2:].astype(int)
     img = (np.reshape(img_raveled, (img_size[0], img_size[1], 3))).astype(np.uint8)
     image_message = CvBridge().cv2_to_imgmsg(img, encoding="rgb8")
+    h = std_msgs.msg.Header()
+    h.stamp = rospy.Time.now()
+    image_message.header = h
     pub_1.publish(image_message)
 
 def callback_2(data):
@@ -33,6 +37,9 @@ def callback_2(data):
 
     img = (np.reshape(img_raveled, (img_size[0], img_size[1], 3))).astype(np.uint8)
     image_message = CvBridge().cv2_to_imgmsg(img, encoding="rgb8")
+    h = std_msgs.msg.Header()
+    h.stamp = rospy.Time.now()
+    image_message.header = h
     pub_2.publish(image_message)
 
 def callback_3(data):
@@ -41,6 +48,9 @@ def callback_3(data):
 
     img = (np.reshape(img_raveled, (img_size[0], img_size[1], 3))).astype(np.uint8)
     image_message = CvBridge().cv2_to_imgmsg(img, encoding="rgb8")
+    h = std_msgs.msg.Header()
+    h.stamp = rospy.Time.now()
+    image_message.header = h
     pub_3.publish(image_message)
 
 def callback_4(msg):
