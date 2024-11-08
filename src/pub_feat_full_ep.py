@@ -341,7 +341,7 @@ class FeatureExpect():
         quat = tf.transformations.euler_from_quaternion(self.robot_angle)
         print("The quaternion afetr tranform is ", quat)
         hack = -quat[2]/10
-        for xy in [self.robot_pose_2d]:
+        for xy in self.robot_past_traj:
             pose = PoseStamped()
             pose.header.stamp = pub_stamp
             pose.header.frame_id = "small_grid_frame"
@@ -404,26 +404,26 @@ class FeatureExpect():
             robot_pos_grid = self.map_to_grid(robot_pos_map)
             self.robot_pose_2d = self.grid_to_pix(robot_pos_grid)
             self.start_point = True
-            # if (self.robot_pose_2d) is not None:
-            #     # self.overlayed_grid_img[self.robot_pose_2d[1], self.robot_pose_2d[0]] = [255,0,0]
-            #     self.robot_past_traj.append(self.robot_pose_2d)
-            # else:
-            #     print("robot not in frame anymore", self.robot_pose_2d)
-            #     pass
+            if (self.robot_pose_2d) is not None:
+                # self.overlayed_grid_img[self.robot_pose_2d[1], self.robot_pose_2d[0]] = [255,0,0]
+                self.robot_past_traj.append(self.robot_pose_2d)
+            else:
+                print("robot not in frame anymore", self.robot_pose_2d)
+                pass
         else:
 
             robot_pos_map = [msg.pose.position.x, msg.pose.position.y]
             robot_pos_grid = self.map_to_grid(robot_pos_map)
             self.robot_pose_2d = self.grid_to_pix(robot_pos_grid)
             
-            # if (self.robot_pose_2d) is not None:
-            #     # self.overlayed_grid_img[self.robot_pose_2d[1], self.robot_pose_2d[0]] = [255,0,0]
-            #     if not self.robot_pose_2d == self.robot_past_traj[-1]:
-            #         self.robot_past_traj.append(self.robot_pose_2d)
-            #         self.last_pose_time_stamp = rospy.Time.now()
-            # else:
-            #     print("robot not in frame anymore")
-            #     pass
+            if (self.robot_pose_2d) is not None:
+                # self.overlayed_grid_img[self.robot_pose_2d[1], self.robot_pose_2d[0]] = [255,0,0]
+                if not self.robot_pose_2d == self.robot_past_traj[-1]:
+                    self.robot_past_traj.append(self.robot_pose_2d)
+                    self.last_pose_time_stamp = rospy.Time.now()
+            else:
+                print("robot not in frame anymore")
+                pass
         # mutex.release()
     
 
